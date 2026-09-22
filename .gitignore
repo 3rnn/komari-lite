@@ -21,19 +21,23 @@ credentials/
 *passphrase*
 
 # Backups, releases, and generated binaries
-backup/
-backups/
-rollback/
+# Root-anchored: source packages such as backend/web/backup/ must stay tracked.
+/backup/
+/backups/
+/rollback/
+/komari
+/komari.new
+/komari.prev.*
+*.exe
 *.zip
 *.tar
 *.tar.*
-*.gz
 *.tgz
 *.new
 *.prev.*
-komari
-komari-*
 agent-release/
+release/
+agent/build/
 
 # Frontend / Go build caches
 frontend/node_modules/
