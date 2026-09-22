@@ -7,8 +7,10 @@ version="${1:?usage: $0 <version> [output-directory]}"
 out="${2:-$root/release/agent-$version}"
 
 command -v go >/dev/null || { echo 'Go is required' >&2; exit 1; }
-rm -rf "$out"
 mkdir -p "$out"
+# A release directory may also contain the panel binary. Remove only artifacts
+# owned by this script so building Agents never deletes the panel release.
+rm -f "$out"/komari-agent-* "$out"/manifest.json "$out"/SHA256SUMS.txt
 
 targets=(
   linux/amd64 linux/arm64 linux/386 linux/arm linux/loong64
