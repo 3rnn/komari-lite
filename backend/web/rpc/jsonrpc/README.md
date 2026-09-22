@@ -113,7 +113,7 @@ handler 退化为薄适配层：解析 gin 参数 → 调 RPC → 把响应映�
 
 | 命名空间 | 方法（文件） |
 | --- | --- |
-| `admin` | client CRUD、ping task、session/settings/weight、notification（load/offline/traffic）、clipboard、provider（messageSender/oidc）、task 查询、system（logs/cloudflared/exec/test）、xtermjs |
+| `admin` | client CRUD、client deployment、ping task、session/settings/weight、notification（load/offline/traffic）、provider（messageSender/oidc）、dashboard（settings/alerts/cache/latency/packet loss）、metric、database、preferences、system（logs/test） |
 | `public` | getMe、getNodesInformation、getPublicSettings、getVersion、getClientRecentRecords、getRecordsByUUID、getPingRecords、getPublicPingTasks、recordVisitorEvent |
 | `client` | getPingTasks、uploadPingResult、taskResult |
 
@@ -135,7 +135,7 @@ r.GET("/api/admin/client/:uuid", jsonRpc.Bind("admin:getClient", jsonRpc.WithPat
 
 ### 保留为 REST 的接口（不走 RPC 桥）
 
-二进制/流/重定向/特殊鉴权类，集中在 `web/api/admin`（2fa/theme/backup/update/oauth 绑定）、
-`web/api/public`（login/logout/oauth/mjpeg）、`web/api/client`（report WS+POST、v2 RPC、uploadBasicInfo、terminal、AutoDiscovery 注册）。
+二进制/流/重定向/特殊鉴权类，集中在 `web/api/admin`（2fa/theme settings/backup/update/oauth/https/traffic calibration/download）、
+`web/api/public`（login/logout/oauth/mjpeg、agent distribution+installers）、`web/api/client`（report WS+POST、v2 RPC、uploadBasicInfo、runtime config、AutoDiscovery 注册）。
 
 agent v1/v2 上报的核心逻辑已统一到 `web/api/client/ingest.go`。

@@ -70,7 +70,10 @@ func defaultLayouts(goos, home, programFiles string) (legacy, modern []layout) {
 }
 
 func detectPlan(goos, executable, home, programFiles string) (plan, bool) {
-	execDir := filepath.Clean(filepath.Dir(executable))
+	// Separators are normalized first so a Windows-style path is understood even
+	// when the check runs on another OS; the resulting path stays valid on Windows
+	// because both separators are accepted there.
+	execDir := normalizeDir(filepath.Dir(normalizeSeparators(executable, goos)), goos)
 	legacy, modern := defaultLayouts(goos, home, programFiles)
 	for i, from := range legacy {
 		if !sameDir(execDir, from.Dir, goos) {
@@ -93,7 +96,7 @@ func detectPlan(goos, executable, home, programFiles string) (plan, bool) {
 // two official launchd labels. It does not scan LaunchDaemons; leftover
 // komari-agent plists must not hide a Lite-agent that is already on the new path.
 func officialLaunchdServiceForExecutable(executable, home string, plistExists func(label string) bool) (string, bool) {
-	execDir := filepath.Clean(filepath.Dir(executable))
+	execDir := normalizeDir(filepath.Dir(normalizeSeparators(executable, "darwin")), "darwin")
 	legacy, modern := defaultLayouts("darwin", home, "")
 	for _, item := range modern {
 		if !sameDir(execDir, item.Dir, "darwin") {
@@ -117,7 +120,7 @@ func officialLaunchdServiceForExecutable(executable, home string, plistExists fu
 }
 
 func onModernLayout(goos, executable, home, programFiles string) bool {
-	execDir := filepath.Clean(filepath.Dir(executable))
+	execDir := normalizeDir(filepath.Dir(normalizeSeparators(executable, goos)), goos)
 	_, modern := defaultLayouts(goos, home, programFiles)
 	for _, to := range modern {
 		if sameDir(execDir, to.Dir, goos) {
@@ -127,9 +130,23 @@ func onModernLayout(goos, executable, home, programFiles string) bool {
 	return false
 }
 
+// normalizeSeparators converts Windows-style separators to forward slashes when
+// the layout being inspected is a Windows one, so the same comparison works on any
+// host OS. Windows accepts both separators, so the result stays usable.
+func normalizeSeparators(path, goos string) string {
+	if goos == "windows" {
+		return strings.ReplaceAll(path, `\`, "/")
+	}
+	return path
+}
+
+func normalizeDir(path, goos string) string {
+	return filepath.Clean(normalizeSeparators(path, goos))
+}
+
 func sameDir(a, b, goos string) bool {
-	left := filepath.Clean(a)
-	right := filepath.Clean(b)
+	left := normalizeDir(a, goos)
+	right := normalizeDir(b, goos)
 	if goos == "windows" {
 		return strings.EqualFold(left, right)
 	}

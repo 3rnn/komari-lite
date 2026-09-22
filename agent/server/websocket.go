@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	pkg_flags "github.com/nuomiiiii/lite-agent/cmd/flags"
 	"github.com/nuomiiiii/lite-agent/dnsresolver"
 	"github.com/nuomiiiii/lite-agent/monitoring"
 	v2 "github.com/nuomiiiii/lite-agent/protocol/v2"
@@ -39,16 +38,14 @@ const (
 	remoteWebSocketReadLimit    = 2 << 20
 )
 
-var v2BasePullCapabilities = []string{"exec", "ping", "message", "event", "remote", "files", "config"}
+// The slim Agent implements monitoring only: ping probes, panel messages, event
+// acknowledgement and runtime config delivery. Remote control, terminal, exec,
+// file transfer and MCP capabilities are deliberately absent, so they must never
+// be advertised to the panel.
+var v2BasePullCapabilities = []string{"ping", "message", "event", "config"}
 
 func currentV2PullCapabilities() ([]string, map[string]int) {
-	caps := append([]string(nil), v2BasePullCapabilities...)
-	versions := map[string]int{}
-	if pkg_flags.RemoteControlEnabled() {
-		caps = append(caps, v2.CapabilityMCPFull)
-		versions[v2.CapabilityMCPFull] = v2.MCPFullVersion
-	}
-	return caps, versions
+	return append([]string(nil), v2BasePullCapabilities...), map[string]int{}
 }
 
 func v2PullPayload(ackIDs []string) []byte {

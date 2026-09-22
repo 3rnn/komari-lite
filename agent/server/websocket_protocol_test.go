@@ -10,51 +10,47 @@ import (
 	pkg_flags "github.com/nuomiiiii/lite-agent/cmd/flags"
 )
 
-func TestV2PullCapabilitiesIncludeRemoteNotTerminal(t *testing.T) {
-	hasRemote, hasTerminal := false, false
-	for _, capability := range v2BasePullCapabilities {
-		if capability == "remote" {
-			hasRemote = true
-		}
-		if capability == "terminal" {
-			hasTerminal = true
+func TestV2PullCapabilitiesExposeMonitoringOnly(t *testing.T) {
+	required := []string{"ping", "message", "event", "config"}
+	forbidden := []string{"terminal", "remote", "files", "exec", "mcp_full", "route"}
+
+	caps, versions := currentV2PullCapabilities()
+	advertised := make(map[string]bool, len(caps))
+	for _, capability := range caps {
+		advertised[capability] = true
+	}
+
+	for _, want := range required {
+		if !advertised[want] {
+			t.Fatalf("pull capabilities missing %q: %v", want, caps)
 		}
 	}
-	if !hasRemote {
-		t.Fatal("pull capabilities must include remote")
-	}
-	if hasTerminal {
-		t.Fatal("pull capabilities must not include terminal")
-	}
-	for _, required := range []string{"files", "exec", "ping", "route", "message", "event", "config"} {
-		found := false
-		for _, capability := range v2BasePullCapabilities {
-			if capability == required {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Fatalf("pull capabilities missing %q: %v", required, v2BasePullCapabilities)
+	for _, unwanted := range forbidden {
+		if advertised[unwanted] {
+			t.Fatalf("pull capabilities must not advertise removed capability %q: %v", unwanted, caps)
 		}
 	}
-	for _, capability := range v2BasePullCapabilities {
-		if capability == "mcp_full" {
-			t.Fatal("base pull capabilities must not include mcp_full; advertise it only when remote control is enabled")
-		}
+	if len(versions) != 0 {
+		t.Fatalf("pull capability versions = %v, want none", versions)
 	}
 }
 
-func TestV2PullPayloadAdvertisesMCPFullWhenRemoteControlEnabled(t *testing.T) {
+func TestV2PullPayloadKeepsRemovedCapabilitiesAbsent(t *testing.T) {
 	original := pkg_flags.GlobalConfig.RemoteControlEnabled
 	t.Cleanup(func() { pkg_flags.GlobalConfig.RemoteControlEnabled = original })
+
+	// The legacy flag is still parsed for compatibility with installed nodes, but
+	// it must never bring remote file, exec, terminal or MCP capabilities back.
 	pkg_flags.GlobalConfig.RemoteControlEnabled = true
+
 	payload := v2PullPayload(nil)
 	if !bytes.Contains(payload, []byte(`"method":"agent.pull"`)) {
 		t.Fatalf("pull payload missing agent.pull: %s", payload)
 	}
-	if !bytes.Contains(payload, []byte(`"mcp_full"`)) {
-		t.Fatalf("pull payload missing mcp_full: %s", payload)
+	for _, unwanted := range []string{"mcp_full", `"exec"`, `"remote"`, `"files"`, `"terminal"`, `"route"`} {
+		if bytes.Contains(payload, []byte(unwanted)) {
+			t.Fatalf("pull payload must not advertise %s: %s", unwanted, payload)
+		}
 	}
 }
 
@@ -64,42 +60,28 @@ func TestHandleWebSocketAdvertisesPullAfterConnect(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !bytes.Contains(source, []byte("advertiseV2PullCapabilities(conn)")) {
-		t.Fatal("websocket connect must advertise pull capabilities so Lite can record mcp_full")
+		t.Fatal("websocket connect must advertise pull capabilities so the panel can record the Agent's monitoring abilities")
 	}
 	if !bytes.Contains(source, []byte("if message.Method == \"\"")) {
 		t.Fatal("websocket read loop must ignore pull RPC responses without a method")
 	}
 }
 
-func TestV2PullAdvertisesMCPFullOnlyWhenRemoteControlEnabled(t *testing.T) {
+func TestV2PullAdvertisesNoRemoteCapability(t *testing.T) {
 	original := pkg_flags.GlobalConfig.RemoteControlEnabled
 	t.Cleanup(func() { pkg_flags.GlobalConfig.RemoteControlEnabled = original })
 
-	pkg_flags.GlobalConfig.RemoteControlEnabled = false
-	caps, versions := currentV2PullCapabilities()
-	for _, capability := range caps {
-		if capability == "mcp_full" {
-			t.Fatal("disabled remote control must not advertise mcp_full")
+	for _, enabled := range []bool{false, true} {
+		pkg_flags.GlobalConfig.RemoteControlEnabled = enabled
+		caps, versions := currentV2PullCapabilities()
+		for _, capability := range caps {
+			if capability == "mcp_full" {
+				t.Fatalf("remote_control_enabled=%v must not advertise mcp_full: %v", enabled, caps)
+			}
 		}
-	}
-	if _, ok := versions["mcp_full"]; ok {
-		t.Fatal("disabled remote control must not advertise mcp_full version")
-	}
-
-	pkg_flags.GlobalConfig.RemoteControlEnabled = true
-	caps, versions = currentV2PullCapabilities()
-	found := false
-	for _, capability := range caps {
-		if capability == "mcp_full" {
-			found = true
-			break
+		if _, ok := versions["mcp_full"]; ok {
+			t.Fatalf("remote_control_enabled=%v must not advertise mcp_full version", enabled)
 		}
-	}
-	if !found {
-		t.Fatalf("enabled remote control must advertise mcp_full: %v", caps)
-	}
-	if versions["mcp_full"] != 1 {
-		t.Fatalf("mcp_full version = %d, want 1", versions["mcp_full"])
 	}
 }
 

@@ -1,37 +1,44 @@
 # Embedded Web Resources / 内嵌 Web 资源
 
-Komari packages three independent resource groups:
+Komari Lite packages two independent resource groups:
 
-- `systemUI`: administration, terminal, installation, recovery, upgrade, and management pages built from `nuomiiiii/komari-web`.
-- `bundledThemes`: the bundled Nezha public dashboard theme copied into `data/theme` during the one-time migration. Other themes are installed independently.
-- `rescueTheme`: a hidden Nezha fallback used only when the selected public theme is unavailable.
+- `systemUI`: the administration UI built from `frontend/` and embedded into the panel binary.
+- `bundledThemes/Glass`: the fixed local public dashboard theme. It is installed into `data/theme/Glass` only when that directory is missing, so later builds never overwrite the running copy.
 
-Public themes never provide system application pages or `/system-assets/*`. Custom Head and Body HTML is injected only into public dashboard documents.
+`rescueTheme` is a minimal fallback shown only when the selected public theme is unavailable.
 
-Komari 内嵌三组相互独立的资源：
+Public themes cannot serve system pages or `/system-assets/*`; custom Head/Body HTML is injected only into public dashboard documents.
 
-- `systemUI`：由 `nuomiiiii/komari-web` 构建的后台、终端、安装、恢复、升级和管理界面。
-- `bundledThemes`：首次迁移时安装到 `data/theme` 的内置 Nezha 大屏主题，其他主题独立安装。
-- `rescueTheme`：当前大屏主题不可用时使用的隐藏 Nezha 保底资源。
+Komari Lite 内嵌两组相互独立的资源：
 
-大屏主题不能提供系统页面或 `/system-assets/*`。自定义 Head、Body HTML 也只会注入公开大屏页面。
+- `systemUI`：由 `frontend/` 构建并嵌入面板二进制的后台管理界面。
+- `bundledThemes/Glass`：固定的本地公开大屏主题；仅当 `data/theme/Glass` 缺失时安装，后续构建不会覆盖正在运行的副本。
 
-## Build System UI / 构建系统 UI
+`rescueTheme` 仅在选定的公开主题不可用时作为兜底页面。
+
+大屏主题不能提供系统页面或 `/system-assets/*`；自定义 Head/Body HTML 只注入公开大屏页面。
+
+## Build the system UI / 构建后台界面
 
 ```bash
-cd komari-web
+cd frontend
 npm ci
-VITE_SYSTEM_UI_BUILD=1 VITE_BASE_URL=/system-assets/ npm run build
+npm run build
 
-rm -rf /path/to/komari/web/public/systemUI
-mkdir -p /path/to/komari/web/public/systemUI
-cp -r dist /path/to/komari/web/public/systemUI/
+rm -rf ../backend/web/public/systemUI/dist
+mkdir -p ../backend/web/public/systemUI/dist
+cp -a dist/. ../backend/web/public/systemUI/dist/
 ```
 
-Before building Komari, verify these files exist:
+Before building the Go binary, verify these files exist:
 
 ```text
 web/public/systemUI/dist/index.html
-web/public/bundledThemes/nezha/dist/index.html
+web/public/bundledThemes/Glass/dist/index.html
 web/public/rescueTheme/dist/index.html
 ```
+
+The built `systemUI/dist` and `rescueTheme/dist` trees are committed so that
+`go build` works without a Node toolchain; regenerate them from `frontend/`
+whenever the administrator UI changes. `backend/web/public/.gitignore` ignores
+scratch `dist/` trees created next to the sources.

@@ -148,6 +148,8 @@ sudo find /opt/komari/data/agent-release -type f -name 'komari-agent-*' -exec ch
 把校验过的二进制放到 `/opt/komari/komari.new`，在服务器上运行通用更新脚本：
 
 ```bash
+sudo install -m 0755 deploy/update-native.sh /opt/komari/update.sh
+
 export EXPECTED_HOSTNAME="your-hostname"
 export EXPECTED_MACHINE_ID="$(cat /etc/machine-id)"
 sudo /opt/komari/update.sh /opt/komari/komari.new
