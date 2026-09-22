@@ -59,10 +59,10 @@ Agent 不含远程控制、终端、命令执行、MCP 与自动更新模块。�
 ```bash
 cd komari-lite
 chmod +x scripts/build-agent-release.sh
-./scripts/build-agent-release.sh 2.3.3.7
+./scripts/build-agent-release.sh 2.3.3.5
 ```
 
-输出到 `release/agent-2.3.3.7/`：
+输出到 `release/agent-2.3.3.5/`：
 
 - 14 个 `komari-agent-<os>-<arch>` 制品；
 - `manifest.json`：版本号与每个制品的 SHA-256；
@@ -71,7 +71,7 @@ chmod +x scripts/build-agent-release.sh
 该发布目录已被 Git 忽略。部署前先校验：
 
 ```bash
-cd release/agent-2.3.3.7
+cd release/agent-2.3.3.5
 sha256sum -c SHA256SUMS.txt
 ```
 
@@ -135,7 +135,7 @@ monitor.example.com {
 
 ```bash
 sudo install -d -o komari -g komari /opt/komari/data/agent-release
-sudo cp -a release/agent-2.3.3.7/. /opt/komari/data/agent-release/
+sudo cp -a release/agent-2.3.3.5/. /opt/komari/data/agent-release/
 sudo chown -R komari:komari /opt/komari/data/agent-release
 sudo chmod 0640 /opt/komari/data/agent-release/manifest.json
 sudo find /opt/komari/data/agent-release -type f -name 'komari-agent-*' -exec chmod 0755 {} \;
