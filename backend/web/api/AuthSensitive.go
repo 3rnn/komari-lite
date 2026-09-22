@@ -23,13 +23,9 @@ func RequireSensitive2FA() gin.HandlerFunc {
 	}
 }
 
-// VerifySensitive2FACore 传输无关的 2FA 校验核心。
-// 输入原始值:userUUID、2FA code、是否为 API Key。
-// API Key 豁免;未启用 2FA 的用户放行;其余需要有效 code。
-func VerifySensitive2FACore(userUUID, code string, isAPIKey bool) error {
-	if isAPIKey {
-		return nil
-	}
+// VerifySensitive2FACore is transport-agnostic. A bearer API key is not a
+// substitute for a fresh human factor on credential-changing operations.
+func VerifySensitive2FACore(userUUID, code string, _ bool) error {
 	if userUUID == "" {
 		return err2FARequired()
 	}

@@ -361,7 +361,9 @@ func connectWebSocket(websocketEndpoint string) (*ws.SafeConn, error) {
 		return nil, err
 	}
 
-	return ws.NewSafeConn(conn), nil
+	safeConn := ws.NewSafeConn(conn)
+	safeConn.SetReadLimit(remoteWebSocketReadLimit)
+	return safeConn, nil
 }
 
 func handleWebSocketMessages(conn *ws.SafeConn, done chan<- struct{}) {

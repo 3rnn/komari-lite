@@ -536,16 +536,12 @@ func Static(r *gin.RouterGroup, noRoute func(handlers ...gin.HandlerFunc)) {
 			return
 		}
 
-		htmlStr = injectCustomHTML(
-			htmlStr,
-			cfg[config.CustomHeadKey].(string),
-			cfg[config.CustomBodyKey].(string),
-		)
-
+		// This monitor build intentionally does not execute administrator-provided
+		// HTML. Public pages and the management API share an origin.
 		rendered := strings.ReplaceAll(
 			htmlStr,
 			"A simple server monitor tool.",
-			cfg[config.DescriptionKey].(string),
+			html.EscapeString(cfg[config.DescriptionKey].(string)),
 		)
 		c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(injectThemeChangeReload(rendered)))
 	}

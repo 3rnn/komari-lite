@@ -135,6 +135,17 @@ func normalizedArchivePath(name string) (string, error) {
 	return cleaned, nil
 }
 
+// allowedArchivePath deliberately accepts only data that a backup exporter may
+// restore. Runtime upload state and locally distributed agent binaries must
+// never be restored from an archive, particularly during first-run setup.
+func allowedArchivePath(name string) bool {
+	switch name {
+	case "komari-backup-markup", "komari.db", "metrics.db", "secret.key", "favicon.ico", "font.ttf":
+		return true
+	}
+	return strings.HasPrefix(name, "theme/")
+}
+
 // ValidateArchive requires the upstream-compatible root layout and bounds all
 // archive entries before the startup path is allowed to replace current data.
 func ValidateArchive(archivePath string) error {
@@ -160,6 +171,9 @@ func ValidateArchive(archivePath string) error {
 			return fmt.Errorf("backup archive contains duplicate path %q", name)
 		}
 		seen[name] = struct{}{}
+		if !allowedArchivePath(name) {
+			return fmt.Errorf("backup archive contains unsupported path %q", name)
+		}
 		if entry.Mode()&os.ModeSymlink != 0 {
 			return fmt.Errorf("backup archive contains unsupported symbolic link %q", name)
 		}

@@ -41,7 +41,7 @@ func TestAgentDownloadServesPanelLocalReleaseAndVerifiesDigest(t *testing.T) {
 		t.Fatal(err)
 	}
 	manifest := map[string]any{
-		"version":   "1.0.1",
+		"version":   "1.0.2",
 		"artifacts": map[string]string{"komari-agent-linux-amd64": digest},
 	}
 	writeAgentTestManifest(t, dir, manifest)
@@ -53,7 +53,7 @@ func TestAgentDownloadServesPanelLocalReleaseAndVerifiesDigest(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
 	}
-	if got := recorder.Header().Get("X-Komari-Agent-Version"); got != "1.0.1" {
+	if got := recorder.Header().Get("X-Komari-Agent-Version"); got != "1.0.2" {
 		t.Fatalf("version header = %q", got)
 	}
 	if recorder.Body.String() != string(payload) {
@@ -67,7 +67,7 @@ func TestAgentDownloadRejectsTamperedArtifact(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeAgentTestManifest(t, dir, map[string]any{
-		"version":   "1.0.1",
+		"version":   "1.0.2",
 		"artifacts": map[string]string{"komari-agent-linux-amd64": strings.Repeat("a", 64)},
 	})
 	stubAgentReleaseDir(t, dir)
@@ -82,7 +82,7 @@ func TestAgentDownloadRejectsTamperedArtifact(t *testing.T) {
 func TestAgentDownloadRejectsUnknownArtifacts(t *testing.T) {
 	dir := t.TempDir()
 	writeAgentTestManifest(t, dir, map[string]any{
-		"version":   "1.0.1",
+		"version":   "1.0.2",
 		"artifacts": map[string]string{"komari-agent-linux-amd64": strings.Repeat("a", 64)},
 	})
 	stubAgentReleaseDir(t, dir)

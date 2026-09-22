@@ -12,6 +12,22 @@ var (
 	sensitiveMethods = map[string]bool{}
 )
 
+func init() {
+	// Keep this list beside the transport-level guard so every HTTP and
+	// WebSocket JSON-RPC entry point enforces the same second factor.
+	for _, method := range []string{
+		"admin:rotateClientToken",
+		"admin:editSettings",
+		"admin:updateAccountPreferences",
+		"admin:deleteAllSessions",
+		"admin:removeClient",
+		"admin:clearRecords",
+		"admin:clearAllRecords",
+	} {
+		MarkSensitive(method)
+	}
+}
+
 // MarkSensitive 标记某方法为敏感操作。method 为完整方法名（如 "admin:exec"）。
 // 重复标记是幂等的。供方法注册处声明。
 func MarkSensitive(method string) {

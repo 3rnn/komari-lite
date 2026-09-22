@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -15,6 +16,8 @@ import (
 )
 
 var httpJSONRPCGzipBlocked atomic.Bool
+
+const maxV2ResponseSize = 4 << 20
 
 func resetHTTPJSONRPCGzipBlockedForTest() {
 	httpJSONRPCGzipBlocked.Store(false)
@@ -80,14 +83,18 @@ func doV2JSONRPC(ctx context.Context, payload []byte, timeout time.Duration, com
 		req.Header.Set("Content-Encoding", "gzip")
 	}
 	client := dnsresolver.GetHTTPClientWithPreference(timeout, flags.PreferIPVersion)
+	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	resp, err := client.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
 	defer resp.Body.Close()
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxV2ResponseSize+1))
 	if err != nil {
 		return resp.StatusCode, nil, err
+	}
+	if len(respBody) > maxV2ResponseSize {
+		return resp.StatusCode, nil, fmt.Errorf("panel response exceeds %d byte limit", maxV2ResponseSize)
 	}
 	return resp.StatusCode, respBody, nil
 }

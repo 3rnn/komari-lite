@@ -67,24 +67,16 @@ export function stringToBytes(str: string): number {
     numericPart = "1";
   }
 
-  try {
-    // 3. 计算数值部分
-    // 使用 Function 构造函数来安全地评估可能包含乘法或科学记数法的表达式
-    // 注意：这仍然假设输入源是可信的，因为它能执行简单的数学运算
-    const value = new Function(`return ${numericPart}`)();
-
-    if (isNaN(value)) {
-      return 0;
-    }
-
-    // 4. 乘以单位对应的倍数
-    const multiplier = units[unit];
-    return Math.round(value * multiplier);
-  } catch (error) {
-    // 如果表达式无效（例如 "abc-gb"），则捕获错误并返回 0
-    console.error(`Error parsing string "${str}":`, error);
+  // Only accept a numeric literal (including scientific notation). Never
+  // evaluate administrator input as JavaScript.
+  const value = Number(numericPart.trim());
+  if (!Number.isFinite(value) || value < 0) {
     return 0;
   }
+
+  // 4. 乘以单位对应的倍数
+  const multiplier = units[unit];
+  return Math.round(value * multiplier);
 }
 
 export function formatBytes(bytes: number): string {

@@ -247,7 +247,7 @@ func TestRenderSystemApplicationIdentityLeavesRuntimeTitleOwnershipToReact(t *te
 	}
 }
 
-func TestCustomHTMLIsLimitedToPublicPages(t *testing.T) {
+func TestCustomHTMLIsDisabledOnAllPages(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
 	if err != nil {
@@ -269,8 +269,8 @@ func TestCustomHTMLIsLimitedToPublicPages(t *testing.T) {
 		path       string
 		wantCustom bool
 	}{
-		{path: "/", wantCustom: true},
-		{path: "/index.html", wantCustom: true},
+		{path: "/"},
+		{path: "/index.html"},
 		{path: "/admin"},
 		{path: "/admin/settings"},
 		{path: "/terminal"},
@@ -594,8 +594,8 @@ func TestStaticKeepsSystemUIAndPublicThemeResourcesIsolated(t *testing.T) {
 	}
 
 	publicPage := request("/")
-	if publicPage.Code != http.StatusOK || !strings.Contains(publicPage.Body.String(), "data-public-custom-head") {
-		t.Fatalf("public rescue page status=%d body=%q", publicPage.Code, publicPage.Body.String())
+	if publicPage.Code != http.StatusOK || strings.Contains(publicPage.Body.String(), "data-public-custom-head") || strings.Contains(publicPage.Body.String(), "data-public-custom-body") {
+		t.Fatalf("public rescue page must not execute custom HTML: status=%d body=%q", publicPage.Code, publicPage.Body.String())
 	}
 	if !strings.Contains(publicPage.Body.String(), "font-logos") {
 		t.Fatal("missing public theme did not use the embedded rescue page")

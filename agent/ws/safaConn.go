@@ -63,6 +63,13 @@ func (sc *SafeConn) SetReadDeadline(t time.Time) error {
 	return sc.conn.SetReadDeadline(t)
 }
 
+func (sc *SafeConn) SetReadLimit(limit int64) {
+	if sc == nil || sc.conn == nil {
+		return
+	}
+	sc.conn.SetReadLimit(limit)
+}
+
 // SetPongHandler installs the handler on the underlying connection without
 // taking the write lock. Do not use GetConn() for this: that lock can race
 // with WriteMessage.

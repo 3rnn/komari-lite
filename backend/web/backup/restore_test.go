@@ -136,6 +136,16 @@ func TestValidateArchiveRejectsPackagesThatCouldWipeCurrentData(t *testing.T) {
 			"komari-backup-markup": "marker",
 			"../outside":           "bad",
 		},
+		"nested staged archive": {
+			"komari.db":            "main",
+			"komari-backup-markup": "marker",
+			"backup.zip":           "second-stage archive",
+		},
+		"agent release payload": {
+			"komari.db":                        "main",
+			"komari-backup-markup":             "marker",
+			"agent-release/komari-agent-linux": "untrusted binary",
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			if err := ValidateArchive(writeTestArchive(t, entries)); err == nil {

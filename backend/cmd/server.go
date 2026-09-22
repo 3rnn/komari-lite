@@ -17,8 +17,9 @@ var ServerCmd = &cobra.Command{
 }
 
 func init() {
-	// 从环境变量获取监听地址
-	listenAddr := GetEnv("KOMARI_LISTEN", "0.0.0.0:25774")
+	// Bind locally by default. Public deployments should use a reverse proxy and
+	// pass an explicit --listen only when they have a deliberate exposure plan.
+	listenAddr := GetEnv("KOMARI_LISTEN", "127.0.0.1:25774")
 	ServerCmd.PersistentFlags().StringVarP(&flags.Listen, "listen", "l", listenAddr, "监听地址 [env: KOMARI_LISTEN]")
 	RootCmd.AddCommand(ServerCmd)
 }

@@ -473,8 +473,11 @@ func restoreStagedBackup(dataDir string) (*stagedRestore, error) {
 	}
 
 	backupDir := filepath.Join(filepath.Dir(dataDir), "backup")
-	if err := os.MkdirAll(backupDir, 0o755); err != nil {
+	if err := os.MkdirAll(backupDir, 0o700); err != nil {
 		return nil, fmt.Errorf("create pre-restore backup directory: %w", err)
+	}
+	if err := os.Chmod(backupDir, 0o700); err != nil {
+		return nil, fmt.Errorf("harden pre-restore backup directory: %w", err)
 	}
 	timestamp := time.Now().UTC().Format("20060102-150405")
 	preRestorePath := filepath.Join(backupDir, fmt.Sprintf("pre-restore-%s.zip", timestamp))

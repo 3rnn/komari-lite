@@ -585,6 +585,11 @@ func (a *App) BuildRouter() error {
 		logger.Errorf("upload", "Failed to clean interrupted uploads: %v", err)
 	}
 	r := gin.New()
+	// The native deployment is either directly exposed or reverse-proxied by a
+	// local Caddy instance. Never trust client-provided forwarding headers.
+	if err := r.SetTrustedProxies(nil); err != nil {
+		return fmt.Errorf("disable untrusted proxy headers: %w", err)
+	}
 	r.Use(func(c *gin.Context) { c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 8<<20); c.Next() })
 	r.Use(logger.GinLogger())
 	r.Use(logger.GinRecovery())

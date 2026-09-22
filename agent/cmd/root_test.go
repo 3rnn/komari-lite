@@ -16,6 +16,7 @@ func validRuntimeConfig() *pkg_flags.Config {
 		InfoReportInterval: 5,
 		MaxRetries:         3,
 		ProtocolVersion:    2,
+		Endpoint:           "https://panel.example",
 	}
 }
 

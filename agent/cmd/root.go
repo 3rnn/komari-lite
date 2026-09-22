@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"reflect"
@@ -218,6 +219,10 @@ func validateRuntimeConfig(config *pkg_flags.Config) error {
 	}
 	if config.PreferIPVersion != "" && config.PreferIPVersion != "4" && config.PreferIPVersion != "6" {
 		return fmt.Errorf("invalid preferred IP version %q: expected 4 or 6", config.PreferIPVersion)
+	}
+	endpoint, err := url.Parse(config.Endpoint)
+	if err != nil || endpoint.Host == "" || endpoint.Scheme != "https" {
+		return fmt.Errorf("invalid panel endpoint %q: HTTPS is required", config.Endpoint)
 	}
 	if (config.CFAccessClientID == "") != (config.CFAccessClientSecret == "") {
 		return fmt.Errorf("Cloudflare Access client ID and client secret must be configured together")
