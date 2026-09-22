@@ -1,0 +1,52 @@
+# Runtime state — never commit panel data or credentials
+data/
+**/data/
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.sqlite-*
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.csr
+.env
+.env.local
+.env.*.local
+secrets/
+credentials/
+*credential*
+*passphrase*
+
+# Backups, releases, and generated binaries
+backup/
+backups/
+rollback/
+*.zip
+*.tar
+*.tar.*
+*.gz
+*.tgz
+*.new
+*.prev.*
+komari
+komari-*
+agent-release/
+
+# Frontend / Go build caches
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/coverage/
+backend/tmp/
+backend/.cache/
+*.test
+coverage.out
+
+# Local editor and operating system files
+.DS_Store
+.idea/
+.vscode/
+*.swp

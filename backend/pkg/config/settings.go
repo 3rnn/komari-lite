@@ -1,0 +1,109 @@
+package config
+
+import "time"
+
+const (
+	AdminDefaultPageSize    = 10
+	AdminDefaultPageSizeMin = 5
+	AdminDefaultPageSizeMax = 100
+)
+
+type Settings struct {
+	ID                     uint   `json:"id,omitempty"`                                        // 1
+	Sitename               string `json:"sitename" default:"Komari Lite"`                      // 站点名称，默认 "Komari Lite"
+	Description            string `json:"description" default:"A simple server monitor tool."` // 站点描述
+	AdminDefaultPageSize   int    `json:"admin_default_page_size" default:"10"`                // 后台列表默认每页条数
+	ReduceMotion           bool   `json:"reduce_motion" default:"false"`                       // 减少后台界面动态效果
+	AutoOrderNewClients    bool   `json:"auto_order_new_clients_by_region" default:"false"`    // 新服务器首次识别国家后自动排到同组同国家节点后面，默认关闭
+	CorsOriginCheckEnabled bool   `json:"cors_origin_check_enabled" default:"true"`            // 是否启用 API CORS 跨域请求校验，默认 true
+	CorsAllowedOrigins     string `json:"cors_allowed_origins" default:""`                     // API 跨域允许列表
+	WsOriginCheckEnabled   bool   `json:"ws_origin_check_enabled" default:"true"`              // 是否校验 WebSocket Origin
+	WsAllowedOrigins       string `json:"ws_allowed_origins" default:""`                       // WebSocket Origin 允许列表
+	Theme                  string `json:"theme" default:"nezha"`                               // 新安装默认使用 Nezha 公共主题
+	PrivateSite            bool   `json:"private_site" default:"false"`                        // 是否为私有站点，默认 false
+	ApiKey                 string `json:"api_key" default:""`                                  // API 密钥，默认空字符串
+	AutoDiscoveryKey       string `json:"auto_discovery_key" default:""`                       // 自动发现密钥
+	ScriptDomain           string `json:"script_domain" default:""`                            // 自定义脚本域名
+	SendIpAddrToGuest      bool   `json:"send_ip_addr_to_guest" default:"false"`               // 是否向访客页面发送 IP 地址，默认 false
+	VisitorAuditEnabled    bool   `json:"visitor_audit_enabled" default:"false"`               // 是否允许公开访客事件写入审计日志，默认 false
+	EulaAccepted           bool   `json:"eula_accepted" default:"false"`
+	BaseScriptsURLKey      string `json:"base_scripts_url" default:""`
+	// GeoIP 配置
+	GeoIpEnabled  bool   `json:"geo_ip_enabled" default:"false"`
+	GeoIpProvider string `json:"geo_ip_provider" default:"ipinfo"` // empty, mmdb, ip-api, geojs
+	// OAuth 配置
+	OAuthEnabled          bool   `json:"o_auth_enabled" default:"false"`
+	OAuthProvider         string `json:"o_auth_provider" default:"github"`
+	DisablePasswordLogin  bool   `json:"disable_password_login" default:"false"`
+	CloudflareTunnelToken string `json:"cloudflare_tunnel_token" default:""`
+	HTTPSEnabled          bool   `json:"https_enabled" default:"false"`
+	HTTPSListen           string `json:"https_listen" default:":35938"`
+	HTTPSRedirectHTTP     bool   `json:"https_redirect_http" default:"false"`
+	HTTPSCertificatePath  string `json:"https_certificate_path" default:"./data/tls/server.crt"`
+	HTTPSPrivateKeyPath   string `json:"https_private_key_path" default:"./data/tls/server.key"`
+	// 自定义美化
+	CustomHead string `json:"custom_head" default:""`
+	CustomBody string `json:"custom_body" default:""`
+
+	// 通知
+	NotificationEnabled        bool    `json:"notification_enabled" default:"true"` // 通知总开关
+	NotificationMethod         string  `json:"notification_method" default:"none"`
+	NotificationTemplate       string  `json:"notification_template" default:"{{emoji}}{{emoji}}{{emoji}}\nEvent: {{event}}\nClients: {{client}}\nMessage: {{message}}\nTime: {{time}}"`
+	ExpireNotificationEnabled  bool    `json:"expire_notification_enabled" default:"true"` // 是否启用过期通知
+	ExpireNotificationLeadDays int     `json:"expire_notification_lead_days" default:"7"`  // 过期前多少天通知，默认7天
+	LoginNotification          bool    `json:"login_notification" default:"true"`          // 登录通知
+	TrafficLimitPercentage     float64 `json:"traffic_limit_percentage" default:"80.00"`   // 流量限制百分比，默认80.00%
+	TrafficReportTime          string  `json:"traffic_report_time" default:"00:00"`        // 流量日报/周报/月报发送时间（北京时间）
+	UpdatedAt                  time.Time
+}
+
+const (
+	SitenameKey               = "sitename"
+	DescriptionKey            = "description"
+	AdminDefaultPageSizeKey   = "admin_default_page_size"
+	ReduceMotionKey           = "reduce_motion"
+	AutoOrderNewClientsKey    = "auto_order_new_clients_by_region"
+	CorsOriginCheckEnabledKey = "cors_origin_check_enabled"
+	CorsAllowedOriginsKey     = "cors_allowed_origins"
+	WsOriginCheckEnabledKey   = "ws_origin_check_enabled"
+	WsAllowedOriginsKey       = "ws_allowed_origins"
+	ThemeKey                  = "theme"
+	PrivateSiteKey            = "private_site"
+	ApiKeyKey                 = "api_key"
+	AutoDiscoveryKeyKey       = "auto_discovery_key"
+	ScriptDomainKey           = "script_domain"
+	SendIpAddrToGuestKey      = "send_ip_addr_to_guest"
+	VisitorAuditEnabledKey    = "visitor_audit_enabled"
+	// LowResourceModeKey is retained only to normalize databases created by
+	// releases that exposed the removed low-resource mode.
+	LowResourceModeKey       = "low_resource_mode"
+	EulaAcceptedKey          = "eula_accepted"
+	BaseScriptsURLKey        = "base_scripts_url"
+	GeoIpEnabledKey          = "geo_ip_enabled"
+	GeoIpProviderKey         = "geo_ip_provider"
+	OAuthEnabledKey          = "o_auth_enabled"
+	OAuthProviderKey         = "o_auth_provider"
+	DisablePasswordLoginKey  = "disable_password_login"
+	CloudflareTunnelTokenKey = "cloudflare_tunnel_token"
+	HTTPSEnabledKey          = "https_enabled"
+	HTTPSListenKey           = "https_listen"
+	HTTPSRedirectHTTPKey     = "https_redirect_http"
+	HTTPSCertificatePathKey  = "https_certificate_path"
+	HTTPSPrivateKeyPathKey   = "https_private_key_path"
+	CustomHeadKey            = "custom_head"
+	CustomBodyKey            = "custom_body"
+
+	NotificationEnabledKey         = "notification_enabled"
+	NotificationMethodKey          = "notification_method"
+	NotificationTemplateKey        = "notification_template"
+	OfflineNotificationDefaultKey  = "offline_notification_default"
+	PingLossNotificationDefaultKey = "ping_loss_notification_default"
+	TrafficReportDefaultKey        = "traffic_report_default"
+	ExpireNotificationEnabledKey   = "expire_notification_enabled"
+	ExpireNotificationLeadDaysKey  = "expire_notification_lead_days"
+	LoginNotificationKey           = "login_notification"
+	TrafficLimitPercentageKey      = "traffic_limit_percentage"
+	TrafficReportTimeKey           = "traffic_report_time"
+	UpdatedAtKey                   = "updated_at"
+	DashboardSettingsKey           = "dashboard_settings"
+)

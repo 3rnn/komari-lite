@@ -1,0 +1,1127 @@
+package metricstore
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"reflect"
+	"testing"
+	"time"
+
+	"github.com/komari-monitor/komari/database/models"
+	"github.com/komari-monitor/komari/pkg/metric"
+	v1 "github.com/komari-monitor/komari/protocol/v1"
+)
+
+func TestDefaultRollupPolicy(t *testing.T) {
+	policy := defaultRollupPolicy()
+	if err := policy.Validate(); err != nil {
+		t.Fatalf("default rollup policy should validate: %v", err)
+	}
+	if policy.RawRetention != DefaultRollupRawRetention {
+		t.Fatalf("raw retention = %s, want %s", policy.RawRetention, DefaultRollupRawRetention)
+	}
+	if len(policy.Tiers) != 3 {
+		t.Fatalf("expected 3 rollup tiers, got %d", len(policy.Tiers))
+	}
+
+	wantIntervals := []time.Duration{time.Minute, 5 * time.Minute, time.Hour}
+	wantRetentions := []time.Duration{48 * time.Hour, 14 * 24 * time.Hour, 14 * 24 * time.Hour}
+	for i := range wantIntervals {
+		if policy.Tiers[i].Interval != wantIntervals[i] {
+			t.Fatalf("tier %d interval = %s, want %s", i, policy.Tiers[i].Interval, wantIntervals[i])
+		}
+		if policy.Tiers[i].Retention != wantRetentions[i] {
+			t.Fatalf("tier %d retention = %s, want %s", i, policy.Tiers[i].Retention, wantRetentions[i])
+		}
+	}
+}
+
+func TestCompactableMetricDefinitionsExcludeVirtualPingLoss(t *testing.T) {
+	ctx := context.Background()
+	store, err := metric.Open(ctx, metric.SQLiteInDir(t.TempDir()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	definitions := []metric.Definition{
+		{Name: MetricCPU},
+		{Name: MetricPingLatency},
+		{Name: MetricPingLoss},
+	}
+	got := compactableMetricDefinitions(store, append([]metric.Definition(nil), definitions...))
+	if len(got) != 2 || got[0].Name != MetricCPU || got[1].Name != MetricPingLatency {
+		t.Fatalf("compactable definitions=%#v", got)
+	}
+}
+
+func TestBuildMetricConfigEnablesDefaultRollupPolicy(t *testing.T) {
+	cfg, err := buildMetricConfig(&MetricStoreConfig{
+		Driver:      "sqlite",
+		DSN:         ":memory:",
+		TablePrefix: "metric_",
+	}, false)
+	if err != nil {
+		t.Fatalf("build metric config: %v", err)
+	}
+	if !cfg.RollupPolicy.Enabled() {
+		t.Fatal("expected default rollup policy to be enabled")
+	}
+	if cfg.RollupPolicy.RawRetention != DefaultRollupRawRetention {
+		t.Fatalf("raw retention = %s, want %s", cfg.RollupPolicy.RawRetention, DefaultRollupRawRetention)
+	}
+}
+
+func TestBuildMetricConfigLeavesFinalRetentionToMetricDefinition(t *testing.T) {
+	cfg, err := buildMetricConfig(&MetricStoreConfig{
+		Driver: "sqlite",
+		DSN:    ":memory:",
+	}, false)
+	if err != nil {
+		t.Fatalf("build metric config: %v", err)
+	}
+	wantRollupRetention := 14 * 24 * time.Hour
+	lastTier := cfg.RollupPolicy.Tiers[len(cfg.RollupPolicy.Tiers)-1]
+	if lastTier.Retention != wantRollupRetention {
+		t.Fatalf("rollup retention = %s, want %s", lastTier.Retention, wantRollupRetention)
+	}
+}
+
+func TestBuildMetricConfigAlwaysEnablesDownsampling(t *testing.T) {
+	cfg, err := buildMetricConfig(&MetricStoreConfig{
+		Driver: "sqlite",
+		DSN:    ":memory:",
+	}, false)
+	if err != nil {
+		t.Fatalf("build metric config: %v", err)
+	}
+	if !cfg.RollupPolicy.Enabled() {
+		t.Fatal("expected rollup policy to remain enabled")
+	}
+}
+
+func TestBuildMetricConfigUsesFixedSQLiteConnectionStrategy(t *testing.T) {
+	cfg, err := buildMetricConfig(&MetricStoreConfig{
+		Driver:       "sqlite",
+		DSN:          "./data/metrics.db",
+		MaxOpenConns: 99,
+		MaxIdleConns: 88,
+	}, false)
+	if err != nil {
+		t.Fatalf("build metric config: %v", err)
+	}
+	if cfg.MaxOpenConns != 1 || cfg.MaxIdleConns != 1 {
+		t.Fatalf("SQLite primary pool = open:%d idle:%d, want 1/1", cfg.MaxOpenConns, cfg.MaxIdleConns)
+	}
+	if cfg.SQLite.ReadPoolSize < 1 || cfg.SQLite.ReadPoolSize > 3 {
+		t.Fatalf("SQLite read pool size = %d, want adaptive range 1..3", cfg.SQLite.ReadPoolSize)
+	}
+}
+
+func TestGetPingRecordsReadsRollupsAfterRawCompaction(t *testing.T) {
+	ctx := context.Background()
+	now := time.Now().UTC().Truncate(time.Second)
+	s, err := metric.Open(ctx, metric.SQLite(":memory:",
+		metric.WithMaxOpenConns(1),
+		metric.WithRollupPolicy(defaultRollupPolicy()),
+	))
+	if err != nil {
+		t.Fatalf("open metric store: %v", err)
+	}
+	defer s.Close()
+	if err := s.UpsertMetric(ctx, metric.Definition{
+		Name:          MetricPingLatency,
+		Type:          metric.TypeGauge,
+		RetentionDays: 30,
+	}); err != nil {
+		t.Fatalf("create ping metric: %v", err)
+	}
+	if err := s.WriteBatch(ctx, []metric.Point{
+		{MetricName: MetricPingLatency, EntityID: "node-a", Timestamp: now.Add(-20 * time.Minute), Value: 20, Tags: map[string]string{"task_id": "7"}},
+		{MetricName: MetricPingLatency, EntityID: "node-a", Timestamp: now.Add(-10 * time.Minute), Value: 10, Tags: map[string]string{"task_id": "7"}},
+		{MetricName: MetricPingLatency, EntityID: "node-a", Timestamp: now.Add(-5 * time.Minute), Value: 5, Tags: map[string]string{"task_id": "7"}},
+	}); err != nil {
+		t.Fatalf("write ping points: %v", err)
+	}
+	if _, err := s.Compact(ctx, now); err != nil {
+		t.Fatalf("compact ping points: %v", err)
+	}
+
+	storeMu.Lock()
+	oldStore := store
+	store = s
+	storeMu.Unlock()
+	defer func() {
+		storeMu.Lock()
+		store = oldStore
+		storeMu.Unlock()
+	}()
+
+	records, err := GetPingRecords(ctx, "node-a", 7, now.Add(-30*time.Minute), now)
+	if err != nil {
+		t.Fatalf("get ping records: %v", err)
+	}
+	if len(records) != 3 {
+		t.Fatalf("expected 3 ping records across raw and rollup data, got %d: %#v", len(records), records)
+	}
+	if records[0].Value != 5 || records[1].Value != 10 || records[2].Value != 20 {
+		t.Fatalf("unexpected ping values in descending order: %#v", records)
+	}
+}
+
+func TestGetGPURecordsReadsRollupsAfterRawCompaction(t *testing.T) {
+	ctx := context.Background()
+	now := time.Now().UTC().Truncate(time.Minute)
+	s, err := metric.Open(ctx, metric.SQLite(":memory:",
+		metric.WithMaxOpenConns(1),
+		metric.WithRollupPolicy(defaultRollupPolicy()),
+	))
+	if err != nil {
+		t.Fatalf("open metric store: %v", err)
+	}
+	defer s.Close()
+
+	metricNames := []string{MetricGPUDeviceUsage, MetricGPUMem, MetricGPUMemTotal, MetricGPUTemp}
+	for _, name := range metricNames {
+		if err := s.UpsertMetric(ctx, metric.Definition{Name: name, Type: metric.TypeGauge, RetentionDays: 30}); err != nil {
+			t.Fatalf("create GPU metric %s: %v", name, err)
+		}
+	}
+
+	tags := map[string]string{"device_index": "1", "device_name": "GPU 1"}
+	oldTime := now.Add(-20*time.Minute + 10*time.Second)
+	recentTime := now.Add(-5*time.Minute + 10*time.Second)
+	values := map[string][2]float64{
+		MetricGPUDeviceUsage: {30, 50},
+		MetricGPUMem:         {1000, 2000},
+		MetricGPUMemTotal:    {4000, 4000},
+		MetricGPUTemp:        {60, 70},
+	}
+	points := make([]metric.Point, 0, len(metricNames)*2)
+	for _, name := range metricNames {
+		points = append(points,
+			metric.Point{MetricName: name, EntityID: "node-a", Timestamp: oldTime, Value: values[name][0], Tags: tags},
+			metric.Point{MetricName: name, EntityID: "node-a", Timestamp: recentTime, Value: values[name][1], Tags: tags},
+		)
+	}
+	if err := s.WriteBatch(ctx, points); err != nil {
+		t.Fatalf("write GPU points: %v", err)
+	}
+	if _, err := s.Compact(ctx, now); err != nil {
+		t.Fatalf("compact GPU points: %v", err)
+	}
+
+	storeMu.Lock()
+	oldStore := store
+	store = s
+	storeMu.Unlock()
+	defer func() {
+		storeMu.Lock()
+		store = oldStore
+		storeMu.Unlock()
+	}()
+
+	records, err := GetGPURecordsByClientAndTime(ctx, "node-a", now.Add(-30*time.Minute), now)
+	if err != nil {
+		t.Fatalf("get GPU records: %v", err)
+	}
+	if len(records) != 2 {
+		t.Fatalf("expected old rollup and recent raw GPU records, got %d: %#v", len(records), records)
+	}
+	if records[0].Utilization != 30 || records[0].MemUsed != 1000 || records[0].MemTotal != 4000 || records[0].Temperature != 60 {
+		t.Fatalf("unexpected compacted GPU record: %#v", records[0])
+	}
+	if records[1].Utilization != 50 || records[1].MemUsed != 2000 || records[1].MemTotal != 4000 || records[1].Temperature != 70 {
+		t.Fatalf("unexpected recent GPU record: %#v", records[1])
+	}
+	if records[0].DeviceIndex != 1 || records[0].DeviceName != "GPU 1" || records[0].Client != "node-a" {
+		t.Fatalf("GPU series identity was not preserved: %#v", records[0])
+	}
+}
+
+func TestCreateMetricDefinitionsUsesExplicitRetentionAndPreservesOverrides(t *testing.T) {
+	if defaultBuiltinMetricRetentionDays != 1 {
+		t.Fatalf("default built-in metric retention = %d, want 1 day", defaultBuiltinMetricRetentionDays)
+	}
+
+	ctx := context.Background()
+	s, err := metric.Open(ctx, metric.SQLite(":memory:", metric.WithMaxOpenConns(1)))
+	if err != nil {
+		t.Fatalf("open metric store: %v", err)
+	}
+	defer s.Close()
+
+	if err := createMetricDefinitions(ctx, s); err != nil {
+		t.Fatalf("create definitions: %v", err)
+	}
+	defs, err := s.ListMetrics(ctx)
+	if err != nil {
+		t.Fatalf("list definitions: %v", err)
+	}
+	if len(defs) != 21 {
+		t.Fatalf("definition count = %d, want 21", len(defs))
+	}
+	for _, def := range defs {
+		if def.RetentionDays != defaultBuiltinMetricRetentionDays {
+			t.Fatalf("%s retention = %d, want %d", def.Name, def.RetentionDays, defaultBuiltinMetricRetentionDays)
+		}
+	}
+
+	cpu, err := s.GetMetric(ctx, MetricCPU)
+	if err != nil {
+		t.Fatalf("get cpu definition: %v", err)
+	}
+	cpu.RetentionDays = 60
+	if err := s.UpsertMetric(ctx, cpu); err != nil {
+		t.Fatalf("override cpu retention: %v", err)
+	}
+	if err := createMetricDefinitions(ctx, s); err != nil {
+		t.Fatalf("recreate definitions: %v", err)
+	}
+	cpu, err = s.GetMetric(ctx, MetricCPU)
+	if err != nil {
+		t.Fatalf("reload cpu definition: %v", err)
+	}
+	if cpu.RetentionDays != 60 {
+		t.Fatalf("cpu retention = %d, want preserved override 60", cpu.RetentionDays)
+	}
+	if _, err := s.SetMetricRetention(ctx, MetricCPU, 0); err != nil {
+		t.Fatalf("disable cpu retention: %v", err)
+	}
+	if err := createMetricDefinitions(ctx, s); err != nil {
+		t.Fatalf("refresh disabled definition: %v", err)
+	}
+	cpu, err = s.GetMetric(ctx, MetricCPU)
+	if err != nil {
+		t.Fatalf("reload disabled cpu definition: %v", err)
+	}
+	if cpu.RetentionDays != 0 {
+		t.Fatalf("cpu retention = %d, want preserved disabled state", cpu.RetentionDays)
+	}
+}
+
+func TestCreateMetricDefinitionsPreservesHistoricalMetricsAcrossRestart(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	cfg := metric.SQLiteInDir(dir, metric.WithMaxOpenConns(1))
+	s, err := metric.Open(ctx, cfg)
+	if err != nil {
+		t.Fatalf("open metric store: %v", err)
+	}
+	at := time.Now().UTC().Truncate(time.Second)
+	legacyMetrics := []string{"memory.total", "swap.total", "temperature", "disk.total"}
+	for index, name := range legacyMetrics {
+		if err := s.CreateMetric(ctx, metric.Definition{Name: name, Type: metric.TypeGauge, RetentionDays: 1}); err != nil {
+			t.Fatalf("create historical definition %s: %v", name, err)
+		}
+		if err := s.Write(ctx, metric.Point{MetricName: name, EntityID: "node-a", Timestamp: at, Value: float64(index + 1)}); err != nil {
+			t.Fatalf("write historical point %s: %v", name, err)
+		}
+	}
+	if err := s.Close(); err != nil {
+		t.Fatalf("close metric store before restart: %v", err)
+	}
+
+	s, err = metric.Open(ctx, cfg)
+	if err != nil {
+		t.Fatalf("reopen metric store: %v", err)
+	}
+	defer s.Close()
+	if err := createMetricDefinitions(ctx, s); err != nil {
+		t.Fatalf("refresh built-in definitions after restart: %v", err)
+	}
+	for index, name := range legacyMetrics {
+		if _, err := s.GetMetric(ctx, name); err != nil {
+			t.Fatalf("historical definition %s missing after restart: %v", name, err)
+		}
+		points, err := s.Query(ctx, metric.Query{
+			MetricName: name,
+			EntityID:   "node-a",
+			Start:      at.Add(-time.Minute),
+			End:        at.Add(time.Minute),
+		})
+		if err != nil {
+			t.Fatalf("query historical points %s: %v", name, err)
+		}
+		if len(points) != 1 || points[0].Value != float64(index+1) {
+			t.Fatalf("historical point %s changed after restart: %#v", name, points)
+		}
+	}
+}
+
+func TestCreateMetricDefinitionsUsesLegacySpanOnlyForNewDefinitions(t *testing.T) {
+	ctx := context.Background()
+	s, err := metric.Open(ctx, metric.SQLite(":memory:", metric.WithMaxOpenConns(1)))
+	if err != nil {
+		t.Fatalf("open metric store: %v", err)
+	}
+	defer s.Close()
+
+	if err := createMetricDefinitionsWithDefaultRetention(ctx, s, 10); err != nil {
+		t.Fatalf("create migration definitions: %v", err)
+	}
+	defs, err := s.ListMetrics(ctx)
+	if err != nil {
+		t.Fatalf("list migration definitions: %v", err)
+	}
+	for _, def := range defs {
+		if def.RetentionDays != 10 {
+			t.Fatalf("%s retention = %d, want legacy span 10", def.Name, def.RetentionDays)
+		}
+	}
+
+	cpu, err := s.GetMetric(ctx, MetricCPU)
+	if err != nil {
+		t.Fatalf("get CPU definition: %v", err)
+	}
+	cpu.RetentionDays = 3
+	if err := s.UpsertMetric(ctx, cpu); err != nil {
+		t.Fatalf("override CPU retention: %v", err)
+	}
+	if err := createMetricDefinitionsWithDefaultRetention(ctx, s, 20); err != nil {
+		t.Fatalf("refresh migration definitions: %v", err)
+	}
+	cpu, err = s.GetMetric(ctx, MetricCPU)
+	if err != nil {
+		t.Fatalf("reload CPU definition: %v", err)
+	}
+	if cpu.RetentionDays != 3 {
+		t.Fatalf("existing CPU retention = %d, want preserved 3", cpu.RetentionDays)
+	}
+}
+
+func TestGetRetentionSummaryUsesAllMetricDefinitions(t *testing.T) {
+	ctx := context.Background()
+	s, err := metric.Open(ctx, metric.SQLite(":memory:", metric.WithMaxOpenConns(1)))
+	if err != nil {
+		t.Fatalf("open metric store: %v", err)
+	}
+	defer s.Close()
+
+	storeMu.Lock()
+	oldStore := store
+	store = s
+	storeMu.Unlock()
+	defer func() {
+		storeMu.Lock()
+		store = oldStore
+		storeMu.Unlock()
+	}()
+
+	empty, err := GetRetentionSummary(ctx)
+	if err != nil {
+		t.Fatalf("summarize empty store: %v", err)
+	}
+	if empty.AllPositive || empty.MaxDays != 0 {
+		t.Fatalf("unexpected empty summary: %#v", empty)
+	}
+	for _, def := range []metric.Definition{
+		{Name: "short", Type: metric.TypeGauge, RetentionDays: 7},
+		{Name: "long", Type: metric.TypeGauge, RetentionDays: 60},
+	} {
+		if err := s.UpsertMetric(ctx, def); err != nil {
+			t.Fatalf("upsert %s: %v", def.Name, err)
+		}
+	}
+	summary, err := GetRetentionSummary(ctx)
+	if err != nil {
+		t.Fatalf("summarize definitions: %v", err)
+	}
+	if !summary.AllPositive || summary.MaxDays != 60 {
+		t.Fatalf("unexpected summary: %#v", summary)
+	}
+	if _, err := s.SetMetricRetention(ctx, "short", 0); err != nil {
+		t.Fatalf("disable short metric: %v", err)
+	}
+	summary, err = GetRetentionSummary(ctx)
+	if err != nil {
+		t.Fatalf("summarize disabled metric: %v", err)
+	}
+	if summary.AllPositive || summary.MaxDays != 60 {
+		t.Fatalf("unexpected disabled summary: %#v", summary)
+	}
+}
+
+func TestSummarizeRetentionDefinitionsRequiresEveryMetricToBePositive(t *testing.T) {
+	summary := summarizeRetentionDefinitions([]metric.Definition{
+		{Name: "enabled", RetentionDays: 30},
+		{Name: "disabled", RetentionDays: 0},
+		{Name: "long", RetentionDays: 60},
+	})
+	if summary.AllPositive || summary.MaxDays != 60 {
+		t.Fatalf("unexpected summary: %#v", summary)
+	}
+}
+
+func TestCompactCleansExpiredRawPointsWhenDownsamplingDisabled(t *testing.T) {
+	ctx := context.Background()
+	s, err := metric.Open(ctx, metric.SQLite(":memory:", metric.WithMaxOpenConns(1)))
+	if err != nil {
+		t.Fatalf("open metric store: %v", err)
+	}
+	if err := s.UpsertMetric(ctx, metric.Definition{
+		Name:          "raw.metric",
+		Type:          metric.TypeGauge,
+		RetentionDays: 1,
+	}); err != nil {
+		t.Fatalf("upsert metric: %v", err)
+	}
+
+	now := time.Date(2026, 7, 11, 12, 0, 0, 0, time.UTC)
+	if err := s.WriteBatch(ctx, []metric.Point{
+		{MetricName: "raw.metric", EntityID: "node", Timestamp: now.Add(-48 * time.Hour), Value: 1},
+		{MetricName: "raw.metric", EntityID: "node", Timestamp: now.Add(-time.Hour), Value: 2},
+	}); err != nil {
+		t.Fatalf("write points: %v", err)
+	}
+
+	storeMu.Lock()
+	oldStore := store
+	oldCompactAt := compactAt
+	store = s
+	compactAt = 0
+	storeMu.Unlock()
+	defer func() {
+		storeMu.Lock()
+		store = oldStore
+		compactAt = oldCompactAt
+		storeMu.Unlock()
+		_ = s.Close()
+	}()
+
+	if _, err := Compact(ctx, now); err != nil {
+		t.Fatalf("compact: %v", err)
+	}
+	points, err := s.Query(ctx, metric.Query{
+		MetricName: "raw.metric",
+		EntityID:   "node",
+		Start:      now.Add(-72 * time.Hour),
+		End:        now,
+	})
+	if err != nil {
+		t.Fatalf("query points: %v", err)
+	}
+	if len(points) != 1 || points[0].Value != 2 {
+		t.Fatalf("expected only the retained raw point, got %#v", points)
+	}
+}
+
+func TestCompactContinuesAfterOneMetricFails(t *testing.T) {
+	ctx := context.Background()
+	dsn := filepath.Join(t.TempDir(), "compact.db")
+	s, err := metric.Open(ctx, metric.SQLite(dsn,
+		metric.WithMaxOpenConns(1),
+		metric.WithRollupPolicy(defaultRollupPolicy()),
+	))
+	if err != nil {
+		t.Fatalf("open metric store: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	for _, name := range []string{"a.invalid", "b.healthy"} {
+		if err := s.CreateMetric(ctx, metric.Definition{Name: name, Type: metric.TypeGauge, RetentionDays: 1}); err != nil {
+			t.Fatalf("create metric %s: %v", name, err)
+		}
+	}
+
+	now := time.Date(2026, 7, 20, 12, 0, 0, 0, time.UTC)
+	old := now.Add(-time.Hour)
+	if err := s.Write(ctx, metric.Point{MetricName: "b.healthy", EntityID: "node", Timestamp: old, Value: 2}); err != nil {
+		t.Fatalf("write healthy point: %v", err)
+	}
+
+	rawDB, err := sql.Open("sqlite3", dsn)
+	if err != nil {
+		t.Fatalf("open raw sqlite connection: %v", err)
+	}
+	_, err = rawDB.ExecContext(ctx, `INSERT INTO metric_points
+		(metric_name, entity_id, tags_hash, ts_nano, value, tags, labels, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		"a.invalid", "node", "invalid", old.UnixNano(), 1, "not-json", "{}", now.UnixNano(),
+	)
+	_ = rawDB.Close()
+	if err != nil {
+		t.Fatalf("insert malformed point: %v", err)
+	}
+
+	storeMu.Lock()
+	previousStore := store
+	previousCompactAt := compactAt
+	store = s
+	compactAt = 0
+	storeMu.Unlock()
+	t.Cleanup(func() {
+		storeMu.Lock()
+		store = previousStore
+		compactAt = previousCompactAt
+		storeMu.Unlock()
+	})
+
+	if _, err := Compact(ctx, now); err == nil {
+		t.Fatal("expected malformed metric to fail compaction")
+	}
+	points, err := s.Query(ctx, metric.Query{
+		MetricName: "b.healthy",
+		EntityID:   "node",
+		Start:      old.Add(-time.Minute),
+		End:        now,
+	})
+	if err != nil {
+		t.Fatalf("query healthy raw points: %v", err)
+	}
+	if len(points) != 0 {
+		t.Fatalf("healthy metric was blocked by another metric failure: %s", fmt.Sprint(points))
+	}
+}
+
+func TestCompactKeepsRotatingCursorAfterFullCycle(t *testing.T) {
+	ctx := context.Background()
+	s, err := metric.Open(ctx, metric.SQLite(":memory:",
+		metric.WithMaxOpenConns(1),
+		metric.WithRollupPolicy(defaultRollupPolicy()),
+	))
+	if err != nil {
+		t.Fatalf("open metric store: %v", err)
+	}
+	for _, name := range []string{"a.metric", "b.metric", "c.metric"} {
+		if err := s.UpsertMetric(ctx, metric.Definition{Name: name, Type: metric.TypeGauge}); err != nil {
+			t.Fatalf("upsert metric %s: %v", name, err)
+		}
+	}
+
+	storeMu.Lock()
+	oldStore := store
+	oldCompactAt := compactAt
+	store = s
+	compactAt = 1
+	storeMu.Unlock()
+	defer func() {
+		storeMu.Lock()
+		store = oldStore
+		compactAt = oldCompactAt
+		storeMu.Unlock()
+		_ = s.Close()
+	}()
+
+	if _, err := Compact(ctx, time.Date(2026, 7, 11, 12, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatalf("compact: %v", err)
+	}
+	if compactAt != 1 {
+		t.Fatalf("compact cursor = %d, want 1 after a complete rotated cycle", compactAt)
+	}
+}
+
+func TestCompactStepProcessesOnlyOneMetric(t *testing.T) {
+	ctx := context.Background()
+	dsn := filepath.Join(t.TempDir(), "compact-step.db")
+	s, err := metric.Open(ctx, metric.SQLite(dsn,
+		metric.WithMaxOpenConns(1),
+		metric.WithRollupPolicy(defaultRollupPolicy()),
+	))
+	if err != nil {
+		t.Fatalf("open metric store: %v", err)
+	}
+	for _, name := range []string{"a.metric", "b.metric", "c.metric"} {
+		if err := s.UpsertMetric(ctx, metric.Definition{Name: name, Type: metric.TypeGauge, RetentionDays: 1}); err != nil {
+			t.Fatalf("upsert metric %s: %v", name, err)
+		}
+	}
+
+	now := time.Date(2026, 7, 25, 0, 0, 0, 0, time.UTC)
+	for i, name := range []string{"a.metric", "b.metric", "c.metric"} {
+		if err := s.Write(ctx, metric.Point{MetricName: name, EntityID: "node", Timestamp: now.Add(-time.Hour), Value: float64(i + 1)}); err != nil {
+			t.Fatalf("write metric %s: %v", name, err)
+		}
+	}
+	installCompactStepTestStore(t, s, 0)
+
+	written, completed, err := CompactStep(ctx, now)
+	if err != nil {
+		t.Fatalf("first compact step: %v", err)
+	}
+	if written == 0 || completed {
+		t.Fatalf("first compact step = written %d, completed %v; want a partial cycle with rollups", written, completed)
+	}
+	status := GetRuntimeStatus()
+	if status.Compacting || status.CurrentMetric != "a.metric" || status.Progress != 1 || status.Total != 3 {
+		t.Fatalf("runtime status after first step = %#v", status)
+	}
+	if status.CycleStartedAt.IsZero() || status.LastStepAt.IsZero() || status.NextCheckpointAt.IsZero() {
+		t.Fatalf("runtime status timestamps were not recorded: %#v", status)
+	}
+	if status.CycleWritten != written {
+		t.Fatalf("runtime cycle written = %d, want %d", status.CycleWritten, written)
+	}
+	assertRawMetricCount(t, dsn, "a.metric", 0)
+	assertRawMetricCount(t, dsn, "b.metric", 1)
+	assertRawMetricCount(t, dsn, "c.metric", 1)
+
+	if _, completed, err = CompactStep(ctx, now); err != nil || completed {
+		t.Fatalf("second compact step = completed %v, err %v; want partial cycle", completed, err)
+	}
+	assertRawMetricCount(t, dsn, "b.metric", 0)
+	assertRawMetricCount(t, dsn, "c.metric", 1)
+
+	if _, completed, err = CompactStep(ctx, now); err != nil || !completed {
+		t.Fatalf("third compact step = completed %v, err %v; want completed cycle", completed, err)
+	}
+	status = GetRuntimeStatus()
+	if status.Progress != 3 || status.Total != 3 || status.LastCycleCompletedAt.IsZero() {
+		t.Fatalf("runtime status after completed cycle = %#v", status)
+	}
+	if status.CheckpointPending || status.LastCheckpointSuccessAt.IsZero() || status.LastError != "" {
+		t.Fatalf("runtime checkpoint status after completed cycle = %#v", status)
+	}
+	assertRawMetricCount(t, dsn, "c.metric", 0)
+}
+
+func TestCompactStepCompletesBuiltinMetricCycleAfterTwentyOneCalls(t *testing.T) {
+	ctx := context.Background()
+	s, err := metric.Open(ctx, metric.SQLite(":memory:", metric.WithMaxOpenConns(1)))
+	if err != nil {
+		t.Fatalf("open metric store: %v", err)
+	}
+	for i := 0; i < 21; i++ {
+		name := fmt.Sprintf("metric.%02d", i)
+		if err := s.UpsertMetric(ctx, metric.Definition{Name: name, Type: metric.TypeGauge, RetentionDays: 1}); err != nil {
+			t.Fatalf("upsert metric %s: %v", name, err)
+		}
+	}
+	installCompactStepTestStore(t, s, 0)
+
+	for i := 0; i < 21; i++ {
+		_, completed, err := CompactStep(ctx, time.Date(2026, 7, 25, 0, 0, i, 0, time.UTC))
+		if err != nil {
+			t.Fatalf("compact step %d: %v", i+1, err)
+		}
+		wantCompleted := i == 20
+		if completed != wantCompleted {
+			t.Fatalf("compact step %d completed = %v, want %v", i+1, completed, wantCompleted)
+		}
+		wantCursor := (i + 1) % 21
+		if compactAt != wantCursor {
+			t.Fatalf("compact step %d cursor = %d, want %d", i+1, compactAt, wantCursor)
+		}
+	}
+}
+
+func TestCompactStepDefersCleanupAndCheckpointUntilCycleEnd(t *testing.T) {
+	ctx := context.Background()
+	dsn := filepath.Join(t.TempDir(), "compact-step-maintenance.db")
+	s, err := metric.Open(ctx, metric.SQLite(dsn, metric.WithMaxOpenConns(1)))
+	if err != nil {
+		t.Fatalf("open metric store: %v", err)
+	}
+	for _, name := range []string{"a.metric", "b.metric"} {
+		if err := s.UpsertMetric(ctx, metric.Definition{Name: name, Type: metric.TypeGauge, RetentionDays: 1}); err != nil {
+			t.Fatalf("upsert metric %s: %v", name, err)
+		}
+	}
+	now := time.Date(2026, 7, 25, 0, 0, 0, 0, time.UTC)
+	for _, name := range []string{"a.metric", "b.metric"} {
+		if err := s.Write(ctx, metric.Point{MetricName: name, EntityID: "node", Timestamp: now.Add(-48 * time.Hour), Value: 1}); err != nil {
+			t.Fatalf("write metric %s: %v", name, err)
+		}
+	}
+	installCompactStepTestStore(t, s, 0)
+
+	written, completed, err := CompactStep(ctx, now)
+	if err != nil || written != 0 || completed {
+		t.Fatalf("first compact step = written %d, completed %v, err %v", written, completed, err)
+	}
+	assertRawMetricCount(t, dsn, "a.metric", 1)
+	assertRawMetricCount(t, dsn, "b.metric", 1)
+	if size := fileSize(t, dsn+"-wal"); size == 0 {
+		t.Fatal("SQLite WAL was truncated before the compact cycle completed")
+	}
+
+	written, completed, err = CompactStep(ctx, now)
+	if err != nil || written != 0 || !completed {
+		t.Fatalf("second compact step = written %d, completed %v, err %v", written, completed, err)
+	}
+	assertRawMetricCount(t, dsn, "a.metric", 0)
+	assertRawMetricCount(t, dsn, "b.metric", 0)
+	if size := fileSize(t, dsn+"-wal"); size != 0 {
+		t.Fatalf("SQLite WAL size after completed compact cycle = %d, want 0", size)
+	}
+}
+
+func TestFinishCompactCycleCleansExpiredDataEveryCycle(t *testing.T) {
+	ctx := context.Background()
+	s, err := metric.Open(ctx, metric.SQLite(":memory:", metric.WithMaxOpenConns(1)))
+	if err != nil {
+		t.Fatalf("open metric store: %v", err)
+	}
+	defer s.Close()
+	if err := s.UpsertMetric(ctx, metric.Definition{Name: "retention.metric", Type: metric.TypeGauge, RetentionDays: 1}); err != nil {
+		t.Fatalf("upsert metric: %v", err)
+	}
+	now := time.Date(2026, 8, 4, 12, 0, 0, 0, time.UTC)
+	for cycle := 1; cycle <= 2; cycle++ {
+		old := now.Add(-time.Duration(48+cycle) * time.Hour)
+		if err := s.Write(ctx, metric.Point{MetricName: "retention.metric", EntityID: "node", Timestamp: old, Value: float64(cycle)}); err != nil {
+			t.Fatalf("cycle %d write old point: %v", cycle, err)
+		}
+		if err := finishCompactCycle(ctx, s, now, false); err != nil {
+			t.Fatalf("cycle %d cleanup: %v", cycle, err)
+		}
+		points, err := s.Query(ctx, metric.Query{MetricName: "retention.metric", EntityID: "node", Start: old.Add(-time.Second), End: now})
+		if err != nil || len(points) != 0 {
+			t.Fatalf("cycle %d kept expired data: points=%d err=%v", cycle, len(points), err)
+		}
+	}
+}
+
+func TestRetryMetricWALCheckpointClearsPendingWAL(t *testing.T) {
+	ctx := context.Background()
+	previousStatus := GetRuntimeStatus()
+	resetRuntimeStatus(metric.DriverSQLite)
+	defer func() {
+		runtimeStatusMu.Lock()
+		runtimeStatus = previousStatus
+		runtimeStatusMu.Unlock()
+	}()
+	dsn := filepath.Join(t.TempDir(), "compact-step-checkpoint-retry.db")
+	s, err := metric.Open(ctx, metric.SQLite(dsn,
+		metric.WithMaxOpenConns(1),
+		metric.WithSQLiteWALAutoCheckpoint(1_000_000),
+	))
+	if err != nil {
+		t.Fatalf("open metric store: %v", err)
+	}
+	defer s.Close()
+	if err := s.UpsertMetric(ctx, metric.Definition{Name: "a.metric", Type: metric.TypeGauge, RetentionDays: 1}); err != nil {
+		t.Fatalf("upsert metric: %v", err)
+	}
+	now := time.Date(2026, 7, 25, 0, 0, 0, 0, time.UTC)
+	if err := s.Write(ctx, metric.Point{MetricName: "a.metric", EntityID: "node", Timestamp: now, Value: 1}); err != nil {
+		t.Fatalf("write metric: %v", err)
+	}
+	runtimeStatusMu.Lock()
+	runtimeStatus.CheckpointPending = true
+	runtimeStatusMu.Unlock()
+
+	if size := fileSize(t, dsn+"-wal"); size == 0 {
+		t.Fatal("expected WAL content before retry")
+	}
+	if !retryMetricWALCheckpoint(ctx, s, now) {
+		t.Fatal("pending WAL checkpoint was not retried")
+	}
+	if GetRuntimeStatus().CheckpointPending {
+		t.Fatal("successful deferred WAL checkpoint remained pending")
+	}
+	status := GetRuntimeStatus()
+	if status.LastCheckpointSuccessAt.IsZero() || status.ConsecutiveCheckpointFailures != 0 {
+		t.Fatalf("checkpoint status after retry = %#v", status)
+	}
+	if size := fileSize(t, dsn+"-wal"); size != 0 {
+		t.Fatalf("SQLite WAL size after deferred retry = %d, want 0", size)
+	}
+	if retryMetricWALCheckpoint(ctx, s, now.Add(checkpointQuickRetryInterval)) {
+		t.Fatal("successful WAL checkpoint was retried without a new failure")
+	}
+}
+
+func TestFinishCompactCycleDoesNotRepeatLongCheckpointWhilePending(t *testing.T) {
+	ctx := context.Background()
+	dsn := filepath.Join(t.TempDir(), "compact-step-pending-checkpoint.db")
+	s, err := metric.Open(ctx, metric.SQLite(dsn,
+		metric.WithMaxOpenConns(1),
+		metric.WithSQLiteWALAutoCheckpoint(1_000_000),
+	))
+	if err != nil {
+		t.Fatalf("open metric store: %v", err)
+	}
+	defer s.Close()
+	if err := s.UpsertMetric(ctx, metric.Definition{Name: "a.metric", Type: metric.TypeGauge, RetentionDays: 1}); err != nil {
+		t.Fatalf("upsert metric: %v", err)
+	}
+	now := time.Now().UTC()
+	if err := s.Write(ctx, metric.Point{MetricName: "a.metric", EntityID: "node", Timestamp: now, Value: 7}); err != nil {
+		t.Fatalf("write metric: %v", err)
+	}
+	before := fileSize(t, dsn+"-wal")
+	if before == 0 {
+		t.Fatal("expected WAL content before pending checkpoint")
+	}
+
+	previousStatus := GetRuntimeStatus()
+	runtimeStatusMu.Lock()
+	runtimeStatus.CheckpointPending = true
+	runtimeStatus.ConsecutiveCheckpointFailures = 1
+	runtimeStatusMu.Unlock()
+	defer func() {
+		runtimeStatusMu.Lock()
+		runtimeStatus = previousStatus
+		runtimeStatusMu.Unlock()
+	}()
+
+	if err := finishCompactCycle(ctx, s, now, true); err != nil {
+		t.Fatalf("finish compact cycle while checkpoint pending: %v", err)
+	}
+	if size := fileSize(t, dsn+"-wal"); size < before {
+		t.Fatalf("pending WAL was unexpectedly truncated: before=%d after=%d", before, size)
+	}
+	points, err := s.Query(ctx, metric.Query{
+		MetricName: "a.metric",
+		EntityID:   "node",
+		Start:      now.Add(-time.Second),
+		End:        now.Add(time.Second),
+	})
+	if err != nil {
+		t.Fatalf("query metric after deferred checkpoint: %v", err)
+	}
+	if len(points) != 1 || points[0].Value != 7 {
+		t.Fatalf("metric data changed while checkpoint was deferred: %#v", points)
+	}
+}
+
+func TestMetricWALCheckpointTimeoutUsesLongWaitOnlyAboveLimit(t *testing.T) {
+	if got := metricWALCheckpointTimeout(metricWALCheckpointLimit - 1); got != checkpointRetryTimeout {
+		t.Fatalf("checkpoint timeout below WAL limit = %v, want %v", got, checkpointRetryTimeout)
+	}
+	if got := metricWALCheckpointTimeout(metricWALCheckpointLimit); got != backgroundCheckpointTimeout {
+		t.Fatalf("checkpoint timeout at WAL limit = %v, want %v", got, backgroundCheckpointTimeout)
+	}
+}
+
+func TestCheckpointMetricWALAboveLimit(t *testing.T) {
+	ctx := context.Background()
+	dsn := filepath.Join(t.TempDir(), "compact-step-large-wal.db")
+	s, err := metric.Open(ctx, metric.SQLite(dsn,
+		metric.WithMaxOpenConns(1),
+		metric.WithSQLiteWALAutoCheckpoint(1_000_000),
+	))
+	if err != nil {
+		t.Fatalf("open metric store: %v", err)
+	}
+	defer s.Close()
+	if err := s.UpsertMetric(ctx, metric.Definition{Name: "a.metric", Type: metric.TypeGauge, RetentionDays: 1}); err != nil {
+		t.Fatalf("upsert metric: %v", err)
+	}
+	if err := s.Write(ctx, metric.Point{MetricName: "a.metric", EntityID: "node", Timestamp: time.Now().UTC(), Value: 1}); err != nil {
+		t.Fatalf("write metric: %v", err)
+	}
+	if size := fileSize(t, dsn+"-wal"); size == 0 {
+		t.Fatal("expected WAL content before threshold checkpoint")
+	}
+
+	checkpointed, err := checkpointMetricWALAbove(ctx, s, 1)
+	if err != nil {
+		t.Fatalf("checkpoint oversized WAL: %v", err)
+	}
+	if !checkpointed {
+		t.Fatal("oversized WAL was not checkpointed")
+	}
+	if size := fileSize(t, dsn+"-wal"); size != 0 {
+		t.Fatalf("WAL size after threshold checkpoint = %d, want 0", size)
+	}
+}
+
+func TestCompactStepAdvancesAfterMetricFailure(t *testing.T) {
+	ctx := context.Background()
+	dsn := filepath.Join(t.TempDir(), "compact-step-failure.db")
+	s, err := metric.Open(ctx, metric.SQLite(dsn,
+		metric.WithMaxOpenConns(1),
+		metric.WithRollupPolicy(defaultRollupPolicy()),
+	))
+	if err != nil {
+		t.Fatalf("open metric store: %v", err)
+	}
+	for _, name := range []string{"a.invalid", "b.healthy"} {
+		if err := s.CreateMetric(ctx, metric.Definition{Name: name, Type: metric.TypeGauge, RetentionDays: 1}); err != nil {
+			t.Fatalf("create metric %s: %v", name, err)
+		}
+	}
+	now := time.Date(2026, 7, 25, 0, 0, 0, 0, time.UTC)
+	old := now.Add(-48 * time.Hour)
+	if err := s.Write(ctx, metric.Point{MetricName: "b.healthy", EntityID: "node", Timestamp: old, Value: 2}); err != nil {
+		t.Fatalf("write healthy point: %v", err)
+	}
+	rawDB, err := sql.Open("sqlite3", dsn)
+	if err != nil {
+		t.Fatalf("open raw sqlite connection: %v", err)
+	}
+	_, err = rawDB.ExecContext(ctx, `INSERT INTO metric_points
+		(metric_name, entity_id, tags_hash, ts_nano, value, tags, labels, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		"a.invalid", "node", "invalid", old.UnixNano(), 1, "not-json", "{}", now.UnixNano(),
+	)
+	_ = rawDB.Close()
+	if err != nil {
+		t.Fatalf("insert malformed point: %v", err)
+	}
+	installCompactStepTestStore(t, s, 0)
+
+	if _, completed, err := CompactStep(ctx, now); err == nil || completed {
+		t.Fatalf("failed metric step = completed %v, err %v; want failure in partial cycle", completed, err)
+	}
+	if compactAt != 1 {
+		t.Fatalf("cursor after failed metric = %d, want 1", compactAt)
+	}
+	if _, completed, err := CompactStep(ctx, now); err == nil || !completed {
+		t.Fatalf("healthy metric step = completed %v, err %v; want completed cycle retaining cleanup error", completed, err)
+	}
+	assertRawMetricCount(t, dsn, "b.healthy", 0)
+}
+
+func installCompactStepTestStore(t *testing.T, s *metric.Store, cursor int) {
+	t.Helper()
+	installTestStore(t, s)
+	previousCursor := compactAt
+	previousStatus := GetRuntimeStatus()
+	compactAt = cursor
+	resetRuntimeStatus(s.Driver())
+	t.Cleanup(func() {
+		compactAt = previousCursor
+		runtimeStatusMu.Lock()
+		runtimeStatus = previousStatus
+		runtimeStatusMu.Unlock()
+	})
+}
+
+func assertRawMetricCount(t *testing.T, dsn, metricName string, want int) {
+	t.Helper()
+	db, err := sql.Open("sqlite3", dsn)
+	if err != nil {
+		t.Fatalf("open raw sqlite connection: %v", err)
+	}
+	defer db.Close()
+	var got int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM metric_points WHERE metric_name = ?`, metricName).Scan(&got); err != nil {
+		t.Fatalf("count raw metric %s: %v", metricName, err)
+	}
+	if got != want {
+		t.Fatalf("raw metric %s count = %d, want %d", metricName, got, want)
+	}
+}
+
+func fileSize(t *testing.T, path string) int64 {
+	t.Helper()
+	info, err := os.Stat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return 0
+	}
+	if err != nil {
+		t.Fatalf("stat %s: %v", path, err)
+	}
+	return info.Size()
+}
+
+func TestGetRecordsByClientAndTimeReadsRollupsAfterRawCompaction(t *testing.T) {
+	ctx := context.Background()
+	s, err := metric.Open(ctx, metric.SQLite(":memory:",
+		metric.WithMaxOpenConns(1),
+		metric.WithRollupPolicy(defaultRollupPolicy()),
+	))
+	if err != nil {
+		t.Fatalf("open metric store: %v", err)
+	}
+	if err := createMetricDefinitions(ctx, s); err != nil {
+		t.Fatalf("create metric definitions: %v", err)
+	}
+
+	storeMu.Lock()
+	oldStore := store
+	oldCompactAt := compactAt
+	store = s
+	compactAt = 0
+	storeMu.Unlock()
+	defer func() {
+		storeMu.Lock()
+		store = oldStore
+		compactAt = oldCompactAt
+		storeMu.Unlock()
+		_ = s.Close()
+	}()
+
+	now := time.Now().UTC().Truncate(time.Minute)
+	ts := now.Add(-time.Hour)
+	rec := models.Record{
+		Client:         "node-a",
+		Time:           ts,
+		Cpu:            42.5,
+		Ram:            123456,
+		RamTotal:       999999,
+		Disk:           456789,
+		DiskTotal:      777777,
+		Load:           0.75,
+		Connections:    321,
+		ConnectionsUdp: 12,
+	}
+	if _, err := WriteReport(ctx, v1.Report{
+		UUID:      rec.Client,
+		UpdatedAt: ts,
+		CPU:       v1.CPUReport{Usage: float64(rec.Cpu)},
+		Ram:       v1.RamReport{Used: rec.Ram, Total: rec.RamTotal},
+		Load:      v1.LoadReport{Load1: float64(rec.Load)},
+		Disk:      v1.DiskReport{Used: rec.Disk, Total: rec.DiskTotal},
+		Process:   rec.Process,
+		Connections: v1.ConnectionsReport{
+			TCP: rec.Connections,
+			UDP: rec.ConnectionsUdp,
+		},
+	}); err != nil {
+		t.Fatalf("write record: %v", err)
+	}
+	if _, err := s.Compact(ctx, now); err != nil {
+		t.Fatalf("compact raw into rollup: %v", err)
+	}
+	raw, err := s.Query(ctx, metric.Query{
+		MetricName: MetricCPU,
+		EntityID:   rec.Client,
+		Start:      ts.Add(-time.Minute),
+		End:        now,
+	})
+	if err != nil {
+		t.Fatalf("query raw cpu: %v", err)
+	}
+	if len(raw) != 0 {
+		t.Fatalf("expected old raw cpu point to be deleted after compaction, got %d", len(raw))
+	}
+
+	got, err := GetRecordsByClientAndTime(ctx, rec.Client, ts.Add(-time.Minute), now)
+	if err != nil {
+		t.Fatalf("get records: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("expected 1 reconstructed record from rollup, got %d: %#v", len(got), got)
+	}
+	if got[0].Cpu == 0 || got[0].Ram == 0 || got[0].Disk == 0 || got[0].Connections == 0 {
+		t.Fatalf("record was not reconstructed from rollup: %#v", got[0])
+	}
+
+	all, err := GetRecordsByTime(ctx, ts.Add(-time.Minute), now)
+	if err != nil {
+		t.Fatalf("get all records: %v", err)
+	}
+	if len(all) != 1 || all[0].Client != rec.Client || all[0].Cpu == 0 {
+		t.Fatalf("all-client records were not reconstructed from rollup: %#v", all)
+	}
+}
+
+func TestRecordMetricNamesForLoadType(t *testing.T) {
+	tests := []struct {
+		loadType string
+		want     []string
+	}{
+		{"cpu", []string{MetricCPU}},
+		{"ram", []string{MetricRAM}},
+		{"disk", []string{MetricDisk}},
+		{"net_in", []string{MetricNetIn}},
+		{"netin", []string{MetricNetIn}},
+		{"net_out", []string{MetricNetOut}},
+		{"netout", []string{MetricNetOut}},
+		{"network", []string{MetricNetIn, MetricNetOut, MetricNetTotalUp, MetricNetTotalDown}},
+		{"connections", []string{MetricConnections, MetricConnectionsUDP}},
+		{"all", loadRecordMetricNames},
+	}
+	for _, test := range tests {
+		got := recordMetricNamesForLoadType(test.loadType)
+		if !reflect.DeepEqual(got, test.want) {
+			t.Fatalf("load type %q metrics=%v want=%v", test.loadType, got, test.want)
+		}
+	}
+}

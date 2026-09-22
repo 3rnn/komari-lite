@@ -1,0 +1,269 @@
+package notifier
+
+import (
+	"testing"
+	"time"
+
+	"github.com/komari-monitor/komari/database/models"
+	"github.com/stretchr/testify/assert"
+)
+
+func TestPreviousTrafficReportRangesUseBeijingTimezone(t *testing.T) {
+	originalLocal := time.Local
+	time.Local = time.FixedZone("UTC-7", -7*60*60)
+	t.Cleanup(func() { time.Local = originalLocal })
+
+	now := time.Date(2026, 6, 30, 16, 0, 0, 0, time.UTC) // 2026-07-01 00:00 Beijing
+	tests := []struct {
+		period    string
+		wantStart time.Time
+		wantEnd   time.Time
+	}{
+		{
+			period:    "daily",
+			wantStart: time.Date(2026, 6, 29, 16, 0, 0, 0, time.UTC),
+			wantEnd:   time.Date(2026, 6, 30, 16, 0, 0, 0, time.UTC).Add(-time.Nanosecond),
+		},
+		{
+			period:    "weekly",
+			wantStart: time.Date(2026, 6, 21, 16, 0, 0, 0, time.UTC),
+			wantEnd:   time.Date(2026, 6, 28, 16, 0, 0, 0, time.UTC).Add(-time.Nanosecond),
+		},
+		{
+			period:    "monthly",
+			wantStart: time.Date(2026, 5, 31, 16, 0, 0, 0, time.UTC),
+			wantEnd:   time.Date(2026, 6, 30, 16, 0, 0, 0, time.UTC).Add(-time.Nanosecond),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.period, func(t *testing.T) {
+			start, end := previousTrafficReportRange(now, test.period)
+			if !start.Equal(test.wantStart) || !end.Equal(test.wantEnd) {
+				t.Fatalf("range = [%s, %s], want [%s, %s]", start, end, test.wantStart, test.wantEnd)
+			}
+			if start.Location() != time.UTC || end.Location() != time.UTC {
+				t.Fatalf("range locations = [%s, %s], want UTC", start.Location(), end.Location())
+			}
+		})
+	}
+}
+
+func TestPreviousDailyTrafficReportRangeIsAlwaysTwentyFourHours(t *testing.T) {
+	now := time.Date(2026, 3, 9, 4, 0, 0, 0, time.UTC)
+	start, end := previousTrafficReportRange(now, "daily")
+	if got := end.Add(time.Nanosecond).Sub(start); got != 24*time.Hour {
+		t.Fatalf("Beijing calendar day duration = %s, want 24h", got)
+	}
+}
+
+func TestSumTrafficDeltasUsesStoredDeltas(t *testing.T) {
+	records := []trafficDeltaRecord{
+		{TrafficUp: 30, TrafficDown: 40, NetTotalUp: 130, NetTotalDown: 240},
+		{TrafficUp: 25, TrafficDown: 35, NetTotalUp: 155, NetTotalDown: 275},
+	}
+
+	up, down := sumTrafficDeltas(records, nil)
+	assert.Equal(t, int64(55), up)
+	assert.Equal(t, int64(75), down)
+}
+
+func TestSumTrafficDeltasFallsBackToCumulativeTotals(t *testing.T) {
+	previous := &trafficDeltaRecord{NetTotalUp: 100, NetTotalDown: 200}
+	records := []trafficDeltaRecord{
+		{TrafficUp: 0, TrafficDown: 0, NetTotalUp: 130, NetTotalDown: 250},
+		{TrafficUp: 0, TrafficDown: 0, NetTotalUp: 160, NetTotalDown: 310},
+	}
+
+	up, down := sumTrafficDeltas(records, previous)
+	assert.Equal(t, int64(60), up)
+	assert.Equal(t, int64(110), down)
+}
+
+func TestSumTrafficDeltasHandlesCounterResetInFallback(t *testing.T) {
+	previous := &trafficDeltaRecord{NetTotalUp: 400, NetTotalDown: 550}
+	records := []trafficDeltaRecord{
+		{TrafficUp: 0, TrafficDown: 0, NetTotalUp: 500, NetTotalDown: 600},
+		{TrafficUp: 0, TrafficDown: 0, NetTotalUp: 100, NetTotalDown: 150},
+	}
+
+	up, down := sumTrafficDeltas(records, previous)
+	assert.Equal(t, int64(100), up)
+	assert.Equal(t, int64(50), down)
+}
+
+func TestSumTrafficDeltasEmpty(t *testing.T) {
+	up, down := sumTrafficDeltas(nil, nil)
+	assert.Equal(t, int64(0), up)
+	assert.Equal(t, int64(0), down)
+}
+
+func TestTrafficDeltaOrFallback(t *testing.T) {
+	// 存储的增量为正时直接使用
+	assert.Equal(t, int64(42), trafficDeltaOrFallback(42, true, 500, 100))
+	// 明确存储为 0 时保留 0，不把它误判成字段缺失
+	assert.Equal(t, int64(0), trafficDeltaOrFallback(0, true, 500, 100))
+	// 旧数据缺少增量字段时回退到累计差值
+	assert.Equal(t, int64(400), trafficDeltaOrFallback(0, false, 500, 100))
+	// 回退路径把计数器下降视为新基准
+	assert.Equal(t, int64(0), trafficDeltaOrFallback(0, false, 50, 500))
+}
+
+func TestComputeUsedByType(t *testing.T) {
+	assert.Equal(t, int64(30), computeUsedByType("up", 30, 70))
+	assert.Equal(t, int64(70), computeUsedByType("down", 30, 70))
+	assert.Equal(t, int64(100), computeUsedByType("sum", 30, 70))
+	assert.Equal(t, int64(30), computeUsedByType("min", 30, 70))
+	assert.Equal(t, int64(70), computeUsedByType("max", 30, 70))
+	// 未知类型默认取较大值
+	assert.Equal(t, int64(70), computeUsedByType("unknown", 30, 70))
+}
+
+func TestFormatTrafficReportLineSeparatesDirections(t *testing.T) {
+	line := formatTrafficReportLine(models.Client{Name: "server-a"}, "昨日流量", trafficUsage{
+		Up:   1024,
+		Down: 2 * 1024,
+	}, true, false)
+	assert.Equal(t, "server-a 昨日流量：上行 1.00 KB，下行 2.00 KB", line)
+
+	line = formatTrafficReportLine(models.Client{UUID: "client-a"}, "上周流量", trafficUsage{}, true, false)
+	assert.Equal(t, "client-a 上周流量：上行 0 B，下行 0 B", line)
+}
+
+func TestCurrentDailyTrafficReportRangeUsesBeijingMidnightThroughNow(t *testing.T) {
+	now := time.Date(2026, 7, 20, 7, 45, 12, 0, time.UTC) // 15:45:12 Beijing
+	start, end := currentDailyTrafficReportRange(now)
+	wantStart := time.Date(2026, 7, 19, 16, 0, 0, 0, time.UTC)
+	if !start.Equal(wantStart) || !end.Equal(now) {
+		t.Fatalf("range = [%s, %s], want [%s, %s]", start, end, wantStart, now)
+	}
+}
+
+func TestFormatTrafficReportLineSupportsBillingAndCombinedContent(t *testing.T) {
+	client := models.Client{Name: "server-a", Price: 10, TrafficLimitType: "sum"}
+	usage := trafficUsage{Up: 1024, Down: 2 * 1024}
+
+	assert.Equal(t,
+		"server-a 昨日流量：计费流量 3.00 KB（sum）",
+		formatTrafficReportLine(client, "昨日流量", usage, false, true),
+	)
+	assert.Equal(t,
+		"server-a 昨日流量：上行 1.00 KB，下行 2.00 KB，计费流量 3.00 KB（sum）",
+		formatTrafficReportLine(client, "昨日流量", usage, true, true),
+	)
+}
+
+func TestFormatTrafficReportLineIgnoresResetQuotaFields(t *testing.T) {
+	client := models.Client{
+		Name: "server-a", Price: 10, TrafficLimitType: "max",
+		TrafficResetAllowance: 1024, TrafficResetCycle: "2026-08-01",
+	}
+	line := formatTrafficReportLine(client, "period", trafficUsage{Up: 1024, Down: 2 * 1024}, false, true)
+	assert.Contains(t, line, "2.00 KB")
+	assert.NotContains(t, line, "3.00 KB")
+}
+
+func TestFormatTrafficReportLineExcludesBillingForFreeClients(t *testing.T) {
+	client := models.Client{Name: "free-server", Price: 0, TrafficLimitType: "sum"}
+	usage := trafficUsage{Up: 1024, Down: 2 * 1024}
+
+	assert.Empty(t, formatTrafficReportLine(client, "昨日流量", usage, false, true))
+	assert.Equal(t,
+		"free-server 昨日流量：上行 1.00 KB，下行 2.00 KB",
+		formatTrafficReportLine(client, "昨日流量", usage, true, true),
+	)
+}
+
+func TestTrafficReportTargetContentRequiresTrafficOrPaidBilling(t *testing.T) {
+	freeBillingOnly := trafficReportTarget{
+		client:       models.Client{Price: 0},
+		notification: models.TrafficReportNotification{IncludeBilling: true},
+	}
+	paidBillingOnly := trafficReportTarget{
+		client:       models.Client{Price: 1},
+		notification: models.TrafficReportNotification{IncludeBilling: true},
+	}
+	freeTraffic := trafficReportTarget{
+		client:       models.Client{Price: 0},
+		notification: models.TrafficReportNotification{IncludeTraffic: true, IncludeBilling: true},
+	}
+
+	assert.False(t, freeBillingOnly.hasReportContent())
+	assert.True(t, paidBillingOnly.hasReportContent())
+	assert.True(t, freeTraffic.hasReportContent())
+}
+
+func TestTrafficReportTargetsFollowConfiguredClientOrder(t *testing.T) {
+	notifications := []models.TrafficReportNotification{
+		{Client: "client-a", IncludeTraffic: true},
+		{Client: "client-b", IncludeBilling: true},
+	}
+	clients := []models.Client{
+		{UUID: "client-b", Name: "B", Weight: 10},
+		{UUID: "client-a", Name: "A", Weight: 20},
+	}
+
+	targets := trafficReportTargetsInClientOrder(notifications, clients)
+	assert.Len(t, targets, 2)
+	assert.Equal(t, "client-b", targets[0].client.UUID)
+	assert.True(t, targets[0].notification.IncludeBilling)
+	assert.Equal(t, "client-a", targets[1].client.UUID)
+	assert.True(t, targets[1].notification.IncludeTraffic)
+}
+
+func TestSumTrafficDeltasIgnoresTransientCounterRollback(t *testing.T) {
+	const gib = int64(1024 * 1024 * 1024)
+	start := time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC)
+	previous := &trafficDeltaRecord{
+		Time:       start.Add(-time.Minute),
+		NetTotalUp: 10 * gib,
+	}
+	records := []trafficDeltaRecord{
+		{
+			Time:       start,
+			NetTotalUp: gib,
+			TrafficUp:  gib,
+		},
+		{
+			Time:       start.Add(time.Minute),
+			NetTotalUp: 10*gib + gib/2,
+			TrafficUp:  9*gib + gib/2,
+		},
+	}
+
+	up, _ := sumTrafficDeltas(records, previous)
+	assert.Equal(t, gib/2, up)
+}
+
+func TestSumTrafficDeltasCountsOnlyPostResetIncrement(t *testing.T) {
+	const gib = int64(1024 * 1024 * 1024)
+	start := time.Date(2026, 6, 7, 13, 0, 0, 0, time.UTC)
+	previous := &trafficDeltaRecord{
+		Time:       start.Add(-time.Minute),
+		NetTotalUp: 10 * gib,
+	}
+	records := []trafficDeltaRecord{
+		{Time: start, NetTotalUp: gib, TrafficUp: gib},
+		{Time: start.Add(time.Minute), NetTotalUp: 2 * gib, TrafficUp: gib},
+	}
+
+	up, _ := sumTrafficDeltas(records, previous)
+	assert.Equal(t, gib, up)
+}
+
+func TestSumTrafficDeltasCorrectsInflatedRollupDelta(t *testing.T) {
+	const mib = int64(1024 * 1024)
+	start := time.Date(2026, 6, 7, 14, 0, 0, 0, time.UTC)
+	previous := &trafficDeltaRecord{
+		Time:       start.Add(-15 * time.Minute),
+		NetTotalUp: 10 * 1024 * mib,
+	}
+	records := []trafficDeltaRecord{{
+		Time:       start,
+		NetTotalUp: 10*1024*mib + 100*mib,
+		TrafficUp:  10 * 1024 * mib,
+	}}
+
+	up, _ := sumTrafficDeltas(records, previous)
+	assert.Equal(t, 100*mib, up)
+}

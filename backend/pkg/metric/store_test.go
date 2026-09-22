@@ -1,0 +1,237 @@
+package metric
+
+import (
+	"context"
+	"errors"
+	"math"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+)
+
+func TestPingDatabaseWithTimeoutUsesFreshDeadline(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, SQLite("file:ping-timeout?mode=memory&cache=shared"))
+	if err != nil {
+		t.Fatalf("open SQLite store: %v", err)
+	}
+	defer store.Close()
+
+	const timeout = 50 * time.Millisecond
+	if err := pingDatabaseWithTimeout(ctx, store.db, timeout); err != nil {
+		t.Fatalf("initial ping: %v", err)
+	}
+	time.Sleep(2 * timeout)
+	if err := pingDatabaseWithTimeout(ctx, store.db, timeout); err != nil {
+		t.Fatalf("ping after previous deadline elapsed: %v", err)
+	}
+}
+
+// TestSQLiteStoreWriteQueryAggregate verifies SQLite write, query, aggregate, and stats.
+//
+// TestSQLiteStoreWriteQueryAggregate 验证 SQLite 写入、查询、聚合和统计。
+func TestSQLiteStoreWriteQueryAggregate(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, SQLite("file:test-metric?mode=memory&cache=shared"))
+	if err != nil {
+		t.Fatalf("open sqlite store: %v", err)
+	}
+	defer store.Close()
+
+	if err := store.CreateMetric(ctx, Definition{Name: "cpu.usage", Type: TypeGauge, Unit: "%", RetentionDays: 30}); err != nil {
+		t.Fatalf("create metric: %v", err)
+	}
+
+	base := time.Date(2026, 6, 18, 10, 0, 0, 0, time.UTC)
+	points := []Point{
+		{MetricName: "cpu.usage", EntityID: "server-1", Timestamp: base, Value: 10, Tags: map[string]string{"region": "ap"}},
+		{MetricName: "cpu.usage", EntityID: "server-1", Timestamp: base.Add(time.Minute), Value: 20, Tags: map[string]string{"region": "ap"}},
+		{MetricName: "cpu.usage", EntityID: "server-1", Timestamp: base.Add(2 * time.Minute), Value: 30, Tags: map[string]string{"region": "ap"}},
+		{MetricName: "cpu.usage", EntityID: "server-2", Timestamp: base.Add(time.Minute), Value: 99, Tags: map[string]string{"region": "eu"}},
+	}
+	if err := store.WriteBatch(ctx, points); err != nil {
+		t.Fatalf("write batch: %v", err)
+	}
+
+	got, err := store.Query(ctx, Query{
+		MetricName: "cpu.usage",
+		EntityID:   "server-1",
+		Start:      base.Add(-time.Second),
+		End:        base.Add(3 * time.Minute),
+		Tags:       map[string]string{"region": "ap"},
+	})
+	if err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	if len(got) != 3 {
+		t.Fatalf("expected 3 points, got %d", len(got))
+	}
+	if got[0].Value != 10 || got[2].Value != 30 {
+		t.Fatalf("unexpected ordered values: %#v", got)
+	}
+
+	agg, err := store.Aggregate(ctx, AggregateQuery{
+		Query: Query{
+			MetricName: "cpu.usage",
+			EntityID:   "server-1",
+			Start:      base,
+			End:        base.Add(3 * time.Minute),
+		},
+		Aggregation: AggAvg,
+		Interval:    2 * time.Minute,
+	})
+	if err != nil {
+		t.Fatalf("aggregate: %v", err)
+	}
+	if len(agg) != 2 {
+		t.Fatalf("expected 2 aggregate buckets, got %d", len(agg))
+	}
+	if agg[0].Value != 15 || agg[0].Count != 2 {
+		t.Fatalf("unexpected first aggregate: %#v", agg[0])
+	}
+
+	stats, err := store.Stats(ctx, Query{
+		MetricName: "cpu.usage",
+		EntityID:   "server-1",
+		Start:      base,
+		End:        base.Add(3 * time.Minute),
+	})
+	if err != nil {
+		t.Fatalf("stats: %v", err)
+	}
+	if stats.Count != 3 || stats.Avg != 20 || stats.P95 != 29 {
+		t.Fatalf("unexpected stats: %#v", stats)
+	}
+}
+
+func TestWriteRejectsNonFiniteValues(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, SQLite("file:test-non-finite?mode=memory&cache=shared"))
+	if err != nil {
+		t.Fatalf("open sqlite store: %v", err)
+	}
+	defer store.Close()
+	if err := store.CreateMetric(ctx, Definition{Name: "bad", Type: TypeGauge, RetentionDays: 1}); err != nil {
+		t.Fatalf("create metric: %v", err)
+	}
+
+	for _, value := range []float64{math.NaN(), math.Inf(1), math.Inf(-1)} {
+		err := store.Write(ctx, Point{
+			MetricName: "bad",
+			EntityID:   "server-1",
+			Timestamp:  time.Now(),
+			Value:      value,
+		})
+		if !errors.Is(err, ErrInvalidArgument) {
+			t.Fatalf("expected ErrInvalidArgument for %v, got %v", value, err)
+		}
+	}
+}
+
+func TestWriteBatchRequiresMetricDefinition(t *testing.T) {
+	ctx := context.Background()
+	store := newMemStore(t)
+	point := Point{MetricName: "custom.metric", EntityID: "server-1", Timestamp: time.Now().UTC(), Value: 1}
+
+	if err := store.Write(ctx, point); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("write undefined metric error = %v, want ErrNotFound", err)
+	}
+	if err := store.CreateMetric(ctx, Definition{Name: point.MetricName, Type: TypeGauge, RetentionDays: 1}); err != nil {
+		t.Fatalf("register dynamic metric: %v", err)
+	}
+	if err := store.Write(ctx, point); err != nil {
+		t.Fatalf("write registered dynamic metric: %v", err)
+	}
+}
+
+func TestUpdateMetricRetentionDefersDisabledMetricCleanup(t *testing.T) {
+	ctx := context.Background()
+	store := newMemStore(t)
+	const metricName = "deferred.cleanup"
+	if err := store.CreateMetric(ctx, Definition{Name: metricName, Type: TypeGauge, RetentionDays: 1}); err != nil {
+		t.Fatalf("create metric: %v", err)
+	}
+	point := Point{MetricName: metricName, EntityID: "server-1", Timestamp: time.Now().UTC(), Value: 1}
+	if err := store.Write(ctx, point); err != nil {
+		t.Fatalf("write point: %v", err)
+	}
+
+	if _, err := store.UpdateMetricRetention(ctx, metricName, 0); err != nil {
+		t.Fatalf("disable metric retention: %v", err)
+	}
+	points, err := store.Query(ctx, Query{MetricName: metricName, EntityID: point.EntityID, Start: point.Timestamp.Add(-time.Second), End: point.Timestamp.Add(time.Second)})
+	if err != nil {
+		t.Fatalf("query retained point before cleanup: %v", err)
+	}
+	if len(points) != 1 {
+		t.Fatalf("points before cleanup = %d, want 1", len(points))
+	}
+
+	deleted, err := store.DeleteMetricDataIfDisabled(ctx, metricName)
+	if err != nil {
+		t.Fatalf("delete disabled metric data: %v", err)
+	}
+	if !deleted {
+		t.Fatal("expected disabled metric data to be deleted")
+	}
+	points, err = store.Query(ctx, Query{MetricName: metricName, EntityID: point.EntityID, Start: point.Timestamp.Add(-time.Second), End: point.Timestamp.Add(time.Second)})
+	if err != nil {
+		t.Fatalf("query cleaned metric: %v", err)
+	}
+	if len(points) != 0 {
+		t.Fatalf("points after cleanup = %d, want 0", len(points))
+	}
+}
+
+// TestSQLiteInDirCreatesDirectoryAndAppliesPragmas verifies SQLite file setup and PRAGMAs.
+//
+// TestSQLiteInDirCreatesDirectoryAndAppliesPragmas 验证 SQLite 文件初始化和 PRAGMA 设置。
+func TestSQLiteInDirCreatesDirectoryAndAppliesPragmas(t *testing.T) {
+	ctx := context.Background()
+	dir := filepath.Join(t.TempDir(), "metrics")
+	store, err := Open(ctx, SQLiteInDir(
+		dir,
+		WithSQLiteProfile(SQLiteProfilePerformance),
+		WithSQLiteCacheSizeKB(32*1024),
+	))
+	if err != nil {
+		t.Fatalf("open sqlite dir store: %v", err)
+	}
+	defer store.Close()
+
+	if _, err := os.Stat(filepath.Join(dir, "metrics.db")); err != nil {
+		t.Fatalf("expected sqlite database file to be created: %v", err)
+	}
+
+	var journalMode string
+	if err := store.db.QueryRowContext(ctx, "PRAGMA journal_mode").Scan(&journalMode); err != nil {
+		t.Fatalf("query journal mode: %v", err)
+	}
+	if journalMode != "wal" {
+		t.Fatalf("expected WAL journal mode, got %q", journalMode)
+	}
+
+	var synchronous int
+	if err := store.db.QueryRowContext(ctx, "PRAGMA synchronous").Scan(&synchronous); err != nil {
+		t.Fatalf("query synchronous: %v", err)
+	}
+	if synchronous != 0 {
+		t.Fatalf("expected performance profile synchronous=OFF(0), got %d", synchronous)
+	}
+
+	var walAutoCheckpoint int
+	if err := store.db.QueryRowContext(ctx, "PRAGMA wal_autocheckpoint").Scan(&walAutoCheckpoint); err != nil {
+		t.Fatalf("query WAL auto-checkpoint: %v", err)
+	}
+	if walAutoCheckpoint != 256 {
+		t.Fatalf("expected WAL auto-checkpoint=256 pages, got %d", walAutoCheckpoint)
+	}
+	var journalSizeLimit int64
+	if err := store.db.QueryRowContext(ctx, "PRAGMA journal_size_limit").Scan(&journalSizeLimit); err != nil {
+		t.Fatalf("query journal size limit: %v", err)
+	}
+	if journalSizeLimit != 1024*1024 {
+		t.Fatalf("expected journal size limit=1048576, got %d", journalSizeLimit)
+	}
+}

@@ -1,0 +1,843 @@
+package clients
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	logger "github.com/komari-monitor/komari/utils/log"
+	"math"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/komari-monitor/komari/database/dbcore"
+	"github.com/komari-monitor/komari/database/metricstore"
+	"github.com/komari-monitor/komari/database/models"
+	"github.com/komari-monitor/komari/database/notificationdefaults"
+	"github.com/komari-monitor/komari/database/tasks"
+	"github.com/komari-monitor/komari/database/trafficledger"
+	"github.com/komari-monitor/komari/pkg/config"
+	"github.com/komari-monitor/komari/utils"
+
+	"github.com/google/uuid"
+	"gorm.io/gorm"
+)
+
+func DeleteClient(clientUuid string) error {
+	metricstore.BlockEntityWrites(clientUuid)
+	deleted := false
+	defer func() {
+		if !deleted {
+			metricstore.UnblockEntityWrites(clientUuid)
+		}
+	}()
+
+	db := dbcore.GetDBInstance()
+	pingTasksChanged, err := deleteClient(db, clientUuid)
+	if err != nil {
+		return err
+	}
+	deleted = true
+	if err := metricstore.ProcessPendingCleanupJobs(context.Background(), db); err != nil {
+		logger.Errorf("metricstore", "Client %s was deleted; metric cleanup remains queued: %v", clientUuid, err)
+	}
+	trafficledger.InvalidateCalibratedCycleCache()
+	if pingTasksChanged {
+		if err := tasks.ReloadPingSchedule(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func deleteClient(db *gorm.DB, clientUuid string) (bool, error) {
+	pingTasksChanged := false
+	err := db.Transaction(func(tx *gorm.DB) error {
+		var clientCount int64
+		if err := tx.Model(&models.Client{}).Where("uuid = ?", clientUuid).Count(&clientCount).Error; err != nil {
+			return fmt.Errorf("find client: %w", err)
+		}
+		if clientCount == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		if err := metricstore.EnqueueEntityCleanup(tx, clientUuid); err != nil {
+			return fmt.Errorf("queue client metric cleanup: %w", err)
+		}
+
+		for label, model := range map[string]any{
+			"load notification states":        &models.LoadNotificationState{},
+			"offline notifications":           &models.OfflineNotification{},
+			"traffic report notifications":    &models.TrafficReportNotification{},
+			"traffic daily ledger":            &models.TrafficDailyLedger{},
+			"traffic calibration adjustments": &models.TrafficCalibrationAdjustment{},
+			"ping loss notifications":         &models.PingLossNotification{},
+			"deployment profile":              &models.ClientDeploymentProfile{},
+		} {
+			if !tx.Migrator().HasTable(model) {
+				continue
+			}
+			if err := tx.Where("client = ?", clientUuid).Delete(model).Error; err != nil {
+				return fmt.Errorf("delete client %s: %w", label, err)
+			}
+		}
+
+		if err := deleteLegacyClientRows(tx, clientUuid); err != nil {
+			return err
+		}
+
+		var pingTasks []models.PingTask
+		if err := tx.Select("id", "clients").Find(&pingTasks).Error; err != nil {
+			return fmt.Errorf("find client ping tasks: %w", err)
+		}
+		for _, task := range pingTasks {
+			clients := make(models.StringArray, 0, len(task.Clients))
+			changed := false
+			for _, assignedClient := range task.Clients {
+				if assignedClient == clientUuid {
+					changed = true
+					continue
+				}
+				clients = append(clients, assignedClient)
+			}
+			if !changed {
+				continue
+			}
+			if err := tx.Model(&models.PingTask{}).Where("id = ?", task.Id).Update("clients", clients).Error; err != nil {
+				return fmt.Errorf("remove client from ping task %d: %w", task.Id, err)
+			}
+			pingTasksChanged = true
+		}
+
+		var loadNotifications []models.LoadNotification
+		if err := tx.Select("id", "clients").Find(&loadNotifications).Error; err != nil {
+			return fmt.Errorf("find client load notifications: %w", err)
+		}
+		for _, notification := range loadNotifications {
+			remaining, changed := removeClientUUID(notification.Clients, clientUuid)
+			if !changed {
+				continue
+			}
+			if len(remaining) == 0 {
+				if err := tx.Delete(&models.LoadNotification{}, notification.Id).Error; err != nil {
+					return fmt.Errorf("delete empty load notification %d: %w", notification.Id, err)
+				}
+				continue
+			}
+			if err := tx.Model(&models.LoadNotification{}).Where("id = ?", notification.Id).Update("clients", remaining).Error; err != nil {
+				return fmt.Errorf("remove client from load notification %d: %w", notification.Id, err)
+			}
+		}
+
+		if err := tx.Delete(&models.Client{}, "uuid = ?", clientUuid).Error; err != nil {
+			return fmt.Errorf("delete client: %w", err)
+		}
+		return nil
+	})
+	return pingTasksChanged, err
+}
+
+func removeClientUUID(clients models.StringArray, clientUUID string) (models.StringArray, bool) {
+	remaining := make(models.StringArray, 0, len(clients))
+	changed := false
+	for _, assignedClient := range clients {
+		if assignedClient == clientUUID {
+			changed = true
+			continue
+		}
+		remaining = append(remaining, assignedClient)
+	}
+	return remaining, changed
+}
+
+func deleteLegacyClientRows(tx *gorm.DB, clientUUID string) error {
+	for _, table := range []string{"records", "records_long_term", "gpu_records", "ping_records"} {
+		if !tx.Migrator().HasTable(table) {
+			continue
+		}
+		if err := tx.Exec("DELETE FROM "+table+" WHERE client = ?", clientUUID).Error; err != nil {
+			return fmt.Errorf("delete client rows from legacy table %s: %w", table, err)
+		}
+	}
+	return nil
+}
+
+func SaveClientInfo(update map[string]interface{}) error {
+	return saveClientInfoWithAutoOrder(dbcore.GetDBInstance(), update, autoOrderNewClientsEnabled())
+}
+
+func autoOrderNewClientsEnabled() bool {
+	enabled, err := config.GetAs[bool](config.AutoOrderNewClientsKey, false)
+	if err != nil {
+		return false
+	}
+	return enabled
+}
+
+func saveClientInfo(db *gorm.DB, update map[string]interface{}) error {
+	return saveClientInfoWithAutoOrder(db, update, true)
+}
+
+var (
+	clientInfoAllowedColumnsOnce sync.Once
+	clientInfoAllowedColumnsSet  map[string]string
+)
+
+// clientInfoAllowedColumns 返回 clients 表允许 Agent 上报的列（字段名/列名 → 列名）。
+func clientInfoAllowedColumns(db *gorm.DB) map[string]string {
+	clientInfoAllowedColumnsOnce.Do(func() {
+		stmt := &gorm.Statement{DB: db}
+		if err := stmt.Parse(&models.Client{}); err != nil || stmt.Schema == nil {
+			return
+		}
+		allowed := make(map[string]string, len(stmt.Schema.Fields))
+		for _, field := range stmt.Schema.Fields {
+			if field.DBName == "" || field.PrimaryKey {
+				continue
+			}
+			allowed[field.DBName] = field.DBName
+			allowed[field.Name] = field.DBName
+			allowed[strings.ToLower(field.Name)] = field.DBName
+		}
+		clientInfoAllowedColumnsSet = allowed
+	})
+	return clientInfoAllowedColumnsSet
+}
+
+// sanitizeClientInfoUpdate 丢掉面板不认识的字段；仅在无法解析模型时原样返回，避免误伤。
+func sanitizeClientInfoUpdate(db *gorm.DB, update map[string]interface{}) map[string]interface{} {
+	allowed := clientInfoAllowedColumns(db)
+	if len(allowed) == 0 {
+		return update
+	}
+	cleaned := make(map[string]interface{}, len(update))
+	for key, value := range update {
+		if column, ok := allowed[key]; ok {
+			cleaned[column] = value
+		}
+	}
+	return cleaned
+}
+
+func saveClientInfoWithAutoOrder(db *gorm.DB, update map[string]interface{}, autoOrder bool) error {
+	clientUUID, ok := update["uuid"].(string)
+	if !ok || clientUUID == "" {
+		return fmt.Errorf("invalid client UUID")
+	}
+
+	// Agent 上报的字段由对端决定，可能包含面板这张表里不存在的列（Agent 比面板新，
+	// 或面板已删掉某个能力）。放任这些键进 GORM 会拼出 "no such column"，
+	// 整条基础信息保存失败——面板就永远看不到这台机器的 CPU/内存/系统信息。
+	update = sanitizeClientInfoUpdate(db, update)
+
+	// 确保更新的字段不为空
+	if len(update) == 0 {
+		return fmt.Errorf("no fields to update")
+	}
+
+	update["updated_at"] = time.Now().UTC()
+
+	toFloat64 := func(value interface{}) (float64, bool) {
+		switch typed := value.(type) {
+		case float64:
+			return typed, true
+		case float32:
+			return float64(typed), true
+		case int:
+			return float64(typed), true
+		case int8:
+			return float64(typed), true
+		case int16:
+			return float64(typed), true
+		case int32:
+			return float64(typed), true
+		case int64:
+			return float64(typed), true
+		case uint:
+			return float64(typed), true
+		case uint8:
+			return float64(typed), true
+		case uint16:
+			return float64(typed), true
+		case uint32:
+			return float64(typed), true
+		case uint64:
+			return float64(typed), true
+		case json.Number:
+			parsed, err := typed.Float64()
+			if err != nil {
+				return 0, false
+			}
+			return parsed, true
+		default:
+			return 0, false
+		}
+	}
+
+	checkOptionalInt := func(name, key string, maxValue float64) error {
+		value, exists := update[key]
+		if !exists || value == nil {
+			return nil
+		}
+
+		numericValue, ok := toFloat64(value)
+		if !ok {
+			return fmt.Errorf("%s must be a valid number", name)
+		}
+		if numericValue < 0 || numericValue > maxValue {
+			return fmt.Errorf("%s must be a valid non-negative number: %v", name, value)
+		}
+		return nil
+	}
+
+	verify := func(update map[string]interface{}) error {
+		if err := checkOptionalInt("Cpu.Cores", "cpu_cores", math.MaxInt-1); err != nil {
+			return err
+		}
+		if err := checkOptionalInt("Cpu.PhysicalCores", "cpu_physical_cores", math.MaxInt-1); err != nil {
+			return err
+		}
+		if err := checkOptionalInt("Ram.Total", "mem_total", math.MaxInt64-1); err != nil {
+			return err
+		}
+		if err := checkOptionalInt("Swap.Total", "swap_total", math.MaxInt64-1); err != nil {
+			return err
+		}
+		if err := checkOptionalInt("Disk.Total", "disk_total", math.MaxInt64-1); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	if err := verify(update); err != nil {
+		return err
+	}
+
+	detectedRegion, _ := update["region"].(string)
+	detectedRegion = strings.TrimSpace(detectedRegion)
+
+	return db.Transaction(func(tx *gorm.DB) error {
+		var current models.Client
+		if err := tx.Select("uuid", "region", "region_override").Where("uuid = ?", clientUUID).First(&current).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Model(&models.Client{}).Where("uuid = ?", clientUUID).Updates(update).Error; err != nil {
+			return err
+		}
+
+		// Region is empty until the Agent's first successful basic-info report.
+		// Reorder only on that transition so later reports never fight manual order.
+		if !autoOrder || current.Region != "" || detectedRegion == "" {
+			return nil
+		}
+		effectiveRegion := detectedRegion
+		if current.RegionOverride != "" {
+			effectiveRegion = current.RegionOverride
+		}
+		return placeClientAfterRegionPeers(tx, clientUUID, effectiveRegion)
+	})
+}
+
+type clientOrderState struct {
+	UUID           string
+	Region         string
+	RegionOverride string
+	Group          string
+	Weight         int
+	CreatedAt      time.Time
+}
+
+func (client clientOrderState) effectiveRegion() string {
+	if client.RegionOverride != "" {
+		return client.RegionOverride
+	}
+	return client.Region
+}
+
+func placeClientAfterRegionPeers(tx *gorm.DB, clientUUID, region string) error {
+	var ordered []clientOrderState
+	if err := tx.Model(&models.Client{}).
+		Order("weight ASC").Order("created_at ASC").Order("uuid ASC").
+		Find(&ordered).Error; err != nil {
+		return err
+	}
+	reordered, changed, err := orderClientAfterRegionPeers(ordered, clientUUID, region)
+	if err != nil || !changed {
+		return err
+	}
+	for weight := range reordered {
+		if reordered[weight].Weight == weight {
+			continue
+		}
+		if err := tx.Model(&models.Client{}).
+			Where("uuid = ?", reordered[weight].UUID).
+			Update("weight", weight).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func orderClientAfterRegionPeers(ordered []clientOrderState, clientUUID, region string) ([]clientOrderState, bool, error) {
+	clientIndex := -1
+	for index := range ordered {
+		if ordered[index].UUID == clientUUID {
+			clientIndex = index
+			break
+		}
+	}
+	if clientIndex < 0 {
+		return nil, false, gorm.ErrRecordNotFound
+	}
+
+	moving := ordered[clientIndex]
+	withoutClient := append([]clientOrderState{}, ordered[:clientIndex]...)
+	withoutClient = append(withoutClient, ordered[clientIndex+1:]...)
+	insertAt := -1
+	for index := range withoutClient {
+		if withoutClient[index].Group == moving.Group && withoutClient[index].effectiveRegion() == region {
+			insertAt = index + 1
+		}
+	}
+	if insertAt < 0 {
+		return ordered, false, nil
+	}
+
+	reordered := make([]clientOrderState, 0, len(ordered))
+	reordered = append(reordered, withoutClient[:insertAt]...)
+	reordered = append(reordered, moving)
+	reordered = append(reordered, withoutClient[insertAt:]...)
+	changed := false
+	for weight := range reordered {
+		if reordered[weight].UUID != ordered[weight].UUID || reordered[weight].Weight != weight {
+			changed = true
+		}
+	}
+	return reordered, changed, nil
+}
+
+// UpdateClientOrder applies an administrator-provided order atomically.
+func UpdateClientOrder(order map[string]int) error {
+	return dbcore.GetDBInstance().Transaction(func(tx *gorm.DB) error {
+		for clientUUID, weight := range order {
+			if err := tx.Model(&models.Client{}).Where("uuid = ?", clientUUID).Update("weight", weight).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// CreateClient 创建新客户端
+func CreateClient() (clientUUID, token string, err error) {
+	db := dbcore.GetDBInstance()
+	token = utils.GenerateToken()
+	clientUUID = uuid.New().String()
+
+	client := newClient(clientUUID, token, "client_"+clientUUID[0:8], time.Now().UTC())
+
+	err = db.Create(&client).Error
+	if err != nil {
+		return "", "", err
+	}
+	if err := tasks.AddDefaultOnClientUUID(clientUUID); err != nil {
+		logger.ErrorArgs("clients", "Failed to apply default-on ping tasks to new client:", err)
+	}
+	if err := notificationdefaults.ApplyDefaultsToNewClient(clientUUID); err != nil {
+		logger.ErrorArgs("clients", "Failed to apply notification defaults to new client:", err)
+	}
+	return clientUUID, token, nil
+}
+
+func CreateClientWithName(name string) (clientUUID, token string, err error) {
+	if name == "" {
+		return CreateClient()
+	}
+	db := dbcore.GetDBInstance()
+	token = utils.GenerateToken()
+	clientUUID = uuid.New().String()
+	client := newClient(clientUUID, token, name, time.Now().UTC())
+
+	err = db.Create(&client).Error
+	if err != nil {
+		return "", "", err
+	}
+	if err := tasks.AddDefaultOnClientUUID(clientUUID); err != nil {
+		logger.ErrorArgs("clients", "Failed to apply default-on ping tasks to new client:", err)
+	}
+	if err := notificationdefaults.ApplyDefaultsToNewClient(clientUUID); err != nil {
+		logger.ErrorArgs("clients", "Failed to apply notification defaults to new client:", err)
+	}
+	return clientUUID, token, nil
+}
+
+func newClient(clientUUID, token, name string, now time.Time) models.Client {
+	return models.Client{
+		UUID:             clientUUID,
+		Token:            token,
+		Name:             name,
+		TrafficLimitType: "sum",
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	}
+}
+
+/*
+// GetAllClients 获取所有客户端配置
+
+	func getAllClients() (clients []models.Client, err error) {
+		db := dbcore.GetDBInstance()
+		err = db.Find(&clients).Error
+		if err != nil {
+			return nil, err
+		}
+		return clients, nil
+	}
+*/
+func GetClientByUUID(uuid string) (client models.Client, err error) {
+	db := dbcore.GetDBInstance()
+	err = db.Where("uuid = ?", uuid).First(&client).Error
+	if err != nil {
+		return models.Client{}, err
+	}
+	if err := applyClientDisplayFieldsAndPersist(db, []models.Client{client}, time.Now().UTC()); err != nil {
+		return models.Client{}, err
+	}
+	applyClientDisplayFields(&client, time.Now().UTC())
+	return client, nil
+}
+
+func GetClientTokenByUUID(uuid string) (token string, err error) {
+	db := dbcore.GetDBInstance()
+	var client models.Client
+	err = db.Where("uuid = ?", uuid).First(&client).Error
+	if err != nil {
+		return "", err
+	}
+	return client.Token, nil
+}
+
+func RotateClientToken(uuid string, gracePeriod time.Duration) (token string, previousExpiresAt time.Time, err error) {
+	return rotateClientToken(dbcore.GetDBInstance(), uuid, gracePeriod)
+}
+
+func rotateClientToken(db *gorm.DB, uuid string, gracePeriod time.Duration) (token string, previousExpiresAt time.Time, err error) {
+	if gracePeriod <= 0 {
+		return "", time.Time{}, fmt.Errorf("token grace period must be positive")
+	}
+	err = db.Transaction(func(tx *gorm.DB) error {
+		var client models.Client
+		if err := tx.Where("uuid = ?", uuid).First(&client).Error; err != nil {
+			return err
+		}
+		now := time.Now().UTC()
+		if client.PreviousToken != "" && client.PreviousTokenExpiresAt != nil && client.PreviousTokenExpiresAt.After(now) {
+			return fmt.Errorf("Token 重置仍在过渡期内，请先使用新 Token 重新部署 Agent；新 Token 首次成功连接后才能再次重置")
+		}
+		token = utils.GenerateToken()
+		previousExpiresAt = now.Add(gracePeriod)
+		return tx.Model(&models.Client{}).Where("uuid = ?", uuid).Updates(map[string]interface{}{
+			"token":                     token,
+			"previous_token":            client.Token,
+			"previous_token_expires_at": previousExpiresAt,
+			"updated_at":                now,
+		}).Error
+	})
+	return token, previousExpiresAt, err
+}
+
+func GetAllClientBasicInfo() (clients []models.Client, err error) {
+	return getClientBasicInfo(dbcore.GetDBInstance())
+}
+
+func GetClientBasicInfoByUUIDs(uuids []string) (clients []models.Client, err error) {
+	if len(uuids) == 0 {
+		return []models.Client{}, nil
+	}
+	return getClientBasicInfo(dbcore.GetDBInstance().Where("uuid IN ?", uuids))
+}
+
+func getClientBasicInfo(query *gorm.DB) (clients []models.Client, err error) {
+	err = query.Order("weight ASC").Order("created_at ASC").Order("uuid ASC").Find(&clients).Error
+	if err != nil {
+		return nil, err
+	}
+	baseDB := query.Session(&gorm.Session{NewDB: true})
+	if err := applyClientDisplayFieldsAndPersist(baseDB, clients, time.Now().UTC()); err != nil {
+		return nil, err
+	}
+	if err := applyClientDeploymentStatuses(baseDB, clients); err != nil {
+		return nil, err
+	}
+	return clients, nil
+}
+
+func applyClientDeploymentStatuses(db *gorm.DB, clientList []models.Client) error {
+	if len(clientList) == 0 {
+		return nil
+	}
+	clientUUIDs := make([]string, 0, len(clientList))
+	for i := range clientList {
+		clientUUIDs = append(clientUUIDs, clientList[i].UUID)
+	}
+	var rows []struct {
+		Client         string
+		DeliveryStatus string
+	}
+	if err := db.Model(&models.ClientDeploymentProfile{}).
+		Select("client", "delivery_status").
+		Where("client IN ?", clientUUIDs).
+		Find(&rows).Error; err != nil {
+		return err
+	}
+	statusByClient := make(map[string]string, len(rows))
+	for _, row := range rows {
+		status := row.DeliveryStatus
+		if status == "" {
+			status = DeploymentDeliverySaved
+		}
+		switch status {
+		case DeploymentDeliverySaved, DeploymentDeliverySent, DeploymentDeliveryApplied, DeploymentDeliveryFailed:
+			statusByClient[row.Client] = status
+		}
+	}
+	for i := range clientList {
+		clientList[i].DeploymentStatus = statusByClient[clientList[i].UUID]
+	}
+	return nil
+}
+
+func SaveClient(updates map[string]interface{}) error {
+	return saveClient(dbcore.GetDBInstance(), updates)
+}
+
+func saveClient(db *gorm.DB, updates map[string]interface{}) error {
+	clientUUID, ok := updates["uuid"].(string)
+	if !ok || clientUUID == "" {
+		return fmt.Errorf("invalid client UUID")
+	}
+
+	// 确保更新的字段不为空
+	if len(updates) == 0 {
+		return fmt.Errorf("no fields to update")
+	}
+
+	var existing models.Client
+	if err := db.Select("uuid", "region", "region_override", "traffic_limit", "traffic_limit_type", "traffic_reset_day", "traffic_reset_allowance", "traffic_reset_cycle").
+		Where("uuid = ?", clientUUID).First(&existing).Error; err != nil {
+		return err
+	}
+
+	if v, exists := updates["traffic_limit"]; exists {
+		if val, isFloat := v.(float64); isFloat {
+			numeric, ok := toInt64(val)
+			if !ok || numeric < 0 {
+				return fmt.Errorf("traffic_limit must be a valid non-negative int64 value, got %v", val)
+			}
+			updates["traffic_limit"] = numeric
+		}
+	}
+	if value, exists := updates["traffic_limit_type"]; exists {
+		typeName, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("traffic_limit_type must be a string")
+		}
+		normalized, err := normalizeTrafficType(typeName)
+		if err != nil {
+			return err
+		}
+		updates["traffic_limit_type"] = normalized
+	}
+	if value, exists := updates["region_override"]; exists {
+		override, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("region_override must be a string")
+		}
+		normalized, err := normalizeRegionOverride(override)
+		if err != nil {
+			return err
+		}
+		updates["region_override"] = normalized
+	}
+	resetDay := existing.TrafficResetDay
+	if value, exists := updates["traffic_reset_day"]; exists {
+		normalized, err := normalizeTrafficResetDay(value)
+		if err != nil {
+			return err
+		}
+		updates["traffic_reset_day"] = normalized
+		resetDay = normalized
+	}
+	resetAllowance := existing.TrafficResetAllowance
+	if value, exists := updates["traffic_reset_allowance"]; exists {
+		numeric, ok := toInt64(value)
+		if !ok || numeric < 0 {
+			return fmt.Errorf("traffic_reset_allowance must be a valid non-negative integer")
+		}
+		resetAllowance = numeric
+		updates["traffic_reset_allowance"] = numeric
+	}
+	if _, allowanceChanged := updates["traffic_reset_allowance"]; allowanceChanged {
+		if resetAllowance > 0 {
+			cycle := currentTrafficCycle(resetDay, time.Now().UTC())
+			if cycle == "" {
+				return fmt.Errorf("set a traffic reset day from 1 to 31 before adding reset traffic")
+			}
+			limit := existing.TrafficLimit
+			if value, ok := updates["traffic_limit"]; ok {
+				limit, _ = toInt64(value)
+			}
+			if limit > math.MaxInt64-resetAllowance {
+				return fmt.Errorf("traffic limit plus reset traffic is too large")
+			}
+			updates["traffic_reset_cycle"] = cycle
+		} else {
+			updates["traffic_reset_cycle"] = ""
+		}
+	} else if _, resetDayChanged := updates["traffic_reset_day"]; resetDayChanged {
+		cycle := currentTrafficCycle(resetDay, time.Now().UTC())
+		if resetAllowance <= 0 || cycle == "" {
+			updates["traffic_reset_allowance"] = 0
+			updates["traffic_reset_cycle"] = ""
+		} else {
+			updates["traffic_reset_cycle"] = cycle
+		}
+	}
+	if value, exists := updates["currency"]; exists {
+		currency, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("currency must be a string")
+		}
+		currency = strings.TrimSpace(currency)
+		if strings.EqualFold(currency, "CAD") || strings.EqualFold(currency, "CA$") || strings.EqualFold(currency, "C$") {
+			currency = "CAD"
+		}
+		updates["currency"] = currency
+	}
+	if value, exists := updates["expired_at"]; exists {
+		switch typed := value.(type) {
+		case nil:
+			updates["expired_at"] = nil
+		case time.Time:
+			updates["expired_at"] = typed.UTC()
+		case *time.Time:
+			if typed == nil {
+				updates["expired_at"] = nil
+			} else {
+				updates["expired_at"] = typed.UTC()
+			}
+		case string:
+			stamp, err := time.Parse(time.RFC3339Nano, typed)
+			if err != nil {
+				return fmt.Errorf("expired_at must be an RFC3339 timestamp with a timezone: %w", err)
+			}
+			updates["expired_at"] = stamp.UTC()
+		default:
+			return fmt.Errorf("expired_at must be an RFC3339 timestamp with a timezone")
+		}
+	}
+
+	updates["updated_at"] = time.Now().UTC()
+
+	err := db.Model(&models.Client{}).Where("uuid = ?", clientUUID).Updates(updates).Error
+	if err != nil {
+		return err
+	}
+	trafficledger.InvalidateCalibratedCycleCache()
+	return nil
+}
+
+func toInt64(value interface{}) (int64, bool) {
+	switch typed := value.(type) {
+	case int:
+		return int64(typed), true
+	case int32:
+		return int64(typed), true
+	case int64:
+		return typed, true
+	case uint:
+		if uint64(typed) > math.MaxInt64 {
+			return 0, false
+		}
+		return int64(typed), true
+	case uint64:
+		if typed > math.MaxInt64 {
+			return 0, false
+		}
+		return int64(typed), true
+	case float64:
+		if math.IsNaN(typed) || math.IsInf(typed, 0) || math.Trunc(typed) != typed || typed < math.MinInt64 || typed >= math.Exp2(63) {
+			return 0, false
+		}
+		return int64(typed), true
+	case json.Number:
+		parsed, err := typed.Int64()
+		return parsed, err == nil
+	default:
+		return 0, false
+	}
+}
+
+func normalizeRegionOverride(value string) (string, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", nil
+	}
+	if len(value) == 2 {
+		upper := strings.ToUpper(value)
+		if upper[0] >= 'A' && upper[0] <= 'Z' && upper[1] >= 'A' && upper[1] <= 'Z' {
+			return string(rune(0x1F1E6+int(upper[0]-'A'))) + string(rune(0x1F1E6+int(upper[1]-'A'))), nil
+		}
+	}
+	runes := []rune(value)
+	if len(runes) == 2 && runes[0] >= 0x1F1E6 && runes[0] <= 0x1F1FF && runes[1] >= 0x1F1E6 && runes[1] <= 0x1F1FF {
+		return value, nil
+	}
+	return "", fmt.Errorf("region_override must be a two-letter country code or country flag")
+}
+
+func normalizeTrafficResetDay(value interface{}) (*int, error) {
+	if value == nil {
+		return nil, nil
+	}
+	numericValue, ok := value.(float64)
+	if !ok {
+		switch typed := value.(type) {
+		case int:
+			numericValue = float64(typed)
+		case int32:
+			numericValue = float64(typed)
+		case int64:
+			numericValue = float64(typed)
+		case json.Number:
+			parsed, err := typed.Float64()
+			if err != nil {
+				return nil, fmt.Errorf("traffic_reset_day must be an integer from 0 to 31")
+			}
+			numericValue = parsed
+		default:
+			return nil, fmt.Errorf("traffic_reset_day must be an integer from 0 to 31")
+		}
+	}
+	if math.Trunc(numericValue) != numericValue || numericValue < 0 || numericValue > 31 {
+		return nil, fmt.Errorf("traffic_reset_day must be an integer from 0 to 31")
+	}
+	day := int(numericValue)
+	return &day, nil
+}
+
+// AdoptTrafficResetDay records an Agent's existing setting only while the node
+// has not yet been explicitly managed by Komari.
+func AdoptTrafficResetDay(clientUUID string, value interface{}) error {
+	day, err := normalizeTrafficResetDay(value)
+	if err != nil {
+		return err
+	}
+	if day == nil {
+		return nil
+	}
+	db := dbcore.GetDBInstance()
+	return db.Model(&models.Client{}).
+		Where("uuid = ? AND traffic_reset_day IS NULL", clientUUID).
+		Update("traffic_reset_day", *day).Error
+}
