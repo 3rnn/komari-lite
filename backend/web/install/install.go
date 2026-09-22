@@ -61,6 +61,10 @@ var (
 	exitInstallProcess     = os.Exit
 )
 
+// restoreRestartExitCode asks common service managers with Restart=on-failure
+// to launch the next process, where the staged archive is applied.
+const restoreRestartExitCode = 75
+
 func (c *Controller) Activate() { c.active.Store(true) }
 
 func (c *Controller) Deactivate() { c.active.Store(false) }
@@ -145,7 +149,7 @@ func (c *Controller) finalizeBackupUpload(session upload.Session) (upload.Result
 	}
 	scheduleInstallRestart(2*time.Second, func() {
 		logger.InfoArgs("install", "Backup uploaded, restarting service to restore it on startup...")
-		exitInstallProcess(0)
+		exitInstallProcess(restoreRestartExitCode)
 		// os.Exit never returns. This release is reached only by test doubles or
 		// a custom exit hook that declined to terminate the process.
 		restoreLock.Release()

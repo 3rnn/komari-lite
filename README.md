@@ -60,10 +60,10 @@ The Agent has no remote-control, terminal, command-execution, MCP, or self-updat
 ```bash
 cd komari-lite
 chmod +x scripts/build-agent-release.sh
-./scripts/build-agent-release.sh 1.0
+./scripts/build-agent-release.sh 1.0.1
 ```
 
-Output is written to `release/agent-1.0/`:
+Output is written to `release/agent-1.0.1/`:
 
 - 14 `komari-agent-<os>-<arch>` artifacts;
 - `manifest.json` with the release version and SHA-256 for every artifact;
@@ -72,7 +72,7 @@ Output is written to `release/agent-1.0/`:
 The release directory is intentionally ignored by Git. Verify it before deployment:
 
 ```bash
-cd release/agent-1.0
+cd release/agent-1.0.1
 sha256sum -c SHA256SUMS.txt
 ```
 
@@ -84,6 +84,7 @@ These steps use no Docker. Replace example names and domain values with your own
 
 ```bash
 sudo useradd --system --home /opt/komari --shell /usr/sbin/nologin komari
+sudo install -d -m 0775 -o root -g komari /opt/komari
 sudo install -d -o komari -g komari /opt/komari/data
 sudo install -m 0755 release/komari /opt/komari/komari
 sudo chown -R komari:komari /opt/komari/data
@@ -101,14 +102,22 @@ Wants=network-online.target
 User=komari
 Group=komari
 WorkingDirectory=/opt/komari
-Environment=KOMARI_LISTEN=127.0.0.1:25774
-ExecStart=/opt/komari/komari --database /opt/komari/data/komari.db
-Restart=on-failure
+ExecStart=/opt/komari/komari server --listen 127.0.0.1:25774
+Restart=always
 RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/opt/komari
 
 [Install]
 WantedBy=multi-user.target
 ```
+
+`/opt/komari` is group-writable only by the service group so backup restore can create
+same-parent staging directories and atomically exchange `data/`. The binary remains
+root-owned and mode `0755`. `Restart=always` is required because restore deliberately
+exits with status 0 after staging the archive, so systemd can start the restore pass.
 
 Then start it:
 
@@ -136,7 +145,7 @@ After the panel has started, upload the built release directory to its runtime d
 
 ```bash
 sudo install -d -o komari -g komari /opt/komari/data/agent-release
-sudo cp -a release/agent-1.0/. /opt/komari/data/agent-release/
+sudo cp -a release/agent-1.0.1/. /opt/komari/data/agent-release/
 sudo chown -R komari:komari /opt/komari/data/agent-release
 sudo chmod 0640 /opt/komari/data/agent-release/manifest.json
 sudo find /opt/komari/data/agent-release -type f -name 'komari-agent-*' -exec chmod 0755 {} \;

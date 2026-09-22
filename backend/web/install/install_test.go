@@ -80,9 +80,13 @@ func TestInstallChunkedRestoreStagesValidatedBackupOnlyWhileActive(t *testing.T)
 	t.Chdir(t.TempDir())
 	oldSchedule, oldExit := scheduleInstallRestart, exitInstallProcess
 	scheduleInstallRestart = func(_ time.Duration, task func()) { task() }
-	exitInstallProcess = func(int) {}
+	exitCode := -1
+	exitInstallProcess = func(code int) { exitCode = code }
 	t.Cleanup(func() {
 		scheduleInstallRestart, exitInstallProcess = oldSchedule, oldExit
+		if exitCode != restoreRestartExitCode {
+			t.Errorf("restore restart exit code = %d, want %d", exitCode, restoreRestartExitCode)
+		}
 	})
 
 	router, _, controller := setupInstallRouter(t)

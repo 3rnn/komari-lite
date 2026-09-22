@@ -19,6 +19,10 @@ var (
 	exitAdminProcess     = os.Exit
 )
 
+// restoreRestartExitCode asks common service managers with Restart=on-failure
+// to launch the next process, where the staged archive is applied.
+const restoreRestartExitCode = 75
+
 func NewArchiveUploadHandler() *upload.Handler {
 	return newArchiveUploadHandler(upload.DefaultStore)
 }
@@ -73,7 +77,7 @@ func finalizeBackupUpload(session upload.Session) (upload.Result, error) {
 
 	scheduleAdminRestart(2*time.Second, func() {
 		logger.InfoArgs("admin-api", "Backup uploaded, restarting service in 2 seconds to apply on startup...")
-		exitAdminProcess(0)
+		exitAdminProcess(restoreRestartExitCode)
 		// os.Exit never returns. This release is reached only by test doubles or
 		// a custom exit hook that declined to terminate the process.
 		restoreLock.Release()

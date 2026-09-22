@@ -142,19 +142,21 @@ func uploadArchiveThroughHandler(t *testing.T, router http.Handler, purpose uplo
 	return postJSON(t, router, "/api/admin/upload/merge", map[string]string{"upload_id": initialized.Data.UploadID})
 }
 
-func runRestartImmediately(t *testing.T) {
+func runRestartImmediately(t *testing.T) *int {
 	t.Helper()
 	oldSchedule, oldExit := scheduleAdminRestart, exitAdminProcess
 	scheduleAdminRestart = func(_ time.Duration, task func()) { task() }
-	exitAdminProcess = func(int) {}
+	exitCode := -1
+	exitAdminProcess = func(code int) { exitCode = code }
 	t.Cleanup(func() {
 		scheduleAdminRestart, exitAdminProcess = oldSchedule, oldExit
 	})
+	return &exitCode
 }
 
 func TestChunkedBackupUploadStagesOnlyValidatedArchive(t *testing.T) {
 	t.Chdir(t.TempDir())
-	runRestartImmediately(t)
+	exitCode := runRestartImmediately(t)
 	router := archiveUploadRouter(t)
 	archive := themeArchive(t, map[string]string{
 		"komari.db":            "sqlite-data",
@@ -164,6 +166,9 @@ func TestChunkedBackupUploadStagesOnlyValidatedArchive(t *testing.T) {
 	response := uploadArchiveThroughHandler(t, router, upload.PurposeBackup, "backup.zip", archive)
 	if response.Code != http.StatusOK {
 		t.Fatalf("merge backup status = %d: %s", response.Code, response.Body.String())
+	}
+	if *exitCode != restoreRestartExitCode {
+		t.Fatalf("restore restart exit code = %d, want %d", *exitCode, restoreRestartExitCode)
 	}
 	staged := filepath.Join("data", "backup.zip")
 	if err := backup.ValidateArchive(staged); err != nil {

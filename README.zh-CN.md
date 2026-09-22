@@ -59,10 +59,10 @@ Agent 不含远程控制、终端、命令执行、MCP 与自动更新模块。�
 ```bash
 cd komari-lite
 chmod +x scripts/build-agent-release.sh
-./scripts/build-agent-release.sh 1.0
+./scripts/build-agent-release.sh 1.0.1
 ```
 
-输出到 `release/agent-1.0/`：
+输出到 `release/agent-1.0.1/`：
 
 - 14 个 `komari-agent-<os>-<arch>` 制品；
 - `manifest.json`：版本号与每个制品的 SHA-256；
@@ -71,7 +71,7 @@ chmod +x scripts/build-agent-release.sh
 该发布目录已被 Git 忽略。部署前先校验：
 
 ```bash
-cd release/agent-1.0
+cd release/agent-1.0.1
 sha256sum -c SHA256SUMS.txt
 ```
 
@@ -83,6 +83,7 @@ sha256sum -c SHA256SUMS.txt
 
 ```bash
 sudo useradd --system --home /opt/komari --shell /usr/sbin/nologin komari
+sudo install -d -m 0775 -o root -g komari /opt/komari
 sudo install -d -o komari -g komari /opt/komari/data
 sudo install -m 0755 release/komari /opt/komari/komari
 sudo chown -R komari:komari /opt/komari/data
@@ -100,14 +101,19 @@ Wants=network-online.target
 User=komari
 Group=komari
 WorkingDirectory=/opt/komari
-Environment=KOMARI_LISTEN=127.0.0.1:25774
-ExecStart=/opt/komari/komari --database /opt/komari/data/komari.db
-Restart=on-failure
+ExecStart=/opt/komari/komari server --listen 127.0.0.1:25774
+Restart=always
 RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/opt/komari
 
 [Install]
 WantedBy=multi-user.target
 ```
+
+`/opt/komari` 仅向服务组提供组写权限，以便备份还原在 `data/` 同级创建暂存目录并原子替换数据。二进制仍保持 root 所有、`0755` 权限。还原包暂存后程序会以状态 0 退出，因此必须使用 `Restart=always` 让 systemd 再次启动以执行还原。
 
 启动服务：
 
@@ -135,7 +141,7 @@ monitor.example.com {
 
 ```bash
 sudo install -d -o komari -g komari /opt/komari/data/agent-release
-sudo cp -a release/agent-1.0/. /opt/komari/data/agent-release/
+sudo cp -a release/agent-1.0.1/. /opt/komari/data/agent-release/
 sudo chown -R komari:komari /opt/komari/data/agent-release
 sudo chmod 0640 /opt/komari/data/agent-release/manifest.json
 sudo find /opt/komari/data/agent-release -type f -name 'komari-agent-*' -exec chmod 0755 {} \;

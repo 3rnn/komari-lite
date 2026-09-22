@@ -6,7 +6,7 @@ This directory intentionally contains no host-specific domain, IP address, machi
 
 - Run `komari.service` as a dedicated unprivileged user, bound to `127.0.0.1:25774`.
 - Put an independently configured TLS reverse proxy (for example Caddy) in front of it.
-- Keep runtime state under `/opt/komari/data/` with restrictive ownership; it is excluded from Git.
+- Keep runtime state under `/opt/komari/data/` with restrictive ownership; it is excluded from Git. The `/opt/komari` parent must be `root:komari` mode `0775` so a restore can atomically exchange the data directory; keep the binary `root:root` mode `0755`.
 - Build on a separate machine, upload the resulting binary as `/opt/komari/komari.new`, then call `update-native.sh` on the host.
 
 ## Example systemd unit
@@ -21,14 +21,19 @@ Wants=network-online.target
 User=komari
 Group=komari
 WorkingDirectory=/opt/komari
-ExecStart=/opt/komari/komari --database /opt/komari/data/komari.db
-Environment=KOMARI_LISTEN=127.0.0.1:25774
-Restart=on-failure
+ExecStart=/opt/komari/komari server --listen 127.0.0.1:25774
+Restart=always
 RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/opt/komari
 
 [Install]
 WantedBy=multi-user.target
 ```
+
+The restore endpoint intentionally exits the process with status 0 after it has staged a validated archive. `Restart=always` is therefore required to run the restore on the next startup.
 
 Set host checks explicitly before updating a production machine:
 
