@@ -18,7 +18,6 @@ import (
 	"github.com/nuomiiiii/lite-agent/dnsresolver"
 	"github.com/nuomiiiii/lite-agent/monitoring/netstatic"
 	monitoring "github.com/nuomiiiii/lite-agent/monitoring/unit"
-	"github.com/nuomiiiii/lite-agent/relocate"
 	"github.com/nuomiiiii/lite-agent/runtimeconfig"
 	"github.com/nuomiiiii/lite-agent/server"
 	"github.com/nuomiiiii/lite-agent/utils"
@@ -47,12 +46,6 @@ var RootCmd = &cobra.Command{
 		}
 		if _, err := applySavedAgentToken(); err != nil {
 			return fmt.Errorf("load saved node token: %w", err)
-		}
-		if relocated, err := relocate.RelocateIfNeeded(); err != nil {
-			log.Println("layout relocation failed; continuing on the current path:", err)
-		} else if relocated {
-			log.Println("layout relocation handed off to Lite-agent")
-			os.Exit(0)
 		}
 		runtimeconfig.Initialize(runtimeconfig.State{
 			MonthRotate:         flags.MonthRotate,

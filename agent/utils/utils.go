@@ -9,7 +9,7 @@ import (
 
 // AgentVersion 是精简版 Agent 的版本号（原 update 包连同自动更新能力已删除）。
 // 保持「三段/四段纯数字」格式，面板节点列表的版本展示依赖该格式。
-const AgentVersion = "2.3.3.5"
+const AgentVersion = "2.3.3.6"
 
 const DefaultResetTimezone = "Asia/Shanghai"
 

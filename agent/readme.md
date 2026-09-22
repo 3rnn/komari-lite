@@ -95,8 +95,8 @@ CGO_ENABLED=0 go build -trimpath -ldflags '-s -w' -o komari-agent .
 构建全部 14 个平台制品并生成面板分发清单：
 
 ```bash
-./scripts/build-agent-release.sh 2.3.3.5
-# 输出 release/agent-2.3.3.5/：14 个制品 + manifest.json + SHA256SUMS.txt
+./scripts/build-agent-release.sh 2.3.3.6
+# 输出 release/agent-2.3.3.6/：14 个制品 + manifest.json + SHA256SUMS.txt
 ```
 
 把该目录内容放到面板的 `data/agent-release/`，新增节点即可从面板下载。
