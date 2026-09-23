@@ -60,10 +60,10 @@ The Agent has no remote-control, terminal, command-execution, MCP, or self-updat
 ```bash
 cd komari-lite
 chmod +x scripts/build-agent-release.sh
-./scripts/build-agent-release.sh 1.0.3
+./scripts/build-agent-release.sh 1.0.4
 ```
 
-Output is written to `release/agent-1.0.3/`:
+Output is written to `release/agent-1.0.4/`:
 
 - 14 `komari-agent-<os>-<arch>` artifacts;
 - `manifest.json` with the release version and SHA-256 for every artifact;
@@ -72,7 +72,7 @@ Output is written to `release/agent-1.0.3/`:
 The release directory is intentionally ignored by Git. Verify it before deployment:
 
 ```bash
-cd release/agent-1.0.3
+cd release/agent-1.0.4
 sha256sum -c SHA256SUMS.txt
 ```
 

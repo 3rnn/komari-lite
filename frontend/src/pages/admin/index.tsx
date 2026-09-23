@@ -127,9 +127,10 @@ const NodeDetailsPage = () => {
 
 const PREVIOUS_PAGE_DROP_ID = "admin-node-previous-page";
 const NEXT_PAGE_DROP_ID = "admin-node-next-page";
-// Agent binaries are pinned to the same public panel version, so standalone
-// deployments do not need a local data/agent-release directory.
-const agentReleaseSource = `https://github.com/3rnn/komari-lite/releases/download/v${publicVersion}`;
+// Bump this with the panel and Agent version at every release. Keeping it local
+// makes the downloaded artifact deterministic even for traditional deployments.
+const agentReleaseVersion = "1.0.4";
+const agentReleaseSource = `https://github.com/3rnn/komari-lite/releases/download/v${agentReleaseVersion}`;
 
 const Layout = () => {
   const { t } = useTranslation();

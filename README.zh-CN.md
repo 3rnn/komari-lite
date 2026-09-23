@@ -59,10 +59,10 @@ Agent 不含远程控制、终端、命令执行、MCP 与自动更新模块。�
 ```bash
 cd komari-lite
 chmod +x scripts/build-agent-release.sh
-./scripts/build-agent-release.sh 1.0.3
+./scripts/build-agent-release.sh 1.0.4
 ```
 
-输出到 `release/agent-1.0.3/`：
+输出到 `release/agent-1.0.4/`：
 
 - 14 个 `komari-agent-<os>-<arch>` 制品；
 - `manifest.json`：版本号与每个制品的 SHA-256；
@@ -71,7 +71,7 @@ chmod +x scripts/build-agent-release.sh
 该发布目录已被 Git 忽略。部署前先校验：
 
 ```bash
-cd release/agent-1.0.3
+cd release/agent-1.0.4
 sha256sum -c SHA256SUMS.txt
 ```
 

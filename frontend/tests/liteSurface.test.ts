@@ -38,9 +38,10 @@ test("one-click deployment uses panel installers and version-matched GitHub Agen
   const source = read("src/pages/admin/index.tsx");
   assert.match(source, /\/agent\/install\.sh/);
   assert.match(source, /\/agent\/install\.ps1/);
+  assert.match(source, /const agentReleaseVersion = "1\.0\.4";/);
   assert.match(
     source,
-    /https:\/\/github\.com\/3rnn\/komari-lite\/releases\/download\/v\$\{publicVersion\}/,
+    /https:\/\/github\.com\/3rnn\/komari-lite\/releases\/download\/v\$\{agentReleaseVersion\}/,
   );
   assert.doesNotMatch(source, /\/agent\/download/);
 });
