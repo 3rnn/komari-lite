@@ -129,8 +129,9 @@ const PREVIOUS_PAGE_DROP_ID = "admin-node-previous-page";
 const NEXT_PAGE_DROP_ID = "admin-node-next-page";
 // Bump this with the panel and Agent version at every release. Keeping it local
 // makes the downloaded artifact deterministic even for traditional deployments.
-const agentReleaseVersion = "1.0.4";
+const agentReleaseVersion = "1.0.5";
 const agentReleaseSource = `https://github.com/3rnn/komari-lite/releases/download/v${agentReleaseVersion}`;
+const agentInstallerSource = `${agentReleaseSource}/install`;
 
 const Layout = () => {
   const { t } = useTranslation();
@@ -407,8 +408,8 @@ const AutoDiscoverySection = ({
 
     const scriptUrl =
       selectedPlatform === "windows"
-        ? `${host}/agent/install.ps1`
-        : `${host}/agent/install.sh`;
+        ? `${agentInstallerSource}.ps1`
+        : `${agentInstallerSource}.sh`;
 
     let finalCommand = "";
     switch (selectedPlatform) {
@@ -1729,8 +1730,8 @@ function GenerateCommandButton({ node, settings }: { node: NodeDetail, settings:
     }
     const scriptUrl =
       selectedPlatform === "windows"
-        ? `${host}/agent/install.ps1`
-        : `${host}/agent/install.sh`;
+        ? `${agentInstallerSource}.ps1`
+        : `${agentInstallerSource}.sh`;
     let finalCommand = "";
     switch (selectedPlatform) {
       case "linux":

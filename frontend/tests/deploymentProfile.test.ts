@@ -24,15 +24,15 @@ test("deployment settings are restored and saved per node", () => {
   assert.match(source, /body: JSON\.stringify\(\{ profile: deploymentProfile\(\) \}\)/);
 });
 
-test("one-click Agent commands download the matching release from GitHub", () => {
-  assert.match(source, /\/agent\/install\.sh/);
-  assert.match(source, /\/agent\/install\.ps1/);
+test("one-click Agent commands download the installer and matching Agent from GitHub", () => {
   assert.match(source, /--install-source/);
-  assert.match(source, /const agentReleaseVersion = "1\.0\.4";/);
+  assert.match(source, /const agentReleaseVersion = "1\.0\.5";/);
   assert.match(
     source,
-    /https:\/\/github\.com\/3rnn\/komari-lite\/releases\/download\/v\$\{agentReleaseVersion\}/,
+    /const agentReleaseSource = `https:\/\/github\.com\/3rnn\/komari-lite\/releases\/download\/v\$\{agentReleaseVersion\}`;/,
   );
+  assert.match(source, /const agentInstallerSource = `\$\{agentReleaseSource\}\/install`/);
+  assert.doesNotMatch(source, /\/agent\/install\.(?:sh|ps1)/);
   assert.doesNotMatch(source, /\/agent\/download/);
 });
 

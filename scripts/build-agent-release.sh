@@ -10,7 +10,10 @@ command -v go >/dev/null || { echo 'Go is required' >&2; exit 1; }
 mkdir -p "$out"
 # A release directory may also contain the panel binary. Remove only artifacts
 # owned by this script so building Agents never deletes the panel release.
-rm -f "$out"/komari-agent-* "$out"/manifest.json "$out"/SHA256SUMS.txt
+rm -f "$out"/komari-agent-* "$out"/manifest.json "$out"/SHA256SUMS.txt "$out"/install.sh "$out"/install.ps1
+cp "$root/backend/web/api/public/agent_installers/install.sh" "$out/install.sh"
+cp "$root/backend/web/api/public/agent_installers/install.ps1" "$out/install.ps1"
+chmod 0755 "$out/install.sh"
 
 targets=(
   linux/amd64 linux/arm64 linux/386 linux/arm linux/loong64

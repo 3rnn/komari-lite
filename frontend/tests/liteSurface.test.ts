@@ -34,14 +34,14 @@ test("terminal, clipboard and command-task surfaces stay deleted", () => {
   }
 });
 
-test("one-click deployment uses panel installers and version-matched GitHub Agents", () => {
+test("one-click deployment uses GitHub release installers and version-matched Agents", () => {
   const source = read("src/pages/admin/index.tsx");
-  assert.match(source, /\/agent\/install\.sh/);
-  assert.match(source, /\/agent\/install\.ps1/);
-  assert.match(source, /const agentReleaseVersion = "1\.0\.4";/);
+  assert.match(source, /const agentReleaseVersion = "1\.0\.5";/);
   assert.match(
     source,
-    /https:\/\/github\.com\/3rnn\/komari-lite\/releases\/download\/v\$\{agentReleaseVersion\}/,
+    /const agentReleaseSource = `https:\/\/github\.com\/3rnn\/komari-lite\/releases\/download\/v\$\{agentReleaseVersion\}`;/,
   );
+  assert.match(source, /const agentInstallerSource = `\$\{agentReleaseSource\}\/install`/);
+  assert.doesNotMatch(source, /\/agent\/install\.(?:sh|ps1)/);
   assert.doesNotMatch(source, /\/agent\/download/);
 });

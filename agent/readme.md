@@ -16,22 +16,22 @@
 
 ## 安装
 
-面板后台「添加节点」生成的一键部署命令会自动带上你的面板地址与节点 Token；安装脚本由面板提供，Agent 二进制固定从对应面板版本的 GitHub Release 下载：
+面板后台「添加节点」生成的一键部署命令会自动带上你的面板地址与节点 Token；安装脚本与 Agent 二进制都固定从对应面板版本的 GitHub Release 下载：
 
 ```bash
 # Linux / macOS / FreeBSD
-curl -fsSL https://<your-panel>/agent/install.sh | sudo bash -s -- \
+curl -fsSL https://github.com/3rnn/komari-lite/releases/download/v<panel-version>/install.sh | sudo bash -s -- \
   --endpoint "https://<your-panel>" \
   --token "<node-token>"
 ```
 
 ```powershell
 # Windows (PowerShell)
-iwr "https://<your-panel>/agent/install.ps1" -UseBasicParsing -OutFile install.ps1
+iwr "https://github.com/3rnn/komari-lite/releases/download/v<panel-version>/install.ps1" -UseBasicParsing -OutFile install.ps1
 .\install.ps1 --endpoint "https://<your-panel>" --token "<node-token>"
 ```
 
-`/agent/install.sh` 与 `/agent/install.ps1` 仍由面板提供以接收节点 Token；它们通过 `--install-source` 固定到 `https://github.com/3rnn/komari-lite/releases/download/v<panel-version>`，仅下载同版本、同平台的 Agent 制品。
+GitHub Release 同时提供 `install.sh` 与 `install.ps1`；命令仍由后台生成并携带节点 Token，安装器通过 `--install-source` 从同一个 Release 下载同版本、同平台的 Agent 制品。
 
 ## 手动运行
 
@@ -95,8 +95,8 @@ CGO_ENABLED=0 go build -trimpath -ldflags '-s -w' -o komari-agent .
 构建全部 14 个平台制品并生成面板分发清单：
 
 ```bash
-./scripts/build-agent-release.sh 1.0.4
-# 输出 release/agent-1.0.4/：14 个制品 + manifest.json + SHA256SUMS.txt
+./scripts/build-agent-release.sh 1.0.5
+# 输出 release/agent-1.0.5/：14 个制品 + manifest.json + SHA256SUMS.txt
 ```
 
 将该目录中的 14 个 `komari-agent-*` 制品上传到与面板相同版本的 GitHub Release；一键安装会按平台从该 Release 下载对应文件。
