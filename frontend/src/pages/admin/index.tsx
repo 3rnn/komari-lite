@@ -127,6 +127,9 @@ const NodeDetailsPage = () => {
 
 const PREVIOUS_PAGE_DROP_ID = "admin-node-previous-page";
 const NEXT_PAGE_DROP_ID = "admin-node-next-page";
+// Agent binaries are pinned to the same public panel version, so standalone
+// deployments do not need a local data/agent-release directory.
+const agentReleaseSource = `https://github.com/3rnn/komari-lite/releases/download/v${publicVersion}`;
 
 const Layout = () => {
   const { t } = useTranslation();
@@ -398,7 +401,7 @@ const AutoDiscoverySection = ({
       "--auto-discovery", adKey,
       "--disable-web-ssh",
       "--disable-auto-update",
-      "--install-source", `${host}/agent/download`,
+      "--install-source", agentReleaseSource,
     ];
 
     const scriptUrl =
@@ -1690,7 +1693,7 @@ function GenerateCommandButton({ node, settings }: { node: NodeDetail, settings:
   const generateCommand = () => {
     const host = resolveAgentSource(settings?.script_domain).host;
     const token = node.token || "";
-    let args = ["-e", host, "-t", token, "--disable-web-ssh", "--disable-auto-update", "--install-source", `${host}/agent/download`];
+    let args = ["-e", host, "-t", token, "--disable-web-ssh", "--disable-auto-update", "--install-source", agentReleaseSource];
     // 安装安全策略固定：禁用远程控制、禁用自动更新、不忽略不安全证书。
     if (installOptions.memoryIncludeCache) {
       args.push("--memory-include-cache");

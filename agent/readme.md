@@ -1,6 +1,6 @@
 # Komari Lite Agent (monitoring only)
 
-跨平台节点监控 Agent，仅上报节点数据与执行探测任务。本仓库版本已移除远程终端、文件管理、远程命令、MCP 代理和自动更新模块；制品由面板自身分发，Agent 不访问 GitHub。
+跨平台节点监控 Agent，仅上报节点数据与执行探测任务。本仓库版本已移除远程终端、文件管理、远程命令、MCP 代理和自动更新模块；一键部署从与面板版本一致的 GitHub Release 下载 Agent 制品。
 
 ## 能力
 
@@ -16,7 +16,7 @@
 
 ## 安装
 
-面板后台「添加节点」生成的一键部署命令会自动带上你的面板地址与节点 Token，并从面板本地下载制品：
+面板后台「添加节点」生成的一键部署命令会自动带上你的面板地址与节点 Token；安装脚本由面板提供，Agent 二进制固定从对应面板版本的 GitHub Release 下载：
 
 ```bash
 # Linux / macOS / FreeBSD
@@ -31,7 +31,7 @@ iwr "https://<your-panel>/agent/install.ps1" -UseBasicParsing -OutFile install.p
 .\install.ps1 --endpoint "https://<your-panel>" --token "<node-token>"
 ```
 
-`/agent/install.sh`、`/agent/install.ps1` 与 `/agent/download/<artifact>` 均由面板本地提供，内容来自 `scripts/build-agent-release.sh` 的构建结果，随面板 `data/agent-release/` 发布。
+`/agent/install.sh` 与 `/agent/install.ps1` 仍由面板提供以接收节点 Token；它们通过 `--install-source` 固定到 `https://github.com/3rnn/komari-lite/releases/download/v<panel-version>`，仅下载同版本、同平台的 Agent 制品。
 
 ## 手动运行
 
@@ -95,11 +95,11 @@ CGO_ENABLED=0 go build -trimpath -ldflags '-s -w' -o komari-agent .
 构建全部 14 个平台制品并生成面板分发清单：
 
 ```bash
-./scripts/build-agent-release.sh 1.0.2
-# 输出 release/agent-1.0.2/：14 个制品 + manifest.json + SHA256SUMS.txt
+./scripts/build-agent-release.sh 1.0.3
+# 输出 release/agent-1.0.3/：14 个制品 + manifest.json + SHA256SUMS.txt
 ```
 
-把该目录内容放到面板的 `data/agent-release/`，新增节点即可从面板下载。
+将该目录中的 14 个 `komari-agent-*` 制品上传到与面板相同版本的 GitHub Release；一键安装会按平台从该 Release 下载对应文件。
 
 ## 模块路径
 

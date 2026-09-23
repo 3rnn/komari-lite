@@ -59,10 +59,10 @@ Agent 不含远程控制、终端、命令执行、MCP 与自动更新模块。�
 ```bash
 cd komari-lite
 chmod +x scripts/build-agent-release.sh
-./scripts/build-agent-release.sh 1.0.2
+./scripts/build-agent-release.sh 1.0.3
 ```
 
-输出到 `release/agent-1.0.2/`：
+输出到 `release/agent-1.0.3/`：
 
 - 14 个 `komari-agent-<os>-<arch>` 制品；
 - `manifest.json`：版本号与每个制品的 SHA-256；
@@ -71,7 +71,7 @@ chmod +x scripts/build-agent-release.sh
 该发布目录已被 Git 忽略。部署前先校验：
 
 ```bash
-cd release/agent-1.0.2
+cd release/agent-1.0.3
 sha256sum -c SHA256SUMS.txt
 ```
 
@@ -135,19 +135,15 @@ monitor.example.com {
 
 按 Caddy 官方文档安装并启动。面板只监听回环地址，80/443 由 Caddy 占用。
 
-### 把 Agent 发布到面板
+### Agent 下载
 
-面板启动后，把构建好的发布目录放入面板运行数据目录：
+一键部署从面板获取安装脚本，再从与面板版本一致的 GitHub Release tag 下载 Agent 二进制。因此传统部署只需安装面板主程序，**不需要** `data/agent-release/` 目录。
 
-```bash
-sudo install -d -o komari -g komari /opt/komari/data/agent-release
-sudo cp -a release/agent-1.0.2/. /opt/komari/data/agent-release/
-sudo chown -R komari:komari /opt/komari/data/agent-release
-sudo chmod 0640 /opt/komari/data/agent-release/manifest.json
-sudo find /opt/komari/data/agent-release -type f -name 'komari-agent-*' -exec chmod 0755 {} \;
+每次发布面板版本前，必须把全部 14 个 `komari-agent-*` 制品上传到同一个 GitHub Release tag。安装器会按平台下载：
+
+```text
+https://github.com/3rnn/komari-lite/releases/download/v<panel-version>/komari-agent-<os>-<arch>
 ```
-
-只更新 Agent 制品无需重启面板。面板通过 `/agent/install.sh`、`/agent/install.ps1` 与 `/agent/download/<artifact>` 提供下载。
 
 ## 4. 更新主程序
 

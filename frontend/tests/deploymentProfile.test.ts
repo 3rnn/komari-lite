@@ -24,12 +24,15 @@ test("deployment settings are restored and saved per node", () => {
   assert.match(source, /body: JSON\.stringify\(\{ profile: deploymentProfile\(\) \}\)/);
 });
 
-test("one-click Agent commands use only this panel as the download source", () => {
+test("one-click Agent commands download the matching release from GitHub", () => {
   assert.match(source, /\/agent\/install\.sh/);
   assert.match(source, /\/agent\/install\.ps1/);
   assert.match(source, /--install-source/);
-  assert.doesNotMatch(source, /raw\.githubusercontent\.com\/nuomiiiii\/komari-agent/);
-  assert.doesNotMatch(source, /ghcr\.io\/nuomiiiii\/komari-agent/);
+  assert.match(
+    source,
+    /https:\/\/github\.com\/3rnn\/komari-lite\/releases\/download\/v\$\{publicVersion\}/,
+  );
+  assert.doesNotMatch(source, /\/agent\/download/);
 });
 
 test("one-click deployment removes installation settings and uses safe defaults", () => {

@@ -34,11 +34,13 @@ test("terminal, clipboard and command-task surfaces stay deleted", () => {
   }
 });
 
-test("one-click deployment only ever downloads from this panel", () => {
+test("one-click deployment uses panel installers and version-matched GitHub Agents", () => {
   const source = read("src/pages/admin/index.tsx");
   assert.match(source, /\/agent\/install\.sh/);
   assert.match(source, /\/agent\/install\.ps1/);
-  for (const remote of ["raw.githubusercontent.com", "api.github.com", "ghcr.io", "github.com"]) {
-    assert.doesNotMatch(source, new RegExp(remote.replace(/\./g, "\\.")), `deployment UI still mentions ${remote}`);
-  }
+  assert.match(
+    source,
+    /https:\/\/github\.com\/3rnn\/komari-lite\/releases\/download\/v\$\{publicVersion\}/,
+  );
+  assert.doesNotMatch(source, /\/agent\/download/);
 });

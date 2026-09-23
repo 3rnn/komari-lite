@@ -60,10 +60,10 @@ The Agent has no remote-control, terminal, command-execution, MCP, or self-updat
 ```bash
 cd komari-lite
 chmod +x scripts/build-agent-release.sh
-./scripts/build-agent-release.sh 1.0.2
+./scripts/build-agent-release.sh 1.0.3
 ```
 
-Output is written to `release/agent-1.0.2/`:
+Output is written to `release/agent-1.0.3/`:
 
 - 14 `komari-agent-<os>-<arch>` artifacts;
 - `manifest.json` with the release version and SHA-256 for every artifact;
@@ -72,7 +72,7 @@ Output is written to `release/agent-1.0.2/`:
 The release directory is intentionally ignored by Git. Verify it before deployment:
 
 ```bash
-cd release/agent-1.0.2
+cd release/agent-1.0.3
 sha256sum -c SHA256SUMS.txt
 ```
 
@@ -139,19 +139,15 @@ monitor.example.com {
 
 Install/start Caddy according to its official documentation. The panel stays private on loopback; Caddy owns ports 80 and 443.
 
-### Publish the Agent release to the panel
+### Agent downloads
 
-After the panel has started, upload the built release directory to its runtime data directory:
+One-click deployment downloads the installer from the panel, then pins the Agent binary to the GitHub Release tag matching that panel version. A traditional deployment therefore only needs the panel binary; it does **not** need a `data/agent-release/` directory.
 
-```bash
-sudo install -d -o komari -g komari /opt/komari/data/agent-release
-sudo cp -a release/agent-1.0.2/. /opt/komari/data/agent-release/
-sudo chown -R komari:komari /opt/komari/data/agent-release
-sudo chmod 0640 /opt/komari/data/agent-release/manifest.json
-sudo find /opt/komari/data/agent-release -type f -name 'komari-agent-*' -exec chmod 0755 {} \;
+Before publishing a panel version, upload all 14 `komari-agent-*` artifacts to the same GitHub Release tag. The installer downloads the platform-matched artifact from:
+
+```text
+https://github.com/3rnn/komari-lite/releases/download/v<panel-version>/komari-agent-<os>-<arch>
 ```
-
-No panel restart is required for an Agent artifact-only release. The panel serves installers and artifacts from `/agent/install.sh`, `/agent/install.ps1`, and `/agent/download/<artifact>`.
 
 ## 4. Updating the panel binary
 
