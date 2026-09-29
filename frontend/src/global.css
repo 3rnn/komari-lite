@@ -913,6 +913,15 @@ body, * {
   padding-inline: 0.45rem;
 }
 
+@media (max-width: 639px) {
+  .admin-storage-tabs .rt-TabsTrigger {
+    flex: 1 1 0;
+    min-width: 0;
+    padding-inline: 0.25rem;
+    font-size: 0.8125rem;
+  }
+}
+
 [data-admin-shell] .rt-TabsList[data-admin-tab-motion-ready="true"] {
   position: relative;
 }

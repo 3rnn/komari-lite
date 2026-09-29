@@ -253,27 +253,33 @@ export default function MetricsSettings() {
         }
       >
         <div className="w-full overflow-x-auto pb-1">
-          <Tabs.List className="w-max min-w-full">
+          <Tabs.List className="admin-storage-tabs w-full min-w-0 sm:w-max sm:min-w-full">
             <Tabs.Trigger
               value="overview"
-              className="min-w-[7.5rem] flex-1"
+              className="min-w-0 flex-1 sm:min-w-[7.5rem]"
+              aria-label={t("settings.storage.overview")}
             >
-              <HardDrive size={15} />
-              {t("settings.storage.overview")}
+              <HardDrive size={15} className="hidden sm:block" />
+              <span className="sm:hidden">{t("settings.storage.overview_mobile")}</span>
+              <span className="hidden sm:inline">{t("settings.storage.overview")}</span>
             </Tabs.Trigger>
             <Tabs.Trigger
               value="monitoring"
-              className="min-w-[7.5rem] flex-1"
+              className="min-w-0 flex-1 sm:min-w-[7.5rem]"
+              aria-label={t("settings.storage.monitoring_data")}
             >
-              <ListChecks size={15} />
-              {t("settings.storage.monitoring_data")}
+              <ListChecks size={15} className="hidden sm:block" />
+              <span className="sm:hidden">{t("settings.storage.monitoring_mobile")}</span>
+              <span className="hidden sm:inline">{t("settings.storage.monitoring_data")}</span>
             </Tabs.Trigger>
             <Tabs.Trigger
               value="migration"
-              className="min-w-[7.5rem] flex-1"
+              className="min-w-0 flex-1 sm:min-w-[7.5rem]"
+              aria-label={t("settings.storage.migration_maintenance")}
             >
-              <RefreshCw size={15} />
-              {t("settings.storage.migration_maintenance")}
+              <RefreshCw size={15} className="hidden sm:block" />
+              <span className="sm:hidden">{t("settings.storage.migration_mobile")}</span>
+              <span className="hidden sm:inline">{t("settings.storage.migration_maintenance")}</span>
             </Tabs.Trigger>
           </Tabs.List>
         </div>

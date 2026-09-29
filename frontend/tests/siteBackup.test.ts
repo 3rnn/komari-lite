@@ -85,6 +85,13 @@ test("account backup hint points to the actual site settings page", () => {
   assert.match(String(zhCN.account_settings.looking_for_backup), /Settings/);
 });
 
+test("favicon actions wrap inside narrow mobile settings cards", () => {
+  assert.match(
+    source,
+    /<Flex\s+gap="2"\s+align="center"\s+wrap="wrap"\s+width="100%">\s*<Dialog\.Root>/,
+  );
+});
+
 test("backup restore dialog uses staged progress instead of a fake 95 percent finish", () => {
   assert.match(source, /phase_uploading/);
   assert.match(source, /phase_processing/);

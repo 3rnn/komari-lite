@@ -394,7 +394,7 @@ export default function SiteSettings() {
               "Favicon icons can be slow to update and it is often necessary to clear your browser's cache to see the changes.",
             )}
           </label>
-          <Flex gap="2" align="center">
+          <Flex gap="2" align="center" wrap="wrap" width="100%">
             <Dialog.Root>
               <Dialog.Trigger>
                 <Button color="tomato">

@@ -1334,9 +1334,12 @@
     "storage": {
       "main_description": "Configuration, servers, and task data",
       "migration_maintenance": "Migration & Maintenance",
+      "migration_mobile": "Manage",
       "monitoring_data": "Monitoring Data",
       "monitoring_description": "Metrics, latency, and historical rollups",
+      "monitoring_mobile": "Data",
       "overview": "Storage Overview",
+      "overview_mobile": "Overview",
       "page_description": "Review database usage and manage monitoring data, migrations, and maintenance.",
       "storage_usage": "Storage Usage",
       "title": "Data & Storage",
