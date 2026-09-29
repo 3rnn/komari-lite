@@ -41,12 +41,15 @@ test("overview preset exactly matches the default dashboard modules", () => {
     "latency_trend",
     "traffic_trend",
     "billing_trend",
+    "daily_traffic_ranking",
     "alerts",
   ]);
   assert.deepEqual(
     settings.modules.filter((module) => module.enabled).map((module) => module.id),
     FORMAL_DASHBOARD_MODULES,
   );
+  assert.deepEqual(dashboardChartSections(settings), ["traffic", "latency"]);
+  assert.equal(settings.modules.find((module) => module.id === "daily_traffic_ranking")?.span, 3);
   assert.equal(settings.refresh_seconds, 30);
   assert.equal(settings.chart_refresh_seconds, 30);
   assert.equal(settings.modules.find((module) => module.id === "storage_detail")?.enabled, false);

@@ -221,18 +221,11 @@ test("admin route changes keep the main content out of a composited animation la
   assert.match(adminPanelSource, /anchor\.dataset\.adminReloadDocument/);
 });
 
-test("EULA acceptance closes only after settings persist successfully", () => {
-  assert.match(settingsAPISource, /return \{[\s\S]*setSettings,[\s\S]*updateSetting/);
-  assert.match(
-    adminLayoutSource,
-    /loading \|\| error \|\| settings\.eula_accepted !== false/,
-  );
-  assert.match(
-    adminLayoutSource,
-    /await updateSettingsWithToast\([\s\S]*setSettings\([\s\S]*setOpen\(false\)/,
-  );
-  assert.match(adminLayoutSource, /catch \{\s*setOpen\(true\)/);
-  assert.match(adminLayoutSource, /disabled=\{accepting\}/);
+test("admin layout never prompts for legal notice acceptance", () => {
+  assert.doesNotMatch(adminLayoutSource, /法律声明与合规指引/);
+  assert.doesNotMatch(adminLayoutSource, /eula_accepted|acceptEula|\bEula\b/);
+  assert.doesNotMatch(adminLayoutSource, /<Dialog\.Root open=\{open\}>/);
+  assert.match(adminLayoutSource, /<AdminPanelBar/);
 });
 
 test("admin tabs and dialogs share the saved motion preference", () => {

@@ -29,7 +29,17 @@ func TestNormalizeDashboardSettingsDefaults(t *testing.T) {
 			enabled = append(enabled, module.ID)
 		}
 	}
-	assert.Equal(t, dashboardPresetDefinitions[dashboardPresetOverview].Modules, enabled)
+	assert.Equal(t, []string{
+		dashboardModuleServerStatus,
+		dashboardModuleTrafficSummary,
+		dashboardModuleStorageSummary,
+		dashboardModuleLatencyTrend,
+		dashboardModuleTrafficTrend,
+		dashboardModuleBillingTrend,
+		dashboardModuleTrafficRanking,
+		dashboardModuleAlerts,
+	}, enabled)
+	assert.NotContains(t, enabled, dashboardModuleStorageDetail)
 }
 
 func TestNormalizeDashboardSettingsPreservesOrderAndAppendsMissingModules(t *testing.T) {

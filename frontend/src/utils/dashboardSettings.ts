@@ -54,6 +54,7 @@ export const FORMAL_DASHBOARD_MODULES: readonly DashboardModuleId[] = [
   "latency_trend",
   "traffic_trend",
   "billing_trend",
+  "daily_traffic_ranking",
   "alerts",
 ];
 
