@@ -1,0 +1,10 @@
+/* The bundled Glass theme is built upstream; keep narrow-screen tweaks separate. */
+@media (max-width: 389px) {
+  .overview-strip {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .overview-strip > .overview-stat:not(:last-child) {
+    border-bottom: 1px solid var(--border);
+  }
+}
