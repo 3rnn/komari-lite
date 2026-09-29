@@ -24,17 +24,17 @@ const (
 var agentInstallerFS embed.FS
 
 var (
-	// agentReleaseDir 是面板自己发布的 Agent 制品目录（随 data/ 一起备份）。
-	// 目录里放 14 个平台的二进制 + manifest.json，目标节点只访问本面板。
+	// agentReleaseDir is the agent artifact catalog published by the panel itself (backed up with data/).
+	// Put the binary + manifest.json of 14 platforms in the directory, and the target node only accesses this panel.
 	agentReleaseDir = "data/agent-release"
 
 	agentDigestMu    sync.Mutex
 	agentDigestCache = map[string]string{}
 )
 
-// agentReleaseManifest 描述面板当前发布的精简版 Agent。
-// version 会通过 X-Komari-Agent-Version 暴露；artifacts 是「文件名 → SHA-256」白名单，
-// 只有清单里的文件才会被分发，且每次下载都按清单校验摘要。
+// agentReleaseManifest Description panel The currently published Lite Agent.
+// version is exposed via X-Komari-Agent-Version; artifacts is a whitelist of "filenames → SHA-256",
+// Only the files in the checklist are distributed, and the summary is checked against the checklist each time you download it.
 type agentReleaseManifest struct {
 	Version   string            `json:"version"`
 	Artifacts map[string]string `json:"artifacts"`
@@ -62,8 +62,8 @@ func ServeAgentInstaller(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// ServeAgentDownload 从面板本地发布目录返回一个精简版 Agent 制品。
-// 制品清单或摘要对不上时宁可失败，也不分发未经校验的二进制。
+// ServeAgentDownload returns a lite version of the Agent artifact from the panel's local publishing directory.
+// Prefer to fail when the artifact list or digest is not up, rather than distribute unverified binary.
 func ServeAgentDownload(w http.ResponseWriter, r *http.Request) {
 	name := filepath.Base(r.URL.Path)
 	manifest, err := loadAgentReleaseManifest()
@@ -114,8 +114,8 @@ func loadAgentReleaseManifest() (agentReleaseManifest, error) {
 	return manifest, nil
 }
 
-// agentArtifactIsTrusted 校验文件存在、大小合理且摘要与清单一致；摘要按文件状态缓存，
-// 避免每次下载都重新哈希十几兆的二进制。
+// agentArtifactIsTrusted verifies that the file exists, is reasonable in size, and that the digest is consistent with the manifest; the digest is cached by file status,
+// Avoid hashing dozens of megabytes of binary again with each download.
 func agentArtifactIsTrusted(path, expected string) bool {
 	info, err := os.Stat(path)
 	if err != nil || !info.Mode().IsRegular() || info.Size() <= 0 || info.Size() > maxAgentBinarySize {

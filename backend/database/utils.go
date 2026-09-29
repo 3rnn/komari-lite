@@ -111,7 +111,7 @@ func GetPublicInfo() (map[string]interface{}, error) {
 		"oauth_provider":            cst.OAuthProvider,
 		"disable_password_login":    cst.DisablePasswordLogin,
 		"cors_origin_check_enabled": cst.CorsOriginCheckEnabled,
-		"record_enabled":            retention.AllPositive, // 兼容旧版本主题
+		"record_enabled":            retention.AllPositive, // Compatible with older versions of themes
 		"record_preserve_time":      retention.MaxDays * 24,
 		"ping_record_preserve_time": retention.MaxDays * 24,
 		"private_site":              cst.PrivateSite,

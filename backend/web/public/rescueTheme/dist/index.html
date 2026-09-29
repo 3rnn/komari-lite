@@ -1,8 +1,13 @@
 <!doctype html>
-<html>
+<html lang="en-US">
   <head>
     <script>
-      // 在页面渲染前就执行主题初始化
+      // The fallback retains old locale data but renders English only.
+      try { localStorage.setItem("language", "en-US"); } catch (_) {}
+      document.cookie = "language=en-US; path=/; max-age=31536000; SameSite=Lax";
+    </script>
+    <script>
+      // Initialize the theme before rendering the page.
       try {
         const storageKey = "vite-ui-theme"
         let theme = localStorage.getItem(storageKey)
@@ -94,7 +99,7 @@
         window.addEventListener("load", () => {
           const root = document.getElementById("root")
           if (root) {
-            // 使用 RAF 确保在下一帧渲染
+            // Use RAF to reveal content on the next frame.
             requestAnimationFrame(() => {
               requestAnimationFrame(() => {
                 root.classList.add("loaded")
@@ -120,7 +125,7 @@
 
     <link rel="stylesheet" href="https://fastly.jsdelivr.net/gh/lipis/flag-icons@7.0.0/css/flag-icons.min.css" />
     <link rel="stylesheet" href="https://fastly.jsdelivr.net/npm/font-logos@1/assets/font-logos.css" />
-    <script type="module" crossorigin src="/assets/index.B2vOwRmM.js"></script>
+    <script type="module" crossorigin src="/assets/index.9577e289.js"></script>
     <link rel="stylesheet" crossorigin href="/assets/index.DHN9ufoc.css">
   </head>
   <body>

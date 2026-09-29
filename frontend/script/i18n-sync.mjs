@@ -13,7 +13,7 @@ const __dirname = path.dirname(__filename);
 
 // Config
 const LOCALES_DIR = process.env.I18N_LOCALES_DIR || path.resolve(__dirname, '../src/i18n/locales');
-const SOURCE_LOCALE = process.env.I18N_SOURCE || 'zh_CN';
+const SOURCE_LOCALE = process.env.I18N_SOURCE || 'en';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || process.env.OPENAI_API_TOKEN || '';
 const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || process.env.OPENAI_API_BASE || process.env.OPENAI_ENDPOINT || '';
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
@@ -245,7 +245,10 @@ async function main() {
 
     // AI fill for missing/empty
     // find missing from source perspective (not present in target or existing but blank)
-    const missingPairs = batchPairs(Object.keys(sourceFlat), sourceFlat, targetFlat);
+    // Keep the legacy locale identifier for saved preferences, but never
+    // reintroduce translated copy into the English-only interface.
+    const englishAlias = locale === 'zh_CN';
+    const missingPairs = englishAlias ? [] : batchPairs(Object.keys(sourceFlat), sourceFlat, targetFlat);
     let aiFilled = [];
     if (missingPairs.length > 0) {
       aiFilled = await aiTranslateAll(missingPairs, locale);
@@ -257,7 +260,7 @@ async function main() {
     }
 
     // Unflatten + sort
-    const merged = sortKeysDeep(unflatten(result));
+    const merged = sortKeysDeep(unflatten(englishAlias ? sourceFlat : result));
 
     const before = JSON.stringify(sortKeysDeep(targetObj));
     const after = JSON.stringify(merged);

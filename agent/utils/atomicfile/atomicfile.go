@@ -1,5 +1,5 @@
-// Package atomicfile 提供原子写文件的通用工具。
-// 精简版 Agent 已删除远程控制能力，这里只保留与「远程」无关的通用文件写入原语。
+// Package atomicfile provides reusable atomic file-writing utilities.
+// The lite Agent has no remote control; only generic file-writing primitives remain here.
 package atomicfile
 
 import (
@@ -12,7 +12,7 @@ import (
 
 var renameFile = os.Rename
 
-// WriteFileAtomic 先写临时文件再替换目标文件，替换失败时保留原文件。
+// WriteFileAtomic writes a temporary file before replacing the target, leaving the original intact if replacement fails.
 func WriteFileAtomic(path string, data []byte, perm os.FileMode) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {

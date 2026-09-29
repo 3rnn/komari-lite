@@ -117,7 +117,7 @@ func countProcNetFile(path string) (int, error) {
 }
 
 var (
-	// 预定义常见的回环和虚拟接口名称
+	// Common loopback and virtual interface names.
 	loopbackNames = map[string]struct{}{
 		"br":      {},
 		"cni":     {},
@@ -225,11 +225,11 @@ func NetworkSpeed() (totalUp, totalDown, upSpeed, downSpeed uint64, err error) {
 	includeNics := parseNics(runtimeconfig.IncludeNics())
 	excludeNics := parseNics(runtimeconfig.ExcludeNics())
 
-	// 如果设置了月重置（非0），统计totalUp、totalDown
+	// When a monthly reset is configured (nonzero), collect totalUp and totalDown.
 	resetDay := runtimeconfig.MonthRotateDay()
 	if resetDay != 0 {
 		netstatic.SetResetClock(resetDay, runtimeconfig.MonthRotateTime(), runtimeconfig.MonthRotateTimezone())
-		netstatic.StartOrContinue() // 确保netstatic在运行
+		netstatic.StartOrContinue() // Ensure netstatic is running.
 		now := uint64(time.Now().Unix())
 		resetTimestamp := uint64(utils.GetLastResetInstant(
 			resetDay,
@@ -239,7 +239,7 @@ func NetworkSpeed() (totalUp, totalDown, upSpeed, downSpeed uint64, err error) {
 		).Unix())
 		nicStatics, err := netstatic.GetTotalTrafficBetween(resetTimestamp, now)
 		if err != nil {
-			// 如果netstatic失败，回退到原来的方法，并返回额外的错误信息
+			// If netstatic fails, fall back to the previous method and return additional error details.
 			fallbackUp, fallbackDown, fallbackUpSpeed, fallbackDownSpeed, fallbackErr := getNetworkSpeedFallback(includeNics, excludeNics)
 			if fallbackErr != nil {
 				return fallbackUp, fallbackDown, fallbackUpSpeed, fallbackDownSpeed, fmt.Errorf("failed to call GetTotalTrafficBetween: %v; fallback error: %w", err, fallbackErr)
@@ -254,7 +254,7 @@ func NetworkSpeed() (totalUp, totalDown, upSpeed, downSpeed uint64, err error) {
 			}
 		}
 
-		// 对于实时速度，仍然使用网卡累计计数器差值
+		// Continue computing live rates from interface cumulative counter differences.
 		_, _, upSpeed, downSpeed, err = getNetworkSpeedFallback(includeNics, excludeNics)
 		if err != nil {
 			return totalUp, totalDown, 0, 0, err
@@ -263,7 +263,7 @@ func NetworkSpeed() (totalUp, totalDown, upSpeed, downSpeed uint64, err error) {
 		return totalUp, totalDown, upSpeed, downSpeed, nil
 	}
 
-	// 如果没有设置月重置，使用原来的方法
+	// Without monthly reset, use the previous method.
 	return getNetworkSpeedFallback(includeNics, excludeNics)
 }
 
@@ -351,28 +351,28 @@ func parseNics(nics string) map[string]struct{} {
 }
 
 func shouldInclude(nicName string, includeNics, excludeNics map[string]struct{}) bool {
-	// 默认排除回环接口
+	// Exclude loopback interfaces by default.
 	for loopbackName := range loopbackNames {
 		if strings.HasPrefix(nicName, loopbackName) {
 			return false
 		}
 	}
 
-	// 如果定义了白名单，则只包括白名单中的接口
+	// With an allowlist, only include listed interfaces.
 	for pattern := range includeNics {
 		if matched, _ := filepath.Match(pattern, nicName); matched {
 			return true
 		}
 	}
 
-	// 如果定义了黑名单，则排除黑名单中的接口
+	// With a denylist, exclude listed interfaces.
 	for pattern := range excludeNics {
 		if matched, _ := filepath.Match(pattern, nicName); matched {
 			return false
 		}
 	}
 
-	return len(includeNics) == 0 // 如果没有定义白名单，则默认包含所有非回环接口
+	return len(includeNics) == 0 // Without an allowlist, include all non-loopback interfaces by default.
 }
 
 func InterfaceList() ([]string, error) {

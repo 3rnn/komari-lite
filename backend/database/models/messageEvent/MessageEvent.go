@@ -8,8 +8,8 @@ const (
 	Login    = "Login"
 	Alert    = "Alert"
 	Traffic  = "Traffic"
-	DReport  = "DReport" // 日报
-	WReport  = "WReport" // 周报
-	MReport  = "MReport" // 月报
-	PingLoss = "延迟监测告警"
+	DReport  = "DReport" // daily report
+	WReport  = "WReport" // weekly report
+	MReport  = "MReport" // monthly report
+	PingLoss = "\u5ef6\u8fdf\u76d1\u6d4b\u544a\u8b66"
 )

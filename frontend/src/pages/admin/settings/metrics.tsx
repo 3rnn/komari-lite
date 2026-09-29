@@ -49,8 +49,8 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
-// store-to-store 迁移状态。旧的 not_started/in_progress/paused 已废弃，
-// 后端语义改为：把某个 metrics 源库的数据搬运到当前运行中的 metrics 目标库。
+// Store-to-store migration: legacy not_started/in_progress/paused states are deprecated.
+// Move data from the source metrics store into the currently running target metrics store.
 type MigrationStatus = "idle" | "running" | "completed" | "failed" | "canceled";
 
 interface MigrationStatusResponse {
@@ -88,7 +88,7 @@ type MetricTextField = "name" | "description";
 type TranslationFunction = ReturnType<typeof useTranslation>["t"];
 
 const DSN_PLACEHOLDER =
-  "./data/metrics.db 或 user:password@tcp(host:3306)/metrics?charset=utf8mb4&parseTime=True";
+  "./data/metrics.db or user:password@tcp(host:3306)/metrics?charset=utf8mb4&parseTime=True";
 
 function toNumber(value: unknown, fallback: number): number {
   const n =
@@ -240,7 +240,7 @@ export default function MetricsSettings() {
       <AdminPageTitle
         description={t(
           "settings.storage.page_description",
-          "查看数据库占用并管理监控数据、迁移和维护。",
+          "Review database usage and manage monitoring data, migrations, and maintenance.",
         )}
       >
         {t("settings.storage.title")}
@@ -833,7 +833,7 @@ function MigrationCard() {
     void fetchStatus(true);
   }, [fetchStatus]);
 
-  // 迁移进行中时轮询刷新状态。
+  // Poll migration status while it runs.
   React.useEffect(() => {
     const shouldPoll =
       statusData?.status === "running" || statusData?.is_running;
@@ -901,7 +901,7 @@ function MigrationCard() {
       direction="column"
     >
       <Flex direction="column" gap="3" className="w-full pt-3">
-        {/* 状态行 */}
+        {/* Status row. */}
         <Flex gap="2" align="center" wrap="wrap">
           <Text size="2" weight="medium">
             {t("settings.metrics.current_status")}:
@@ -921,7 +921,7 @@ function MigrationCard() {
           </Button>
         </Flex>
 
-        {/* 源库 / 目标库信息 */}
+        {/* Source and target store details. */}
         {statusData &&
           (statusData.source_driver || statusData.target_driver) && (
             <Flex gap="2" wrap="wrap">
@@ -942,7 +942,7 @@ function MigrationCard() {
             </Flex>
           )}
 
-        {/* 进度条 */}
+        {/* Progress bar. */}
         {showProgress && (
           <Flex direction="column" gap="1">
             <Flex justify="between" align="center">
@@ -965,7 +965,7 @@ function MigrationCard() {
           </Flex>
         )}
 
-        {/* 状态 Callout */}
+        {/* Status callout. */}
         {status === "running" && (
           <Callout.Root color="blue" variant="surface">
             <Callout.Icon>
@@ -1012,7 +1012,7 @@ function MigrationCard() {
           </Callout.Root>
         )}
 
-        {/* 源 DSN + 操作按钮 */}
+        {/* Source DSN and action buttons. */}
         <Flex direction="column" gap="2" className="w-full">
           <label className="text-sm font-medium">
             {t("settings.metrics.source_dsn_title")}

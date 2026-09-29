@@ -69,7 +69,7 @@ export default function Sessions() {
         if (data.status === "success") {
           toast.success(t("sessions.deleted_successfully"));
           if (isCurrent) {
-            window.location.href = "/"; // 登出
+            window.location.href = "/"; // Log out.
             return;
           }
           setSessions((prev) => ({
@@ -99,7 +99,7 @@ export default function Sessions() {
         response
           .json()
           .then(() => {
-            window.location.href = "/"; // 登出
+            window.location.href = "/"; // Log out.
           })
           .catch((error) => {
             toast.error("Error parsing JSON:" + error);

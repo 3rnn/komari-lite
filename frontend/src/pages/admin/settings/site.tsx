@@ -45,7 +45,7 @@ export default function SiteSettings() {
     });
   };
 
-  // 恢复备份对话框与上传状态
+  // Restore-backup dialog and upload state.
   const [restoreOpen, setRestoreOpen] = useState(false);
   const [restoreState, setRestoreState] = useState<UploadProgressState | null>(
     null,
@@ -106,7 +106,7 @@ export default function SiteSettings() {
 
   const uploadBackup = async (file: File) => {
     if (!file.name.endsWith(".zip")) {
-      toast.error(t("theme.invalid_file_type", "仅支持 .zip 文件"));
+      toast.error(t("theme.invalid_file_type", "Invalid file type, only .zip files are supported"));
       return;
     }
 
@@ -133,7 +133,7 @@ export default function SiteSettings() {
           restoreCopy,
         ),
       );
-      toast.success(t("account_settings.upload_success", "上传成功"));
+      toast.success(t("account_settings.upload_success", "Upload success"));
       await delay(UPLOAD_COMPLETED_VISIBLE_MS);
       setRestoreOpen(false);
       await delay(UPLOAD_DIALOG_EXIT_MS);
@@ -145,7 +145,7 @@ export default function SiteSettings() {
         toast.error(
           reason instanceof Error
             ? reason.message
-            : t("settings.site.backup_restore_error", "恢复备份失败"),
+            : t("settings.site.backup_restore_error", "Restore backup failed"),
         );
       }
     } finally {
@@ -171,7 +171,7 @@ export default function SiteSettings() {
       <AdminPageTitle
         description={t(
           "settings.site.page_description",
-          "管理站点信息、访问策略、备份与接口安全设置。",
+          "Configure site information, access controls, backups, and custom content.",
         )}
       >
         {t("settings.site.title")}
@@ -201,10 +201,10 @@ export default function SiteSettings() {
         }}
       />
       <SettingCardLongTextInput
-        title={t("settings.site.cors_allowed_origins", "API CORS 允许列表")}
+        title={t("settings.site.cors_allowed_origins", "API CORS allowed origins")}
         description={t(
           "settings.site.cors_allowed_origins_description",
-          "每行或用逗号分隔一个 Origin，例如 https://example.com",
+          "One origin per line or separated by commas, e.g., https://example.com",
         )}
         defaultValue={settings.cors_allowed_origins || ""}
         OnSave={async (data) => {
@@ -212,10 +212,10 @@ export default function SiteSettings() {
         }}
       />
       <SettingCardSwitch
-        title={t("settings.site.ws_origin_check_enabled", "WebSocket Origin 校验")}
+        title={t("settings.site.ws_origin_check_enabled", "WebSocket origin check")}
         description={t(
           "settings.site.ws_origin_check_enabled_description",
-          "开启后 WebSocket 请求只允许同源或允许列表中的 Origin",
+          "When enabled, WebSocket requests are only allowed from the same origin or origins in the allowed list",
         )}
         defaultChecked={settings.ws_origin_check_enabled ?? true}
         onChange={async (checked) => {
@@ -226,10 +226,10 @@ export default function SiteSettings() {
         }}
       />
       <SettingCardLongTextInput
-        title={t("settings.site.ws_allowed_origins", "WebSocket Origin 允许列表")}
+        title={t("settings.site.ws_allowed_origins", "WebSocket allowed origins")}
         description={t(
           "settings.site.ws_allowed_origins_description",
-          "每行或用逗号分隔一个 Origin，例如 https://example.com",
+          "One origin per line or separated by commas, e.g., https://example.com",
         )}
         defaultValue={settings.ws_allowed_origins || ""}
         OnSave={async (data) => {
@@ -355,10 +355,10 @@ export default function SiteSettings() {
         }}
       />
       <SettingCardLongTextInput
-        title={t("settings.custom.body", "自定义 Body")}
+        title={t("settings.custom.body", "Custom Body")}
         description={t(
           "settings.custom.body_description",
-          "在页面底部添加自定义内容",
+          "Add custom content to the bottom of the page",
         )}
         defaultValue={settings.custom_body || ""}
         OnSave={async (data) => {
@@ -366,10 +366,10 @@ export default function SiteSettings() {
         }}
       />
       <SettingCardCollapse
-        title={t("settings.custom.favicon", "自定义 Favicon")}
+        title={t("settings.custom.favicon", "Customize Favicon")}
         description={t(
           "settings.custom.favicon_description",
-          "在浏览器标签页显示的图标",
+          "Icons displayed in browser tabs",
         )}
         defaultOpen={true}
       >
@@ -381,7 +381,7 @@ export default function SiteSettings() {
           gap="2"
         >
           <Flex gap="2" align="center">
-            {t("settings.custom.favicon_current", "当前 Favicon")}
+            {t("settings.custom.favicon_current", "Current Favicon")}
             <img
               src={`/favicon.ico?v=${faviconRevision}`}
               alt="Favicon"
@@ -391,29 +391,29 @@ export default function SiteSettings() {
           <label className="text-sm text-muted-foreground">
             {t(
               "settings.custom.favicon_note",
-              "Favicon 图标的更新速度可能较慢，通常需要清除浏览器缓存后才能看到更改。",
+              "Favicon icons can be slow to update and it is often necessary to clear your browser's cache to see the changes.",
             )}
           </label>
           <Flex gap="2" align="center">
             <Dialog.Root>
               <Dialog.Trigger>
                 <Button color="tomato">
-                  {t("settings.custom.favicon_default", "恢复默认")}
+                  {t("settings.custom.favicon_default", "Restore Default")}
                 </Button>
               </Dialog.Trigger>
               <AppDialogContent>
                 <Dialog.Title>
-                  {t("settings.custom.favicon_default", "恢复默认")}
+                  {t("settings.custom.favicon_default", "Restore Default")}
                 </Dialog.Title>
                 <Dialog.Description>
                   {t(
                     "settings.custom.favicon_default_description",
-                    "这将恢复默认的 Favicon 图标，是否继续？",
+                    "This will restore the default Favicon icon, do you want to continue?",
                   )}
                 </Dialog.Description>
                 <Flex gap="2" justify="end">
                   <Dialog.Close>
-                    <Button variant="soft">{t("common.cancel", "取消")}</Button>
+                    <Button variant="soft">{t("common.cancel", "Cancel")}</Button>
                   </Dialog.Close>
                   <Dialog.Trigger>
                     <Button
@@ -512,7 +512,7 @@ export default function SiteSettings() {
         {t("common.select")}
       </SettingCardButton>
 
-      {/* 上传备份对话框 */}
+      {/* Restore-backup upload dialog. */}
       <UploadDialog
         open={restoreOpen}
         onOpenChange={(open) => {

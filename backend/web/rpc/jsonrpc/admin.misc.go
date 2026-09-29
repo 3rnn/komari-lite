@@ -18,7 +18,7 @@ import (
 )
 
 // admin.misc.go
-// 杂项 admin RPC2 方法：会话管理、设置、客户端排序。
+// Miscellaneous admin RPC2 methods: session management, settings, client-side sorting.
 
 func parseUintKey(s string) (uint, error) {
 	v, err := strconv.ParseUint(s, 10, 64)
@@ -111,9 +111,9 @@ func adminGetSettings(_ context.Context, _ *rpc.JsonRpcRequest) (any, *rpc.JsonR
 	return cst, nil
 }
 
-// metricStoreConfigKeys 是与 metrics 独立数据库相关、需要触发连接测试 + 热重载的配置键。
+// metricStoreConfigKeys lists independent metrics-database settings that trigger a connection test and hot reload.
 //
-// 注意：metric_store_enabled 已废弃（metric store 始终启用），不再纳入此集合。
+// Note: metric_store_enabled is deprecated (metric store is always enabled) and is no longer included in this collection.
 var metricStoreConfigKeys = map[string]struct{}{
 	metricstore.MetricDBDriverKey:     {},
 	metricstore.MetricDBDSNKey:        {},
@@ -122,7 +122,7 @@ var metricStoreConfigKeys = map[string]struct{}{
 	metricstore.MetricMaxIdleConnsKey: {},
 }
 
-// metricKeysTouched 判断本次设置变更是否涉及 metrics 数据库相关键。
+// metricKeysTouched reports whether a settings change affects metrics-database configuration.
 func metricKeysTouched(cfg map[string]interface{}) bool {
 	for key := range cfg {
 		if _, ok := metricStoreConfigKeys[key]; ok {
@@ -166,13 +166,13 @@ func adminEditSettings(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.
 	delete(cfg, config.LowResourceModeKey)
 	delete(cfg, metricstore.MetricDownsamplingEnabledKey)
 
-	// 若本次修改涉及 metrics 数据库配置，则在落库前先用「当前配置 + 本次改动」
-	// 合并出的目标配置做一次连接测试。metric store 始终启用，只要触及 metrics
-	// 相关键就做连接测试，避免把明显无效的连接串保存给用户。
+	// If metrics-database settings changed, test the merged current and proposed configuration before saving.
+	// The metric store is always enabled, so test connectivity whenever a metrics setting is touched
+	// to avoid persisting an invalid connection string.
 	touchedMetric := metricKeysTouched(cfg)
 	if touchedMetric {
-		// 数据库类型不再由前端显式选择，而是根据 DSN 自动推断后写回配置，
-		// 使后续连接测试、热重载和初始化都使用一致的 driver。
+		// The database type is no longer explicitly selected by the front-end, but is automatically inferred from the DSN and written back to the configuration.
+		// Makes subsequent connection tests, hot reloads, and initializations all use the same driver.
 		if v, ok := cfg[metricstore.MetricDBDSNKey]; ok {
 			if dsn, ok := v.(string); ok {
 				dsn = strings.TrimSpace(dsn)
@@ -199,8 +199,8 @@ func adminEditSettings(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.
 	if err := config.SetMany(cfg); err != nil {
 		return nil, rpc.MakeError(rpc.InternalError, "Failed to update settings: "+err.Error(), nil)
 	}
-	// 配置已落库，热重载 metric store（无需重启）。连接已在上面验证过，
-	// 这里再次失败属异常情况，回报给用户。
+	// Settings are now saved; hot-reload the metric store without restarting. Connectivity was tested above.
+	// Report any unexpected hot-reload failure to the user.
 	if touchedMetric {
 		reloadCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		if err := metricstore.Reload(reloadCtx); err != nil {
@@ -232,8 +232,8 @@ func normalizeAdminDefaultPageSize(raw any) (int, bool) {
 	return int(value), true
 }
 
-// mergedMetricConfig 读取当前持久化的 metric store 配置，并把本次请求中涉及的
-// metrics 相关键覆盖上去，得到「即将生效」的目标配置，用于落库前的连接测试。
+// mergedMetricConfig combines persisted metric-store settings with the changes in this request.
+// The result is the proposed configuration used for a connection test before saving.
 func mergedMetricConfig(cfg map[string]interface{}) (*metricstore.MetricStoreConfig, error) {
 	merged, err := config.GetManyAs[metricstore.MetricStoreConfig]()
 	if err != nil {
@@ -278,7 +278,7 @@ func toBool(v any, fallback bool) bool {
 	return fallback
 }
 
-// toInt 将 JSON 解码得到的任意值（通常是 float64 或 string）转换为 int，失败时返回 fallback。
+// toInt Converts any value decoded from JSON (usually float64 or string) to int, returning fallback on failure.
 func toInt(v any, fallback int) int {
 
 	switch val := v.(type) {

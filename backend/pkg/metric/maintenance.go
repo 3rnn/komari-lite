@@ -13,7 +13,7 @@ import (
 // MaintenanceAction identifies the backend-specific operation used to reclaim
 // physical database space.
 //
-// MaintenanceAction 表示回收数据库物理空间时使用的后端专用操作。
+// MaintenanceAction represents a backend-specific operation used when reclaiming physical space in a database.
 type MaintenanceAction string
 
 const (
@@ -45,7 +45,7 @@ func (sizes SQLiteFileSizes) Total() int64 {
 
 // Driver returns the Store's configured database backend.
 //
-// Driver 返回 Store 配置的数据库后端。
+// Driver Returns the database backend configured by the Store.
 func (s *Store) Driver() Driver {
 	return s.cfg.Driver
 }
@@ -53,7 +53,7 @@ func (s *Store) Driver() Driver {
 // MaintenanceAction returns the physical-space reclamation operation used by
 // the Store's backend.
 //
-// MaintenanceAction 返回当前后端用于回收物理空间的操作。
+// MaintenanceAction Returns the operation used by the current backend to reclaim physical space.
 func (s *Store) MaintenanceAction() MaintenanceAction {
 	return maintenanceActionFor(s.cfg.Driver)
 }
@@ -62,9 +62,9 @@ func (s *Store) MaintenanceAction() MaintenanceAction {
 // includes the main database, WAL, and shared-memory files. Server backends
 // include only the definitions, points, and rollups tables managed by Store.
 //
-// StorageSize 返回当前 Store 占用的物理字节数。SQLite 会统计主数据库、WAL
-// 和共享内存文件；服务端数据库只统计 Store 管理的 definitions、points 和
-// rollups 三张表。
+// StorageSize returns the number of physical bytes currently occupied by the Store. SQLite will count the main database and WAL
+// and shared memory files; the server database only counts definitions, points and
+// rollups three tables.
 func (s *Store) StorageSize(ctx context.Context) (int64, error) {
 	s.maintenanceMu.RLock()
 	defer s.maintenanceMu.RUnlock()
@@ -130,8 +130,8 @@ func (s *Store) CheckpointWAL(ctx context.Context) error {
 // unused database pages to the filesystem. It serializes against other
 // maintenance calls and keeps Close from closing the pool mid-operation.
 //
-// ReclaimSpace 执行后端专用的阻塞式空间回收操作。该方法会与其他维护调用
-// 串行执行，并阻止 Close 在操作过程中关闭连接池。
+// ReclaimSpace performs backend-specific blocking space reclamation operations. This method will be called with other maintenance
+// Execute serially and prevent Close from closing the connection pool during the operation.
 func (s *Store) ReclaimSpace(ctx context.Context) error {
 	s.maintenanceMu.Lock()
 	defer s.maintenanceMu.Unlock()

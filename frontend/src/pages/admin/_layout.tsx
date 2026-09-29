@@ -54,7 +54,7 @@ const AdminRouteLoading = () => (
     align="center"
     justify="center"
     role="status"
-    aria-label="页面加载中"
+    aria-label="Page loading"
     style={{ minHeight: "min(20rem, 55vh)" }}
   >
     <Spinner size="3" />

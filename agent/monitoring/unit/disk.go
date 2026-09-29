@@ -15,13 +15,13 @@ type DiskInfo struct {
 
 func Disk() DiskInfo {
 	diskinfo := DiskInfo{}
-	// 获取所有分区，使用 true 避免物理磁盘被 gopsutil 错误排除
+	// List all partitions; true prevents gopsutil from mistakenly excluding physical disks.
 	usage, err := disk.Partitions(true)
 	if err != nil {
 		diskinfo.Total = 0
 		diskinfo.Used = 0
 	} else {
-		// 如果指定了自定义挂载点，只统计指定的挂载点
+		// When custom mount points are specified, count only those points.
 		includeMountpoints := runtimeconfig.IncludeMountpoints()
 		if includeMountpoints != "" {
 			includeMounts := strings.Split(includeMountpoints, ";")
@@ -38,7 +38,7 @@ func Disk() DiskInfo {
 				}
 			}
 		} else {
-			// 使用默认逻辑，排除临时文件系统和网络驱动器
+			// By default, exclude temporary filesystems and network drives.
 			deviceMap := make(map[string]*disk.UsageStat)
 
 			for _, part := range usage {
@@ -49,15 +49,15 @@ func Disk() DiskInfo {
 					}
 
 					deviceID := part.Device
-					// ZFS去重: 基于 pool 名称 (例如 pool/dataset -> pool)
+					// Deduplicate ZFS by pool name (e.g. pool/dataset -> pool).
 					if strings.ToLower(part.Fstype) == "zfs" {
 						if idx := strings.Index(deviceID, "/"); idx != -1 {
 							deviceID = deviceID[:idx]
 						}
 					}
 
-					// 如果该设备已存在，且当前挂载点的 Total 更大，则替换（处理 quota 等情况）
-					// 否则保留现有的（通常我们希望统计物理 pool 的总量）
+					// If this device already exists but this mount has a larger Total, replace it (e.g. quota differences).
+					// Otherwise keep the existing entry, usually the physical pool total.
 					if existing, ok := deviceMap[deviceID]; ok {
 						if u.Total > existing.Total {
 							deviceMap[deviceID] = u
@@ -77,14 +77,14 @@ func Disk() DiskInfo {
 	return diskinfo
 }
 
-// isPhysicalDisk 判断分区是否为物理磁盘
+// isPhysicalDisk determines whether a partition is a physical disk.
 func isPhysicalDisk(part disk.PartitionStat) bool {
-	// 对于LXC等基于loop的根文件系统，始终包含根挂载点
+	// Always include the root mount for loop-based filesystems such as LXC.
 	if part.Mountpoint == "/" {
 		return true
 	}
 	mountpoint := strings.ToLower(part.Mountpoint)
-	// 排除挂载点
+	// Exclude mount points.
 	var mountpointsToExcludePerfix = []string{
 		"/tmp",
 		"/var/tmp",
@@ -107,13 +107,13 @@ func isPhysicalDisk(part disk.PartitionStat) bool {
 
 	fstype := strings.ToLower(part.Fstype)
 
-	// 针对 Linux autofs：排除自动挂载的 trigger，真实文件系统会作为单独分区出现不会被排除。
-	// 将 autofs 视为“非物理磁盘”可以避免重复统计容量。
+	// Exclude Linux autofs triggers; the real filesystem appears as a separate partition.
+	// Treating autofs as nonphysical prevents double-counting capacity.
 	if fstype == "autofs" && !strings.HasPrefix(part.Device, "/dev/") {
 		return false
 	}
 
-	// 针对 Linux 下通过 ntfs-3g 挂载的 NTFS 分区 (fuseblk)，这是实际物理磁盘，不应排除
+	// Include NTFS volumes mounted through ntfs-3g (fuseblk) on Linux; these are physical disks.
 	if fstype == "fuseblk" {
 		return true
 	}
@@ -143,14 +143,14 @@ func isPhysicalDisk(part disk.PartitionStat) bool {
 			return false
 		}
 	}
-	// Windows 网络驱动器通常是映射盘符，但不容易通过fstype判断
-	// 可以通过opts判断，Windows网络驱动通常有相关选项
+	// Windows network drives are commonly mapped drive letters but are hard to identify by fstype.
+	// Options can identify some Windows network drives.
 	optsStr := strings.ToLower(strings.Join(part.Opts, ","))
 	if strings.Contains(optsStr, "remote") || strings.Contains(optsStr, "network") {
 		return false
 	}
 
-	// 虚拟内存
+	// Virtual memory.
 	if strings.HasPrefix(part.Device, "/dev/loop") {
 		return false
 	}
@@ -175,12 +175,12 @@ func DiskList() ([]string, error) {
 			return nil, err
 		}
 
-		// 同一物理设备只保留路径最短的根挂载点
+		// Keep only the shortest root mount path for the same physical device.
 		deviceMap := make(map[string]disk.PartitionStat)
 		for _, part := range usage {
 			if isPhysicalDisk(part) {
 				deviceID := part.Device
-				// ZFS去重: 基于 pool 名称
+				// Deduplicate ZFS by pool name.
 				if strings.ToLower(part.Fstype) == "zfs" {
 					if idx := strings.Index(deviceID, "/"); idx != -1 {
 						deviceID = deviceID[:idx]
@@ -188,7 +188,7 @@ func DiskList() ([]string, error) {
 				}
 
 				if existing, ok := deviceMap[deviceID]; ok {
-					// 优先保留路径更短的挂载点 (e.g., /volume1 优于 /volume1/@appdata/...)
+					// Prefer shorter mount paths (e.g. /volume1 over /volume1/@appdata/...).
 					if len(part.Mountpoint) < len(existing.Mountpoint) {
 						deviceMap[deviceID] = part
 					}

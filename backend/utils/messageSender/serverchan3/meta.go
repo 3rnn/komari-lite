@@ -4,16 +4,16 @@ import (
 	"github.com/komari-monitor/komari/utils/messageSender/factory"
 )
 
-// Addition 为 Server酱³ 推送通道的配置项
-// 所有字段通过管理页面以 JSON 形式进行设置
+// Addition is the configuration item of ServerChan3 push channel
+// All fields are set as JSON via the admin page
 type Addition struct {
-	// APIURL 为接口完整地址，例如：https://<uid>.push.ft07.com/send/<sendkey>.send
-	APIURL string `json:"api_url" required:"true" help:"接口完整地址，例如 https://<uid>.push.ft07.com/send/<sendkey>.send；参考：https://sc3.ft07.com/"`
-	// Tags 为可选标签，使用 | 分割，例如：tag1|tag2|tag3
-	Tags string `json:"tags" help:"可选标签，使用 | 分割，例如 tag1|tag2|tag3"`
+	// APIURL is the complete address of the interface, for example: https://<uid>.push.ft07.com/send/<sendkey>.send
+	APIURL string `json:"api_url" required:"true" help:"Full API URL, for example https://<uid>.push.ft07.com/send/<sendkey>.send; see https://sc3.ft07.com/"`
+	// Tags are optional tags, separated by |, for example: tag1|tag2|tag3
+	Tags string `json:"tags" help:"Optional tags separated by |, for example tag1|tag2|tag3"`
 }
 
-// 注册 Server酱³ 推送通道到工厂
+// Register ServerChan3 Push channel to factory
 func init() {
 	factory.RegisterMessageSender(func() factory.IMessageSender {
 		return &ServerChan3Sender{}

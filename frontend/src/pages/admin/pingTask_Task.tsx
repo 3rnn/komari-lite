@@ -77,7 +77,7 @@ export const TaskView = ({
     useSensor(KeyboardSensor, {})
   );
 
-  // 过滤已删除的节点
+  // Exclude deleted nodes.
   const processedTasks = React.useMemo(() => {
     if (!pingTasks)
       return [] as (PingTask & {
@@ -291,13 +291,13 @@ const Row = ({
       .finally(() => setEditSaving(false));
   };
 
-  // 编辑提交
+  // Submit edits.
   const handleEdit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     submitEdit(form);
   };
 
-  // 删除
+  // Delete a task.
   const handleDelete = () => {
     setDeleteLoading(true);
     fetch("/api/admin/ping/delete", {
@@ -326,7 +326,7 @@ const Row = ({
 
   return (
     <TableRow ref={setNodeRef} style={style}>
-      <TableCell className="w-12 px-3" data-label={t("common.sort", "排序")}>
+      <TableCell className="w-12 px-3" data-label={t("common.sort", "Sort")}>
         <div
           {...attributes}
           {...listeners}
@@ -340,7 +340,7 @@ const Row = ({
           }}
           title={
             isMobile
-              ? t("admin.nodeTable.dragToReorder", "长按拖拽重新排序")
+              ? t("admin.nodeTable.dragToReorder", "Long press and drag to reorder")
               : undefined
           }
         >
@@ -384,7 +384,7 @@ const Row = ({
       <TableCell data-label={t("ping.interval")}>{task.interval}</TableCell>
       <TableCell data-label={t("common.action")}>
         <div className="admin-card-actions admin-dual-actions flex items-center gap-3">
-        {/* 编辑按钮 */}
+        {/* Edit button. */}
         <Dialog.Root open={editOpen} onOpenChange={setEditOpen}>
           <Dialog.Trigger>
             <IconButton variant="soft">
@@ -475,7 +475,7 @@ const Row = ({
             </form>
           </AppDialogContent>
         </Dialog.Root>
-        {/* 删除按钮 */}
+        {/* Delete button. */}
         <Dialog.Root open={deleteOpen} onOpenChange={setDeleteOpen}>
           <Dialog.Trigger>
             <IconButton variant="soft" color="red">

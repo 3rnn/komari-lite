@@ -3,6 +3,7 @@ package public
 import (
 	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode"
 
 	"github.com/gin-gonic/gin"
 	"github.com/komari-monitor/komari/pkg/config"
@@ -54,6 +56,79 @@ func TestRemoveFaviconIfHashMatches(t *testing.T) {
 	if string(got) != string(customData) {
 		t.Fatalf("custom favicon changed: got %q", got)
 	}
+}
+
+func TestIsSafePathAllowsDotDotFilenameButRejectsTraversal(t *testing.T) {
+	base := filepath.Join(t.TempDir(), "themes")
+	if !isSafePath(base, "..preview.png") {
+		t.Fatal("a filename beginning with two dots stays inside the theme directory")
+	}
+	if isSafePath(base, filepath.Join("..", "other-theme", "index.html")) {
+		t.Fatal("parent-directory traversal must be rejected")
+	}
+}
+
+func TestEmbeddedThemeSourcesContainNoHanCharacters(t *testing.T) {
+	for _, root := range []string{"bundledThemes/Glass", "rescueTheme"} {
+		err := fs.WalkDir(PublicFS, root, func(name string, entry fs.DirEntry, walkErr error) error {
+			if walkErr != nil || entry.IsDir() {
+				return walkErr
+			}
+			switch filepath.Ext(name) {
+			case ".html", ".js", ".json", ".css":
+			default:
+				return nil
+			}
+			content, err := fs.ReadFile(PublicFS, name)
+			if err != nil {
+				return err
+			}
+			for _, r := range string(content) {
+				if unicode.Is(unicode.Han, r) {
+					t.Errorf("%s contains a Han character; keep generated display copy in English", name)
+					break
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestEmbeddedGlassUsesEnglishRegionAndVersionedChunk(t *testing.T) {
+	const root = "bundledThemes/Glass/dist"
+	index, err := fs.ReadFile(PublicFS, root+"/index.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(index), `\"lang\":\"en-US\"`) {
+		t.Fatal("the embedded page payload must agree with its English HTML language")
+	}
+	paths, err := fs.Glob(PublicFS, root+"/_next/static/chunks/*.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range paths {
+		chunk, err := fs.ReadFile(PublicFS, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(chunk), "function ro(e,t=") {
+			continue
+		}
+		if !strings.Contains(string(chunk), `function ro(e,t="en")`) {
+			t.Fatal("the public region formatter must display English by default")
+		}
+		sum := sha256.Sum256(chunk)
+		name := fmt.Sprintf("3859ru-%x.js", sum[:4])
+		if filepath.Base(path) != name || !strings.Contains(string(index), "/_next/static/chunks/"+name) {
+			t.Fatal("the updated Glass chunk needs a content-derived URL in the page")
+		}
+		return
+	}
+	t.Fatal("no embedded Glass region formatter found")
 }
 
 func TestNormalizeHTMLLanguage(t *testing.T) {
@@ -399,7 +474,7 @@ func TestPublicFSEmbedsOnlyTheBundledGlassTheme(t *testing.T) {
 	if _, err := fs.Stat(PublicFS, bundledThemeRoot+"/komari-theme.json"); err != nil {
 		t.Fatalf("bundled theme manifest is missing: %v", err)
 	}
-	// 主题是 Next.js 静态导出，_next 目录以下划线开头：go:embed 必须使用 all: 前缀才会包含它。
+	// Next.js exports _next with a leading underscore; go:embed needs all: to include it.
 	chunks, err := fs.Glob(PublicFS, bundledThemeRoot+"/dist/_next/static/chunks/*.js")
 	if err != nil || len(chunks) == 0 {
 		t.Fatalf("bundled theme _next assets are missing from the embed: %v", err)
@@ -407,7 +482,7 @@ func TestPublicFSEmbedsOnlyTheBundledGlassTheme(t *testing.T) {
 	if _, err := fs.Stat(PublicFS, bundledThemeRoot+"/dist/"+IndexFile); err != nil {
 		t.Fatalf("bundled theme index.html is missing: %v", err)
 	}
-	// Nezha 主题已删除，嵌入文件中不应再有它的任何痕迹。
+	// The removed Nezha theme must not remain in the embedded files.
 	retired, err := fs.Glob(PublicFS, "bundledThemes/"+RetiredThemeID+"/*")
 	if err != nil {
 		t.Fatal(err)
@@ -500,7 +575,7 @@ func TestEnsureBundledThemesRemovesRetiredTheme(t *testing.T) {
 	}
 	config.SetDb(db)
 
-	// 历史部署里可能残留 Nezha 主题（自带安装副本）。
+	// Older deployments may still contain an installed copy of Nezha.
 	retiredDir := filepath.Join(DataDir, ThemesDir, RetiredThemeID, DistDir)
 	if err := os.MkdirAll(retiredDir, 0o755); err != nil {
 		t.Fatal(err)
@@ -511,7 +586,7 @@ func TestEnsureBundledThemesRemovesRetiredTheme(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(retiredDir, IndexFile), []byte("retired-theme-index"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	// 曾经选中 Nezha 的部署应被改回内置默认主题。
+	// Deployments that selected Nezha should fall back to the built-in theme.
 	if err := config.Set(config.ThemeKey, RetiredThemeID); err != nil {
 		t.Fatal(err)
 	}

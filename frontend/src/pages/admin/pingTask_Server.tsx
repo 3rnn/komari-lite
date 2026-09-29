@@ -20,7 +20,7 @@ import {
   useAdminPagination,
 } from "@/components/admin/AdminPagination";
 
-// 服务器视图：按服务器聚合展示其绑定的任务，并可快速增删绑定
+// Server view: group assigned tasks by server and allow quick additions/removals.
 export const ServerView = ({
   pingTasks,
   search,
@@ -97,18 +97,18 @@ const ServerRow: React.FC<{
   const [open, setOpen] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
 
-  // 当前服务器拥有的任务集合
+  // Tasks currently assigned to this server.
   const ownedTasks = React.useMemo(
     () => pingTasks.filter((t) => t.clients?.includes(nodeUuid)),
     [pingTasks, nodeUuid]
   );
 
-  // 编辑状态（所选任务 id 集合）
+  // Editing state: selected task IDs.
   const [selectedIds, setSelectedIds] = React.useState<string[]>(
     () => ownedTasks.filter((t) => t.id !== undefined).map((t) => String(t.id))
   );
 
-  // 若任务或服务器改变，重置选择
+  // Reset selection when tasks or servers change.
   React.useEffect(() => {
     setSelectedIds(
       ownedTasks.filter((t) => t.id !== undefined).map((t) => String(t.id))
@@ -117,13 +117,13 @@ const ServerRow: React.FC<{
 
   const handleSave = () => {
     setSaving(true);
-    // 收集需要更新的任务（ membership 发生变化 ）
+    // Collect tasks whose membership changed.
     const toUpdate = pingTasks
       .filter((task) => task.id !== undefined)
       .filter((task) => {
         const hasBefore = !!task.clients?.includes(nodeUuid);
         const hasAfter = selectedIds.includes(String(task.id));
-        return hasBefore !== hasAfter; // 仅当变化才提交
+        return hasBefore !== hasAfter; // Submit only changed memberships.
       })
       .map((task) => {
         const hasAfter = selectedIds.includes(String(task.id));

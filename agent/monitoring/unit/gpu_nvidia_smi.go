@@ -17,13 +17,13 @@ type NvidiaSMI struct {
 	data    []byte
 }
 
-// NVIDIAGPUInfo 包含详细的NVIDIA GPU信息
+// NVIDIAGPUInfo holds detailed NVIDIA GPU information.
 type NVIDIAGPUInfo struct {
-	Name        string  // GPU型号
-	MemoryTotal uint64  // 总显存 (字节)
-	MemoryUsed  uint64  // 已用显存 (字节)
-	Utilization float64 // GPU使用率 (0-100)
-	Temperature uint64  // 温度 (摄氏度)
+	Name        string  // GPU model.
+	MemoryTotal uint64  // Total VRAM (bytes).
+	MemoryUsed  uint64  // Used VRAM (bytes).
+	Utilization float64 // GPU utilization (0-100).
+	Temperature uint64  // Temperature (Celsius).
 }
 
 func (smi *NvidiaSMI) GatherModel() ([]string, error) {
@@ -34,7 +34,7 @@ func (smi *NvidiaSMI) GatherUsage() ([]float64, error) {
 	return smi.gatherUsage()
 }
 
-// GatherDetailedInfo 获取详细GPU信息
+// GatherDetailedInfo retrieves detailed GPU information.
 func (smi *NvidiaSMI) GatherDetailedInfo() ([]NVIDIAGPUInfo, error) {
 	return smi.gatherDetailedInfo()
 }
@@ -88,7 +88,7 @@ func (smi *NvidiaSMI) gatherUsage() ([]float64, error) {
 	for _, gpu := range stats.GPUs {
 		usage, err := parsePercentageValue(gpu.Utilization.GPUUtil)
 		if err != nil {
-			usage = 0.0 // 默认为0，不中断处理
+			usage = 0.0 // Default to zero without interrupting processing.
 		}
 		usageList = append(usageList, usage)
 	}
@@ -124,7 +124,7 @@ func (smi *NvidiaSMI) gatherDetailedInfo() ([]NVIDIAGPUInfo, error) {
 	return gpuInfos, nil
 }
 
-// 解析百分比值 (例如 "25 %" -> 25.0)
+// Parse a percentage (e.g. "25 %" -> 25.0).
 func parsePercentageValue(value string) (float64, error) {
 	cleaned := strings.TrimSpace(value)
 	cleaned = strings.TrimSuffix(cleaned, "%")
@@ -142,7 +142,7 @@ func parsePercentageValue(value string) (float64, error) {
 	return result, nil
 }
 
-// 解析内存值 (例如 "1024 MiB" -> 1073741824字节)
+// Parse memory (e.g. "1024 MiB" -> 1073741824 bytes).
 func parseMemoryValue(value string) (uint64, error) {
 	cleaned := strings.TrimSpace(value)
 	cleaned = strings.TrimSuffix(cleaned, "MiB")
@@ -157,11 +157,11 @@ func parseMemoryValue(value string) (uint64, error) {
 		return 0, err
 	}
 
-	// 转换MiB为字节 (1 MiB = 1024*1024 bytes)
+	// Convert MiB to bytes (1 MiB = 1024*1024 bytes).
 	return result * 1024 * 1024, nil
 }
 
-// 解析温度值 (例如 "65 C" -> 65)
+// Parse a temperature (e.g. "65 C" -> 65).
 func parseTemperatureValue(value string) (uint64, error) {
 	cleaned := strings.TrimSpace(value)
 	cleaned = strings.TrimSuffix(cleaned, "C")
@@ -179,7 +179,7 @@ func parseTemperatureValue(value string) (uint64, error) {
 	return result, nil
 }
 
-// NVIDIA-SMI XML结构定义
+// NVIDIA-SMI XML structure definitions.
 type nvidiaSMIXMLResult struct {
 	GPUs []nvidiaSMIGPU `xml:"gpu"`
 }

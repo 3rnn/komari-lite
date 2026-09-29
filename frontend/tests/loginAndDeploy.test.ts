@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
 
-// 本轮三项改动的守卫：
-// 1) 后台「反向代理」入口彻底删除；
-// 2) 一键部署指令的下载来源跟随域名（未设置脚本域名时用当前访问域名）；
-// 3) 开启 2FA 后登录页有独立的两步验证步骤。
+// Regression guards for three changes in this release:
+// 1) The admin reverse proxy menu entry is removed.
+// 2) Install command downloads follow the current domain unless a script domain is configured.
+// 3) Enabling 2FA adds a separate one-time-code step to the login page.
 const read = (path: string) => readFileSync(path, "utf8");
 const locales = readdirSync("src/i18n/locales").filter((f) => f.endsWith(".json"));
 
@@ -32,12 +32,12 @@ test("the deploy command always derives its download source from the live domain
   assert.match(source, /window\.location\.origin/);
   assert.match(source, /normalizeOptionalServiceUrl\(configured\)/);
   assert.match(source, /fromSetting: Boolean\(configured\)/);
-  // 两处命令生成都走同一个解析函数，不再各自内联判断
+  // Both command builders use the shared resolver instead of duplicated inline logic.
   assert.equal(
     (source.match(/resolveAgentSource\(settings\?\.script_domain\)\.host/g) ?? []).length,
     2,
   );
-  // 两处对话框都要提示来源
+  // Both dialogs identify the download source.
   assert.equal((source.match(/<AgentSourceHint /g) ?? []).length, 2);
   for (const key of [
     "installSource",
@@ -63,7 +63,7 @@ test("the login page treats 2FA as a real second step", () => {
   assert.match(login, /login\.two_factor_verify/);
   assert.match(login, /login\.two_factor_back/);
   assert.match(login, /resetTwoFactorStep/);
-  // 进入验证步骤后不再重复显示用户名/密码输入框
+  // Do not show the username and password fields again on the 2FA step.
   assert.match(login, /passwordLoginEnabled && require2FA \?/);
   assert.match(login, /passwordLoginEnabled && !require2FA \?/);
 

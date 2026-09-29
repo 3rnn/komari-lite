@@ -108,6 +108,6 @@ export function formatBillingAlertStatus(
   const due = new Date(dueAt).getTime();
   if (!Number.isFinite(due)) return "";
   const days = Math.ceil(Math.abs(due - now) / 86_400_000);
-  if (due < now) return locale.startsWith("zh") ? `已到期 ${days} 天` : `Expired ${days}d`;
-  return locale.startsWith("zh") ? `${days} 天后到期` : `Due in ${days}d`;
+  if (due < now) return locale.startsWith("zh") ? `Expired ${days}d` : `Expired ${days}d`;
+  return locale.startsWith("zh") ? `Due in ${days}d` : `Due in ${days}d`;
 }

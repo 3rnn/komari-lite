@@ -20,11 +20,11 @@ import (
 //
 // Returns the number of rollup buckets written across all tiers and metrics.
 //
-// Compact 会对所有指标执行 Store 的 RollupPolicy：它会把 rollup 层推进到
-// `now`，并执行每个保留窗口（原始点和各层级）。原始点保留期有限时，只会级联
-// 本轮新到期及迟到的原始点。它可以重复安全调用，未变化窗口保持幂等。
+// Compact will implement the Store's RollupPolicy for all metrics: it will push the rollup layer to
+// `now` and execute each retention window (original point and levels). When the original point retention period is limited, it will only be cascaded
+// Newly due and late origin points for this round. It can be safely called repeatedly, and the unchanged window remains idempotent.
 //
-// 返回所有指标、所有层级中写入的 rollup 桶数量。
+// Returns the number of rollup buckets written across all metrics and across all tiers.
 func (s *Store) Compact(ctx context.Context, now time.Time) (int, error) {
 	if err := s.ensureOpen(); err != nil {
 		return 0, err
@@ -68,17 +68,17 @@ func (s *Store) Compact(ctx context.Context, now time.Time) (int, error) {
 // combination (e.g. a GPU device_index) is summarized into its own series and
 // can be queried independently after the raw points are gone.
 //
-// CompactMetric 会压缩单个指标。原始点保留期有限时，它把本轮新到期的原始点
-// 作为增量逐层传播；原始点永久保留时则回退到全量重建。最后删除各保留窗口中
-// 已过期的数据。
+// CompactMetric compresses individual metrics. When the original point retention period is limited, it will store the newly expired original points in this round
+// Propagate layer by layer as an increment; fall back to full reconstruction when the original points are permanently retained. Finally delete each retained window
+// Expired data.
 //
-// 整个 compaction 在一个 SERIALIZABLE 事务内执行，以保证 raw 扫描和 raw 删除
-// 看到同一个快照。否则在 PostgreSQL/MySQL 的默认隔离级别下，扫描之后、删除
-// 之前写入的旧时间点仍可能被 cutoff 删除却没有进入 rollup：扫描（较早的读）
-// 没看到它，而删除（一次新的读）看到了。SERIALIZABLE 让扫描获得谓词/范围
-// 保护，使这种并发写要么被删除排除在外，要么触发可重试的序列化失败，由我们
-// 在新快照上重试。SQLite 在单连接上串行化写入，其默认隔离已提供该保证，
-// 无需提升隔离级别。
+// The entire compaction is performed within a SERIALIZABLE transaction to ensure raw scanning and raw deletion
+// See the same snapshot. Otherwise, under the default isolation level of PostgreSQL/MySQL, after scanning, delete
+// Old time points written before may still be deleted by cutoff without entering rollup: scan (older read)
+// Didn't see it, and delete (a new read) did. SERIALIZABLE lets scan for predicate/scope
+// guard so that such concurrent writes are either excluded from deletion or trigger a retryable serialization failure, by us
+// Try again on a new snapshot. SQLite serializes writes over a single connection, and its default isolation already provides this guarantee,
+// No need to raise the isolation level.
 func (s *Store) CompactMetric(ctx context.Context, metricName string, now time.Time) (int, error) {
 	if err := s.ensureOpen(); err != nil {
 		return 0, err
@@ -382,7 +382,7 @@ func (s *Store) oldestRawTimestampBeforeTx(ctx context.Context, tx *sql.Tx, metr
 
 // compactMetricOnce runs a single compaction attempt inside one transaction.
 //
-// compactMetricOnce 在单个事务内执行一次 compaction 尝试。
+// compactMetricOnce performs a compaction attempt within a single transaction.
 func (s *Store) compactMetricOnce(ctx context.Context, metricName string, now time.Time, policy RollupPolicy, obsoleteIntervals []time.Duration) (int, error) {
 	// Use a transaction to ensure consistency between raw scan, rollup write, and
 	// raw deletion. The isolation level is backend-specific (SERIALIZABLE on
@@ -448,9 +448,9 @@ func rollupIntervalsOutsidePolicy(configured, effective []RollupTier) []time.Dur
 //   - MySQL: 1213 deadlock, 1205 lock wait timeout.
 //   - SQLite: SQLITE_BUSY / database is locked (only relevant with >1 conn).
 //
-// isRetryableSerializationError 判断 err 是否为应在新事务上重试的瞬时序列化
-// 失败或死锁。它通过可移植的 SQLSTATE 码和驱动错误文本匹配，使包不需要导入
-// 驱动专用错误类型。
+// isRetryableSerializationError determines whether err is a transient serialization that should be retried on a new transaction
+// Failure or deadlock. It uses portable SQLSTATE code and driver error text matching so that packages do not need to be imported.
+// Driver-specific error type.
 func isRetryableSerializationError(err error) bool {
 	if err == nil {
 		return false
@@ -657,20 +657,20 @@ func alignRollupRetentionCutoff(cutoff time.Time, nextInterval time.Duration) ti
 // rollupKey identifies one rollup cell. The tag dimension (tagsHash) is part of
 // the key so points carrying different tags never collapse into the same bucket.
 //
-// rollupKey 标识一个 rollup 单元；tagsHash 是 key 的一部分，确保不同标签
-// 的点不会落入同一个桶。
+// rollupKey identifies a rollup unit; tagsHash is part of the key to ensure different tags
+// The points will not fall into the same bucket.
 type rollupKey struct {
 	// entityID is the entity dimension of the rollup cell.
 	//
-	// entityID 是 rollup 单元的实体维度。
+	// entityID is the entity dimension of the rollup unit.
 	entityID string
 	// tagsHash is the stable fingerprint of the tag set.
 	//
-	// tagsHash 是标签集合的稳定指纹。
+	// tagsHash is a stable fingerprint of a collection of tags.
 	tagsHash string
 	// bucket is the bucket start timestamp in nanoseconds.
 	//
-	// bucket 是桶起始时间的纳秒时间戳。
+	// bucket is the nanosecond timestamp of the bucket's start time.
 	bucket int64
 }
 
@@ -678,8 +678,8 @@ type rollupKey struct {
 // of the given interval, keyed by (entity, tag set, bucket-start). Each point's
 // tag map determines which series it belongs to.
 //
-// buildFinestTier 扫描某指标的原始点，并按给定 interval 分桶，key 为
-// （实体、标签集合、桶起点）。每个点的标签 map 决定它属于哪条序列。
+// buildFinestTier scans the original points of an metric and divides them into buckets according to the given interval. The key is
+// (entity, tag collection, bucket start). The label map of each point determines which sequence it belongs to.
 func (s *Store) buildFinestTier(ctx context.Context, q querier, metricName string, interval time.Duration, comp float64) (map[rollupKey]*rollupBucket, error) {
 	return s.buildFinestTierRange(ctx, q, metricName, interval, comp, time.Time{}, time.Time{})
 }
@@ -788,9 +788,9 @@ func (s *Store) buildFinestTierRange(ctx context.Context, q querier, metricName 
 // bucket that shares its (entity, tag set). Tag identity is preserved end to
 // end, so a coarse series only ever merges finer buckets of the same tag set.
 //
-// buildCoarserTier 基于已存储的细层 rollup 合成更粗层：它读取细层 rollup 行，
-// 并把每个细桶合并进共享相同（实体、标签集合）的粗桶。标签身份会端到端保留，
-// 因此一条粗粒度序列只会合并相同标签集合的细桶。
+// buildCoarserTier synthesizes a coarser layer based on the stored thin layer rollup: it reads the thin layer rollup line,
+// And merge each thin bucket into a thick bucket that shares the same (entity, label set). Tag identity is preserved end-to-end,
+// Therefore a coarse-grained sequence will only merge fine buckets with the same label set.
 func (s *Store) buildCoarserTier(ctx context.Context, q querier, metricName string, fineInterval, coarseInterval time.Duration, comp float64) (map[rollupKey]*rollupBucket, error) {
 	coarseSize := coarseInterval.Nanoseconds()
 	out := make(map[rollupKey]*rollupBucket)
@@ -843,19 +843,19 @@ func buildCoarserBucketsFromDelta(delta map[rollupKey]*rollupBucket, coarseInter
 
 // storedRollup represents a rollup row reconstructed from storage.
 //
-// storedRollup 表示从存储中还原的一行 rollup 数据。
+// storedRollup represents a row of rollup data restored from storage.
 type storedRollup struct {
 	// entityID is the entity stored on the rollup row.
 	//
-	// entityID 是 rollup 行中保存的实体。
+	// entityID is the entity saved in the rollup row.
 	entityID string
 	// bucket is the stored bucket start timestamp in nanoseconds.
 	//
-	// bucket 是存储的桶起始纳秒时间戳。
+	// bucket is the stored bucket starting nanosecond timestamp.
 	bucket int64
 	// bucketData is the reconstructed in-memory accumulator for the row.
 	//
-	// bucketData 是该行还原出的内存累加器。
+	// bucketData is the memory accumulator restored from this row.
 	bucketData *rollupBucket
 }
 
@@ -863,8 +863,8 @@ type storedRollup struct {
 // reconstructs their in-memory accumulators (including tag identity and the
 // decoded t-digest).
 //
-// scanRollupRows 读取某指标在给定分辨率下的所有 rollup 行，并还原它们的
-// 内存累加器（包括标签身份和解码后的 t-digest）。
+// scanRollupRows reads all rollup rows of a certain metric at a given resolution and restores their
+// Memory accumulator (including tag identity and decoded t-digest).
 func (s *Store) scanRollupRows(ctx context.Context, q querier, metricName string, interval time.Duration) ([]storedRollup, error) {
 	if s.sqliteStorageV4 {
 		return s.querySQLiteV4Rollups(ctx, q, metricName, "", nil, interval.Nanoseconds(), math.MinInt64, math.MaxInt64, true)
@@ -1069,8 +1069,8 @@ func (s *Store) DeleteBeforeTx(ctx context.Context, metricName string, before ti
 // negative timestamps (pre-epoch) toward negative infinity so buckets align
 // consistently. Mirrors alignTime but operates on raw nanos.
 //
-// floorDivNano 将 ts 向下对齐到 size 宽桶的起点，并把负时间戳（Unix epoch 前）
-// 朝负无穷取整，让桶保持一致对齐。它与 alignTime 逻辑一致，但直接操作纳秒值。
+// floorDivNano aligns ts downward to the start of the size wide bucket and puts negative timestamps (before Unix epoch)
+// Round toward negative infinity to keep the barrels aligned uniformly. It has the same logic as alignTime but operates directly on nanosecond values.
 func floorDivNano(ts, size int64) int64 {
 	rem := ((ts % size) + size) % size
 	return ts - rem

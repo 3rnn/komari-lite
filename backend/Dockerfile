@@ -2,7 +2,7 @@ FROM alpine:3.21
 
 WORKDIR /app
 
-# Docker buildx 会在构建时自动填充这些变量
+# Docker buildx sets these variables during the build.
 ARG TARGETOS
 ARG TARGETARCH
 

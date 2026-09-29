@@ -99,13 +99,13 @@ func TestSumTrafficDeltasEmpty(t *testing.T) {
 }
 
 func TestTrafficDeltaOrFallback(t *testing.T) {
-	// 存储的增量为正时直接使用
+	// Use it directly when the stored increment is positive
 	assert.Equal(t, int64(42), trafficDeltaOrFallback(42, true, 500, 100))
-	// 明确存储为 0 时保留 0，不把它误判成字段缺失
+	// Keep 0 when it is explicitly stored as 0, and do not misjudge it as a missing field
 	assert.Equal(t, int64(0), trafficDeltaOrFallback(0, true, 500, 100))
-	// 旧数据缺少增量字段时回退到累计差值
+	// Fallback to cumulative difference when old data lacks incremental fields
 	assert.Equal(t, int64(400), trafficDeltaOrFallback(0, false, 500, 100))
-	// 回退路径把计数器下降视为新基准
+	// The fallback path treats counter drops as the new baseline
 	assert.Equal(t, int64(0), trafficDeltaOrFallback(0, false, 50, 500))
 }
 
@@ -115,19 +115,19 @@ func TestComputeUsedByType(t *testing.T) {
 	assert.Equal(t, int64(100), computeUsedByType("sum", 30, 70))
 	assert.Equal(t, int64(30), computeUsedByType("min", 30, 70))
 	assert.Equal(t, int64(70), computeUsedByType("max", 30, 70))
-	// 未知类型默认取较大值
+	// Unknown types default to larger values
 	assert.Equal(t, int64(70), computeUsedByType("unknown", 30, 70))
 }
 
 func TestFormatTrafficReportLineSeparatesDirections(t *testing.T) {
-	line := formatTrafficReportLine(models.Client{Name: "server-a"}, "昨日流量", trafficUsage{
+	line := formatTrafficReportLine(models.Client{Name: "server-a"}, "Yesterday's traffic", trafficUsage{
 		Up:   1024,
 		Down: 2 * 1024,
 	}, true, false)
-	assert.Equal(t, "server-a 昨日流量：上行 1.00 KB，下行 2.00 KB", line)
+	assert.Equal(t, "server-a Yesterday's traffic:Upload 1.00 KB,Download 2.00 KB", line)
 
-	line = formatTrafficReportLine(models.Client{UUID: "client-a"}, "上周流量", trafficUsage{}, true, false)
-	assert.Equal(t, "client-a 上周流量：上行 0 B，下行 0 B", line)
+	line = formatTrafficReportLine(models.Client{UUID: "client-a"}, "Last week's traffic", trafficUsage{}, true, false)
+	assert.Equal(t, "client-a Last week's traffic:Upload 0 B,Download 0 B", line)
 }
 
 func TestCurrentDailyTrafficReportRangeUsesBeijingMidnightThroughNow(t *testing.T) {
@@ -144,12 +144,12 @@ func TestFormatTrafficReportLineSupportsBillingAndCombinedContent(t *testing.T) 
 	usage := trafficUsage{Up: 1024, Down: 2 * 1024}
 
 	assert.Equal(t,
-		"server-a 昨日流量：计费流量 3.00 KB（sum）",
-		formatTrafficReportLine(client, "昨日流量", usage, false, true),
+		"server-a Yesterday's traffic:Billable traffic 3.00 KB (sum)",
+		formatTrafficReportLine(client, "Yesterday's traffic", usage, false, true),
 	)
 	assert.Equal(t,
-		"server-a 昨日流量：上行 1.00 KB，下行 2.00 KB，计费流量 3.00 KB（sum）",
-		formatTrafficReportLine(client, "昨日流量", usage, true, true),
+		"server-a Yesterday's traffic:Upload 1.00 KB,Download 2.00 KB,Billable traffic 3.00 KB (sum)",
+		formatTrafficReportLine(client, "Yesterday's traffic", usage, true, true),
 	)
 }
 
@@ -167,10 +167,10 @@ func TestFormatTrafficReportLineExcludesBillingForFreeClients(t *testing.T) {
 	client := models.Client{Name: "free-server", Price: 0, TrafficLimitType: "sum"}
 	usage := trafficUsage{Up: 1024, Down: 2 * 1024}
 
-	assert.Empty(t, formatTrafficReportLine(client, "昨日流量", usage, false, true))
+	assert.Empty(t, formatTrafficReportLine(client, "Yesterday's traffic", usage, false, true))
 	assert.Equal(t,
-		"free-server 昨日流量：上行 1.00 KB，下行 2.00 KB",
-		formatTrafficReportLine(client, "昨日流量", usage, true, true),
+		"free-server Yesterday's traffic:Upload 1.00 KB,Download 2.00 KB",
+		formatTrafficReportLine(client, "Yesterday's traffic", usage, true, true),
 	)
 }
 

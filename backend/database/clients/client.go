@@ -182,7 +182,7 @@ var (
 	clientInfoAllowedColumnsSet  map[string]string
 )
 
-// clientInfoAllowedColumns 返回 clients 表允许 Agent 上报的列（字段名/列名 → 列名）。
+// clientInfoAllowedColumns returns the columns allowed to be reported by Agent in the clients table (field name/column name → column name).
 func clientInfoAllowedColumns(db *gorm.DB) map[string]string {
 	clientInfoAllowedColumnsOnce.Do(func() {
 		stmt := &gorm.Statement{DB: db}
@@ -203,7 +203,7 @@ func clientInfoAllowedColumns(db *gorm.DB) map[string]string {
 	return clientInfoAllowedColumnsSet
 }
 
-// sanitizeClientInfoUpdate 丢掉面板不认识的字段；仅在无法解析模型时原样返回，避免误伤。
+// sanitizeClientInfoUpdate discards fields that the panel does not recognize; only returns them as they are when the model cannot be parsed to avoid accidental damage.
 func sanitizeClientInfoUpdate(db *gorm.DB, update map[string]interface{}) map[string]interface{} {
 	allowed := clientInfoAllowedColumns(db)
 	if len(allowed) == 0 {
@@ -224,12 +224,12 @@ func saveClientInfoWithAutoOrder(db *gorm.DB, update map[string]interface{}, aut
 		return fmt.Errorf("invalid client UUID")
 	}
 
-	// Agent 上报的字段由对端决定，可能包含面板这张表里不存在的列（Agent 比面板新，
-	// 或面板已删掉某个能力）。放任这些键进 GORM 会拼出 "no such column"，
-	// 整条基础信息保存失败——面板就永远看不到这台机器的 CPU/内存/系统信息。
+	// The fields reported by the Agent are determined by the peer and may include columns that do not exist in the panel table (Agent is newer than the panel,
+	// Or a certain ability has been deleted from the panel). Leaving these keys in GORM will spell "no such column",
+	// The entire basic information fails to be saved - the panel will never be able to see the CPU/memory/system information of this machine.
 	update = sanitizeClientInfoUpdate(db, update)
 
-	// 确保更新的字段不为空
+	// Make sure the updated field is not empty
 	if len(update) == 0 {
 		return fmt.Errorf("no fields to update")
 	}
@@ -428,7 +428,7 @@ func UpdateClientOrder(order map[string]int) error {
 	})
 }
 
-// CreateClient 创建新客户端
+// CreateClient creates a new client
 func CreateClient() (clientUUID, token string, err error) {
 	db := dbcore.GetDBInstance()
 	token = utils.GenerateToken()
@@ -483,7 +483,7 @@ func newClient(clientUUID, token, name string, now time.Time) models.Client {
 }
 
 /*
-// GetAllClients 获取所有客户端配置
+// GetAllClients Gets all client configurations
 
 	func getAllClients() (clients []models.Client, err error) {
 		db := dbcore.GetDBInstance()
@@ -532,7 +532,7 @@ func rotateClientToken(db *gorm.DB, uuid string, gracePeriod time.Duration) (tok
 		}
 		now := time.Now().UTC()
 		if client.PreviousToken != "" && client.PreviousTokenExpiresAt != nil && client.PreviousTokenExpiresAt.After(now) {
-			return fmt.Errorf("Token 重置仍在过渡期内，请先使用新 Token 重新部署 Agent；新 Token 首次成功连接后才能再次重置")
+			return fmt.Errorf("Token reset is still in transition. Redeploy the Agent with the new Token first; you can reset it again after the new Token connects successfully for the first time.")
 		}
 		token = utils.GenerateToken()
 		previousExpiresAt = now.Add(gracePeriod)
@@ -617,7 +617,7 @@ func saveClient(db *gorm.DB, updates map[string]interface{}) error {
 		return fmt.Errorf("invalid client UUID")
 	}
 
-	// 确保更新的字段不为空
+	// Make sure the updated field is not empty
 	if len(updates) == 0 {
 		return fmt.Errorf("no fields to update")
 	}

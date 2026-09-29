@@ -46,8 +46,8 @@ func gatewayRejectedCompressedJSON(body []byte) bool {
 	}
 	lower := bytes.ToLower(trimmed)
 	return bytes.Contains(lower, []byte("<html")) ||
-		bytes.Contains(trimmed, []byte("json格式错误")) ||
-		bytes.Contains(trimmed, []byte("请传递正确的json参数"))
+		bytes.Contains(trimmed, []byte("json\u683c\u5f0f\u9519\u8bef")) ||
+		bytes.Contains(trimmed, []byte("\u8bf7\u4f20\u9012\u6b63\u786e\u7684json\u53c2\u6570"))
 }
 
 func postV2JSONRPC(ctx context.Context, payload []byte, timeout time.Duration) (int, []byte, error) {

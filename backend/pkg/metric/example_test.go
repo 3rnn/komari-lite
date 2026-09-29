@@ -12,7 +12,7 @@ import (
 
 // Example_rollupTags demonstrates tagged rollups with automatic series routing.
 //
-// Example_rollupTags 演示带标签的 rollup 以及 Series 自动路由读取。
+// Example_rollupTags demonstrates rollup with tags and automatic routing of Series reads.
 func Example_rollupTags() {
 	ctx := context.Background()
 	base := time.Date(2026, 6, 18, 10, 0, 0, 0, time.UTC)
@@ -95,8 +95,8 @@ func Example_rollupTags() {
 // 50 agents report system metrics every second, ping tasks are represented as a
 // tagged ping metric, and lifecycle events clean up task and agent series.
 //
-// Example_agentFleetLifecycle 演示贴近 Komari 的实际场景：50 个 agent 每秒上报系统
-// 指标，ping task 用带标签的 ping 指标表示，并通过生命周期事件清理 task 和 agent 序列。
+// The Example_agentFleetLifecycle demonstration is close to the actual scenario of Komari: 50 agents report to the system every second
+// Metrics, ping tasks are represented by labeled ping metrics, and task and agent sequences are cleaned up through lifecycle events.
 func Example_agentFleetLifecycle() {
 	ctx := context.Background()
 	base := time.Date(2026, 6, 18, 10, 0, 0, 0, time.UTC)

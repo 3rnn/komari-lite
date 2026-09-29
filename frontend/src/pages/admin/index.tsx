@@ -274,7 +274,7 @@ const Layout = () => {
       {alertFilterLoading ? null : isEmpty ? (
         <EmptyNodesGuide />
       ) : filteredNodes.length === 0 ? (
-        <Callout.Root color="gray"><Callout.Text>{t("common.no_data", "没有符合当前筛选的服务器")}</Callout.Text></Callout.Root>
+        <Callout.Root color="gray"><Callout.Text>{t("common.no_data", "No servers match the current filters")}</Callout.Text></Callout.Root>
       ) : (
         <>
           <NodeTable
@@ -300,7 +300,7 @@ const EmptyNodesGuide = () => {
       pr="2"
       pt="1"
     >
-      {/* 回转箭头指向右上角的“添加节点”按钮 */}
+      {/* Curved arrow pointing to the Add Node button at the top right. */}
       <CornerRightUp
         size={72}
         strokeWidth={1.25}
@@ -309,12 +309,12 @@ const EmptyNodesGuide = () => {
       />
       <Flex direction="column" align="end" gap="1" mt="2" mr="2">
         <Text size="4" weight="bold">
-          {t("admin.nodeTable.emptyGuide.title", "还没有任何服务器")}
+          {t("admin.nodeTable.emptyGuide.title", "No servers yet")}
         </Text>
         <Text size="2" color="gray" align="right" style={{ maxWidth: "20rem" }}>
           {t(
             "admin.nodeTable.emptyGuide.description",
-            "点击右上角的“添加节点”开始，或开启自动发现批量接入服务器。"
+            "Click \"Add\" in the top right to get started, or enable auto discovery to onboard servers in bulk."
           )}
         </Text>
       </Flex>
@@ -324,8 +324,8 @@ const EmptyNodesGuide = () => {
 
 
 
-// 一键部署指令里的下载来源必须「跟着域名走」：未设置脚本域名时使用当前访问域名，
-// 因此换域名后新生成的命令会自动指向新地址；设置了脚本域名则以设置为准（不会自动跟随）。
+// The one-click install command must follow the current domain when no script domain is configured.
+// Changing domains then updates new commands automatically; an explicit script domain stays fixed.
 type AgentSource = { host: string; fromSetting: boolean; insecure: boolean };
 
 function resolveAgentSource(scriptDomain?: string | null): AgentSource {
@@ -352,7 +352,7 @@ function resolveAgentSource(scriptDomain?: string | null): AgentSource {
   return { host, fromSetting: Boolean(configured), insecure };
 }
 
-// 明确告知管理员：指令里的下载来源取自哪里，以及换域名后是否会自动跟随。
+// Explain the download source and whether it follows future domain changes.
 function AgentSourceHint({ scriptDomain }: { scriptDomain?: string | null }) {
   const { t } = useTranslation();
   const source = resolveAgentSource(scriptDomain);
@@ -360,22 +360,22 @@ function AgentSourceHint({ scriptDomain }: { scriptDomain?: string | null }) {
     <Text as="div" size="1" color={source.insecure ? "amber" : "gray"}>
       {t("admin.nodeTable.installSource", {
         host: source.host,
-        defaultValue: "下载来源：{{host}}",
+        defaultValue: "Download source: {{host}}",
       })}
       {" · "}
       {source.fromSetting
         ? t(
             "admin.nodeTable.installSourceFromSetting",
-            "来自「网站设置 → 脚本域名」",
+            "from Site Settings - Script domain",
           )
         : t(
             "admin.nodeTable.installSourceFromOrigin",
-            "跟随当前访问域名（换域名后自动更新）",
+            "follows the domain you are browsing (updates automatically after a domain change)",
           )}
       {source.insecure
         ? ` · ${t(
             "admin.nodeTable.installSourceWarning",
-            "目标节点需能访问该地址，建议使用已配置 HTTPS 的公网域名",
+            "the node must be able to reach this address - prefer a public domain with HTTPS",
           )}`
         : ""}
     </Text>
@@ -441,7 +441,7 @@ const AutoDiscoverySection = ({
   const copyToClipboard = async (text: string) => {
     try {
       await writeClipboardText(text);
-      toast.success(t("copy_success", "已复制到剪贴板"));
+      toast.success(t("copy_success", "Copied!"));
     } catch (err) {
       console.error("Failed to copy text: ", err);
     }
@@ -464,12 +464,12 @@ const AutoDiscoverySection = ({
         <Callout.Text>
           <Flex direction="column" gap="2" align="start">
             <Text weight="bold">
-              {t("admin.nodeTable.autoDiscovery.tryIt", "试试自动发现")}
+              {t("admin.nodeTable.autoDiscovery.tryIt", "Try auto discovery")}
             </Text>
             <Text size="2">
               {t(
                 "admin.nodeTable.autoDiscovery.disabledDescription",
-                "开启自动发现后，无需逐台手动添加节点。只要在目标服务器上运行一条命令，Agent 就会携带密钥自动注册并上线，非常适合批量部署多台服务器。"
+                "With auto discovery enabled, you no longer need to add nodes one by one. Just run a single command on the target server and the Agent will register and come online automatically using the key. Ideal for deploying many servers at once."
               )}
             </Text>
             <Link to="/admin/settings/general">
@@ -477,7 +477,7 @@ const AutoDiscoverySection = ({
                 <Settings size={14} />
                 {t(
                   "admin.nodeTable.autoDiscovery.goToSettings",
-                  "前往“通用设置”开启自动发现"
+                  "Go to General settings to enable auto discovery"
                 )}
               </Button>
             </Link>
@@ -493,13 +493,13 @@ const AutoDiscoverySection = ({
         <Flex gap="2" align="center">
           <Radar size={16} />
           <Text weight="bold">
-            {t("admin.nodeTable.autoDiscovery.title", "自动发现")}
+            {t("admin.nodeTable.autoDiscovery.title", "Auto discovery")}
           </Text>
         </Flex>
         <Text size="2" color="gray">
           {t(
             "admin.nodeTable.autoDiscovery.enabledDescription",
-            "在目标服务器上运行下面的命令，Agent 将自动注册并上线，无需手动添加节点。"
+            "Run the command below on the target server. The Agent will register and come online automatically, no manual node creation needed."
           )}
         </Text>
       </Flex>
@@ -517,7 +517,7 @@ const AutoDiscoverySection = ({
 
       <Flex direction="column" gap="2">
         <label className="text-sm font-bold">
-          {t("admin.nodeTable.generatedCommand", "指令")}
+          {t("admin.nodeTable.generatedCommand", "Command")}
         </label>
         <TextArea
           disabled
@@ -592,7 +592,7 @@ const Header = ({
       <AdminPageTitle
         description={t(
           "admin.nodeTable.description",
-          "集中查看节点连接、网络、分组、备注与账单信息，拖动可调整全局显示顺序。",
+          "Review node connectivity, network details, groups, notes, and billing in one place. Drag rows to set the global display order.",
         )}
       >
         {t("admin.nodeTable.nodeList")}
@@ -693,13 +693,13 @@ const SortableRow = React.memo(({
   const deploymentStatusLabel = (() => {
     switch (node.deployment_status) {
       case "saved":
-        return t("admin.nodeTable.deliverySaved", "已保存");
+        return t("admin.nodeTable.deliverySaved", "Saved");
       case "sent":
-        return t("admin.nodeTable.deliverySent", "已发送");
+        return t("admin.nodeTable.deliverySent", "Sent");
       case "applied":
-        return t("admin.nodeTable.deliveryApplied", "已生效");
+        return t("admin.nodeTable.deliveryApplied", "Applied");
       case "failed":
-        return t("admin.nodeTable.deliveryFailed", "应用失败");
+        return t("admin.nodeTable.deliveryFailed", "Application failed");
       default:
         return "";
     }
@@ -711,7 +711,7 @@ const SortableRow = React.memo(({
       className="text-sm hover:bg-[var(--accent-a2)] [&>td]:align-middle [&>td]:py-1.5"
       data-node-status={online ? "online" : "offline"}
     >
-      <TableCell className="w-[44px] px-2 !align-middle" data-label={t("common.sort", "排序")}>
+      <TableCell className="w-[44px] px-2 !align-middle" data-label={t("common.sort", "Sort")}>
         <div className="flex items-center">
           <button
             type="button"
@@ -726,10 +726,10 @@ const SortableRow = React.memo(({
             style={{ touchAction: "none" }}
             title={
               reorderEnabled
-                ? t("admin.nodeTable.dragToReorder", "长按拖拽重新排序")
-                : t("admin.nodeTable.clearFilterToReorder", "清除搜索和筛选后可调整顺序")
+                ? t("admin.nodeTable.dragToReorder", "Long press and drag to reorder")
+                : t("admin.nodeTable.clearFilterToReorder", "Clear search and filters to reorder")
             }
-            aria-label={t("admin.nodeTable.dragToReorder", "长按拖拽重新排序")}
+            aria-label={t("admin.nodeTable.dragToReorder", "Long press and drag to reorder")}
           >
             <GripVertical size={isMobile ? 18 : 16} />
           </button>
@@ -742,7 +742,7 @@ const SortableRow = React.memo(({
       >
         <DetailView node={node} online={online} />
       </TableCell>
-      <TableCell className="!align-middle" data-label={t("admin.nodeTable.network", "网络")}>
+      <TableCell className="!align-middle" data-label={t("admin.nodeTable.network", "Network")}>
         <div className="flex min-w-0 flex-col justify-center text-sm leading-[1.125rem] text-muted-foreground">
           {networkAddresses.length > 0 ? networkAddresses.map(([type, address]) => (
             <div key={type} className="flex min-w-0 items-center gap-1" title={address}>
@@ -753,8 +753,8 @@ const SortableRow = React.memo(({
                 type="button"
                 className="inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-[var(--accent-a3)] hover:text-[var(--accent-11)]"
                 onClick={() => copy(address)}
-                aria-label={t("copy", "复制")}
-                title={t("copy", "复制")}
+                aria-label={t("copy", "Copy")}
+                title={t("copy", "Copy")}
               >
                 <Copy size={13} />
               </button>
@@ -778,12 +778,12 @@ const SortableRow = React.memo(({
           ) : null}
         </div>
       </TableCell>
-      <TableCell className="!align-middle" data-label={t("common.group", "分组")}>
+      <TableCell className="!align-middle" data-label={t("common.group", "Group")}>
         <span className="block truncate text-sm font-normal text-muted-foreground" title={node.group || ""}>
           {node.group || "--"}
         </span>
       </TableCell>
-      <TableCell className="!align-middle" data-label={t("common.remark", "备注")}>
+      <TableCell className="!align-middle" data-label={t("common.remark", "Remark")}>
         <span className="block whitespace-normal break-words text-sm text-muted-foreground" title={node.remark || ""}>
           {node.remark || "--"}
         </span>
@@ -798,7 +798,7 @@ const SortableRow = React.memo(({
           tags={node.tags || ""}
         />
       </TableCell>
-      <TableCell className="!align-middle" data-label={t("common.action", "操作")}>
+      <TableCell className="!align-middle" data-label={t("common.action", "Action")}>
         <ActionButtons node={node} settings={settings} />
       </TableCell>
     </TableRow>
@@ -820,13 +820,13 @@ const NodeTable = ({
   const { t } = useTranslation();
   const sensors = useSensors(
     useSensor(MouseSensor, {
-      // 需要按住 10px 距离才开始拖拽，避免与点击冲突
+      // Require 10px of movement before dragging to avoid conflicts with clicks.
       activationConstraint: {
         distance: 10,
       },
     }),
     useSensor(TouchSensor, {
-      // 移动端需要按住 5px 距离才开始拖拽，并且延迟 200ms，避免与滚动冲突
+      // On mobile, require 5px of movement and a 200ms delay to avoid scroll conflicts.
       activationConstraint: {
         delay: 200,
         tolerance: 5,
@@ -834,7 +834,7 @@ const NodeTable = ({
     }),
     useSensor(KeyboardSensor, {})
   );
-  // 添加 localNodes 状态，实现即时 UI 更新
+  // Keep localNodes in state for immediate UI updates.
   const [localNodes, setLocalNodes] = useState<NodeDetail[]>(nodes);
   const [isDragging, setIsDragging] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -895,7 +895,7 @@ const NodeTable = ({
     const [reorderedItem] = reorderedNodes.splice(oldIndex, 1);
     reorderedNodes.splice(Math.min(newIndex, reorderedNodes.length), 0, reorderedItem);
 
-    // 立即更新 UI
+    // Update the UI immediately.
     setLocalNodes(reorderedNodes);
     setCurrentPage(destinationPage);
 
@@ -914,7 +914,7 @@ const NodeTable = ({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(orderData),
       });
-      // 不再调用 refresh，以免覆盖本地排序
+      // Do not refresh: it would overwrite the local ordering.
     } catch {
       toast.error(t("admin.nodeTable.errorRefreshNodeList"));
     }
@@ -937,23 +937,23 @@ const NodeTable = ({
           <TableHeader>
             <TableRow>
               <TableHead className="w-[44px]">
-                <span className="sr-only">{t("common.sort", "排序")}</span>
+                <span className="sr-only">{t("common.sort", "Sort")}</span>
               </TableHead>
               <TableHead className="w-[190px]">{t("admin.nodeTable.name")}</TableHead>
               <TableHead className="w-[190px]">
-                {t("admin.nodeTable.network", "网络")}
+                {t("admin.nodeTable.network", "Network")}
               </TableHead>
               <TableHead className="w-[72px] text-center">
                 {t("admin.nodeTable.agent", "Agent")}
               </TableHead>
               <TableHead className="w-[72px]">
-                {t("common.group", "分组")}
+                {t("common.group", "Group")}
               </TableHead>
               <TableHead className="w-[72px]">
-                {t("common.remark", "备注")}
+                {t("common.remark", "Remark")}
               </TableHead>
               <TableHead className="w-[224px]">{t("admin.nodeTable.billing")}</TableHead>
-              <TableHead className="w-[272px]">{t("common.action", "操作")}</TableHead>
+              <TableHead className="w-[272px]">{t("common.action", "Action")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -1315,21 +1315,21 @@ function RotateTokenButton({ node }: { node: NodeDetail }) {
         if (response.status === 401) {
           throw new Error(
             payload?.message === "Invalid 2FA code"
-              ? "动态口令无效"
-              : "请输入动态口令",
+              ? "Invalid one-time code"
+              : "Enter a one-time code",
           );
         }
         throw new Error(localizeTokenRotationError(payload?.message));
       }
       if (!(payload?.data?.token || payload?.token)) {
-        throw new Error("Server 未返回新 Token");
+        throw new Error("The server did not return a new token");
       }
       setTwoFactorCode("");
       setOpen(false);
-      toast.success("Token 已重置，请使用新指令更新 Agent；新 Token 连接后旧 Token 自动失效");
+      toast.success("Token rotated. Update the Agent using the new command; the old token expires when the new one connects.");
       refresh();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Token 重置失败");
+      setError(reason instanceof Error ? reason.message : "Token rotation failed");
     } finally {
       setRotating(false);
     }
@@ -1341,32 +1341,32 @@ function RotateTokenButton({ node }: { node: NodeDetail }) {
         type="button"
         size="2"
         variant="ghost"
-        title={t("admin.nodeTable.rotateToken", "重置 Token")}
-        aria-label={t("admin.nodeTable.rotateToken", "重置 Token")}
+        title={t("admin.nodeTable.rotateToken", "Reset token")}
+        aria-label={t("admin.nodeTable.rotateToken", "Reset token")}
         onClick={() => setOpen(true)}
       >
         <RotateCw size={18} />
       </IconButton>
       <AppDialogContent maxWidth="440px">
         <Dialog.Title>
-          {t("admin.nodeTable.rotateToken", "重置 Token")}
+          {t("admin.nodeTable.rotateToken", "Reset token")}
         </Dialog.Title>
         <Dialog.Description>
           {t(
             "admin.nodeTable.rotateTokenDescription",
-            "生成新 Token 后，旧 Token 最多保留 24 小时；新 Token 首次成功连接后旧 Token 会立即失效。",
+            "After a new token is generated, the old token remains valid for up to 24 hours and is revoked as soon as the new token connects successfully.",
           )}
           <br />
           {t(
             "admin.nodeTable.rotateTokenInstructions",
-            "重置后在节点上重新执行更新后的部署指令即可，无需手动卸载；自动更新只替换程序文件，不会修改 Token。",
+            "Run the updated install command on the node after resetting the token; no manual uninstall is required. Automatic updates replace only the binary and do not change the token.",
           )}
         </Dialog.Description>
         <Flex direction="column" gap="2">
           <label className="text-sm font-normal">
             {t(
               "admin.nodeTable.twoFactorCode",
-              "动态口令（未开启 2FA 可留空）",
+              "2FA code (leave blank when 2FA is disabled)",
             )}
           </label>
           <TextField.Root
@@ -1384,7 +1384,7 @@ function RotateTokenButton({ node }: { node: NodeDetail }) {
         </Flex>
         <Flex gap="2" justify="end" mt="4">
           <Button variant="soft" onClick={() => setOpen(false)}>
-            {t("common.cancel", "取消")}
+            {t("common.cancel", "Cancel")}
           </Button>
           <Button
             color="orange"
@@ -1392,8 +1392,8 @@ function RotateTokenButton({ node }: { node: NodeDetail }) {
             onClick={() => void rotateToken()}
           >
             {rotating
-              ? t("common.loading", "处理中...")
-              : t("admin.nodeTable.confirmRotateToken", "确认重置")}
+              ? t("common.loading", "Loading...")
+              : t("admin.nodeTable.confirmRotateToken", "Reset token")}
           </Button>
         </Flex>
       </AppDialogContent>
@@ -1611,7 +1611,7 @@ function GenerateCommandButton({ node, settings }: { node: NodeDetail, settings:
         toast.error(
           error instanceof Error
             ? error.message
-            : t("admin.nodeTable.deploymentProfileLoadFailed", "读取部署配置失败"),
+            : t("admin.nodeTable.deploymentProfileLoadFailed", "Failed to load deployment settings"),
         );
       })
       .finally(() => {
@@ -1696,7 +1696,7 @@ function GenerateCommandButton({ node, settings }: { node: NodeDetail, settings:
     const host = resolveAgentSource(settings?.script_domain).host;
     const token = node.token || "";
     let args = ["-e", host, "-t", token, "--disable-web-ssh", "--disable-auto-update", "--install-source", agentReleaseSource];
-    // 安装安全策略固定：禁用远程控制、禁用自动更新、不忽略不安全证书。
+    // Installation security policy: disable remote control and auto-updates; reject insecure certificates.
     if (installOptions.memoryIncludeCache) {
       args.push("--memory-include-cache");
     }
@@ -1724,7 +1724,7 @@ function GenerateCommandButton({ node, settings }: { node: NodeDetail, settings:
       args.push(Number.isFinite(intervalVal) && intervalVal >= 1 ? String(intervalVal) : "1");
     }
     if (enableMonthRotate) {
-      const rotateVal = (installOptions.monthRotate || "").trim() || "1"; // 默认 1
+      const rotateVal = (installOptions.monthRotate || "").trim() || "1"; // Default to 1.
       args.push(`--month-rotate`);
       args.push(rotateVal);
     }
@@ -1766,7 +1766,7 @@ function GenerateCommandButton({ node, settings }: { node: NodeDetail, settings:
       toast.error(
         t(
           "admin.nodeTable.invalidMonthRotate",
-          "流量重置日必须是 1 到 31 的整数",
+          "The traffic reset day must be between 0 and 31",
         ),
       );
       return;
@@ -1776,7 +1776,7 @@ function GenerateCommandButton({ node, settings }: { node: NodeDetail, settings:
       toast.error(
         t(
           "admin.nodeTable.invalidInterval",
-          "采集间隔必须在 1 到 3600 秒之间",
+          "The collection interval must be between 1 and 3600 seconds",
         ),
       );
       return;
@@ -1806,22 +1806,22 @@ function GenerateCommandButton({ node, settings }: { node: NodeDetail, settings:
       const result = (await response.json()) as DeploymentProfileResponse;
       setDeliveryState(result.delivery_state);
       const deliveryMessage = result.delivery_state?.status === "applied"
-        ? t("admin.nodeTable.deliveryApplied", "已生效")
+        ? t("admin.nodeTable.deliveryApplied", "Applied")
         : result.delivery_state?.status === "failed"
-          ? t("admin.nodeTable.deliveryFailed", "应用失败")
+          ? t("admin.nodeTable.deliveryFailed", "Application failed")
           : result.delivery_state?.status === "sent" || result.delivery === "sent"
-            ? t("admin.nodeTable.deliverySent", "已发送")
+            ? t("admin.nodeTable.deliverySent", "Sent")
         : result.delivery === "agent_upgrade_required"
-          ? t("admin.nodeTable.runtimeConfigUpgradeRequired", "配置已保存，Agent 升级后应用")
-          : t("admin.nodeTable.deliverySaved", "已保存");
+          ? t("admin.nodeTable.runtimeConfigUpgradeRequired", "Settings saved and will apply after the Agent is upgraded")
+          : t("admin.nodeTable.deliverySaved", "Saved");
 
       if (copyAttempt) {
         const copyResult = await copyAttempt;
         if (!copyResult.ok) {
           refresh();
-          const message = `${deliveryMessage}；${t(
+          const message = `${deliveryMessage}; ${t(
               "admin.nodeTable.installCommandCopyDenied",
-              "浏览器拒绝访问剪贴板，请检查网站权限后重试",
+              "The browser denied clipboard access. Check this site's permissions and try again",
             )}`;
           setCopyFeedback({ kind: "error", message });
           commandTextAreaRef.current?.focus();
@@ -1831,9 +1831,9 @@ function GenerateCommandButton({ node, settings }: { node: NodeDetail, settings:
         }
         if (!copyResult.value.confirmed) {
           refresh();
-          const message = `${deliveryMessage}；${t(
+          const message = `${deliveryMessage}; ${t(
               "admin.nodeTable.installCommandCopyUnconfirmed",
-              "浏览器无法确认复制，请从上方指令框手动复制",
+              "The browser could not confirm the copy. Copy the command manually from the field above",
             )}`;
           setCopyFeedback({ kind: "warning", message });
           commandTextAreaRef.current?.focus();
@@ -1844,9 +1844,9 @@ function GenerateCommandButton({ node, settings }: { node: NodeDetail, settings:
       }
       refresh();
       const message = copyCommand
-          ? `${deliveryMessage}；${t(
+          ? `${deliveryMessage}; ${t(
               "admin.nodeTable.installCommandSaved",
-              "部署指令已复制到剪贴板",
+              "Deployment command copied",
             )}`
           : deliveryMessage;
       if (copyCommand) {
@@ -1857,7 +1857,7 @@ function GenerateCommandButton({ node, settings }: { node: NodeDetail, settings:
       console.error("Failed to save install options or copy command:", err);
       const message = err instanceof Error
           ? err.message
-          : t("admin.nodeTable.installCommandSaveFailed", "保存配置失败");
+          : t("admin.nodeTable.installCommandSaveFailed", "Failed to save installation command settings");
       if (copyCommand) {
         setCopyFeedback({ kind: "error", message });
         commandTextAreaRef.current?.focus();
@@ -1873,34 +1873,34 @@ function GenerateCommandButton({ node, settings }: { node: NodeDetail, settings:
       case "sent":
         return {
           Icon: Send,
-          label: t("admin.nodeTable.deliverySent", "已发送"),
-          hint: t("admin.nodeTable.deliverySentHint", "等待 Agent 返回应用结果"),
+          label: t("admin.nodeTable.deliverySent", "Sent"),
+          hint: t("admin.nodeTable.deliverySentHint", "Waiting for the Agent to report the result"),
         };
       case "applied":
         return {
           Icon: CheckCircle2,
-          label: t("admin.nodeTable.deliveryApplied", "已生效"),
-          hint: t("admin.nodeTable.deliveryAppliedHint", "Agent 已确认配置生效"),
+          label: t("admin.nodeTable.deliveryApplied", "Applied"),
+          hint: t("admin.nodeTable.deliveryAppliedHint", "The Agent confirmed that the configuration is active"),
         };
       case "failed":
         return {
           Icon: XCircle,
-          label: t("admin.nodeTable.deliveryFailed", "应用失败"),
-          hint: deliveryState.error || t("admin.nodeTable.deliveryFailedHint", "Agent 未能应用此配置"),
+          label: t("admin.nodeTable.deliveryFailed", "Application failed"),
+          hint: deliveryState.error || t("admin.nodeTable.deliveryFailedHint", "The Agent could not apply this configuration"),
         };
       case "saved":
         return {
           Icon: Clock3,
-          label: t("admin.nodeTable.deliverySaved", "已保存"),
-          hint: t("admin.nodeTable.deliverySavedHint", "等待 Agent 上线后发送"),
+          label: t("admin.nodeTable.deliverySaved", "Saved"),
+          hint: t("admin.nodeTable.deliverySavedHint", "Waiting for the Agent to reconnect"),
         };
       default:
         return {
           Icon: Clock3,
-          label: t("admin.nodeTable.deliveryNotStarted", "尚未下发"),
+          label: t("admin.nodeTable.deliveryNotStarted", "Not dispatched"),
           hint: t(
             "admin.nodeTable.deliveryNotStartedHint",
-            "保存在线采集配置后，可在这里查看发送和 Agent 应用结果",
+            "Save the live collection settings to track delivery and the Agent application result here",
           ),
         };
     }
@@ -1914,7 +1914,7 @@ function GenerateCommandButton({ node, settings }: { node: NodeDetail, settings:
       </Dialog.Trigger>
       <AppDialogContent>
         <Dialog.Title>
-          {t("admin.nodeTable.installCommand", "一键部署指令")}
+          {t("admin.nodeTable.installCommand", "Install command")}
         </Dialog.Title>
         <div
           className="flex flex-col gap-4"
@@ -1939,10 +1939,10 @@ function GenerateCommandButton({ node, settings }: { node: NodeDetail, settings:
           <Flex direction="column" gap="2" className="[&_label]:font-normal">
               <Flex justify="between" align="center" mt="2">
                 <Text size="3" weight="bold">
-                  {t("admin.nodeTable.onlineCollectionSettings", "在线采集配置")}
+                  {t("admin.nodeTable.onlineCollectionSettings", "Live collection settings")}
                 </Text>
                 <Text size="1" color="green">
-                  {t("admin.nodeTable.onlineApplicable", "保存后可直接下发")}
+                  {t("admin.nodeTable.onlineApplicable", "Applied after saving")}
                 </Text>
               </Flex>
               <div className="admin-install-options-grid grid grid-cols-2 gap-2">
@@ -1965,7 +1965,7 @@ function GenerateCommandButton({ node, settings }: { node: NodeDetail, settings:
                       }));
                     }}
                   >
-                    {t("admin.nodeTable.memoryModeAvailable", "监测可用内存")}
+                    {t("admin.nodeTable.memoryModeAvailable", "Include cache memory")}
                   </label>
                   <Tips size="14">
                     {t("admin.nodeTable.memoryModeAvailable_tip")}
@@ -1990,7 +1990,7 @@ function GenerateCommandButton({ node, settings }: { node: NodeDetail, settings:
                       }));
                     }}
                   >
-                    {t("admin.nodeTable.enableGpuMonitoring", "启用详细 GPU 监控")}
+                    {t("admin.nodeTable.enableGpuMonitoring", "Enable detailed GPU monitoring")}
                   </label>
                 </Flex>
               </div>
@@ -2019,14 +2019,14 @@ function GenerateCommandButton({ node, settings }: { node: NodeDetail, settings:
                     }
                   }}
                 >
-                  {t("admin.nodeTable.includeNics", "只监测特定网卡")}
+                  {t("admin.nodeTable.includeNics", "Specific network interfaces only.")}
                 </label>
               </Flex>
               {enableIncludeNics && (
                 <TextField.Root
                   // placeholder={t(
                   //   "admin.nodeTable.includeNics_placeholder",
-                  //   "多个网卡使用逗号隔开"
+                  //   "Separate multiple network interfaces with commas."
                   // )}
                   placeholder="eth0,eth1"
                   value={installOptions.includeNics}
@@ -2063,14 +2063,14 @@ function GenerateCommandButton({ node, settings }: { node: NodeDetail, settings:
                     }
                   }}
                 >
-                  {t("admin.nodeTable.excludeNics", "排除特定网卡")}
+                  {t("admin.nodeTable.excludeNics", "Exclude specific network interfaces.")}
                 </label>
               </Flex>
               {enableExcludeNics && (
                 <TextField.Root
                   // placeholder={t(
                   //   "admin.nodeTable.excludeNics_placeholder",
-                  //   "多个网卡使用逗号隔开"
+                  //   "Separate multiple network interfaces with commas."
                   // )}
                   placeholder="lo"
                   value={installOptions.excludeNics}
@@ -2107,7 +2107,7 @@ function GenerateCommandButton({ node, settings }: { node: NodeDetail, settings:
                     }
                   }}
                 >
-                  {t("admin.nodeTable.includeMountpoints", "只监测特定挂载点")}
+                  {t("admin.nodeTable.includeMountpoints", "Specific moutpoints only.")}
                 </label>
               </Flex>
               {enableIncludeMountpoints && (
@@ -2159,7 +2159,7 @@ function GenerateCommandButton({ node, settings }: { node: NodeDetail, settings:
                     }
                   }}
                 >
-                  {t("admin.nodeTable.interval", "采集间隔(秒)")}
+                  {t("admin.nodeTable.interval", "Collection interval (seconds)")}
                 </label>
               </Flex>
               {enableInterval && (
@@ -2218,7 +2218,7 @@ function GenerateCommandButton({ node, settings }: { node: NodeDetail, settings:
                     }
                   }}
                 >
-                  {t("admin.nodeTable.monthRotate", "流量重置日")}
+                  {t("admin.nodeTable.monthRotate", "Traffic reset day")}
                 </label>
               </Flex>
               {enableMonthRotate && (
@@ -2242,7 +2242,7 @@ function GenerateCommandButton({ node, settings }: { node: NodeDetail, settings:
                 aria-live="polite"
               >
                 <Text size="2" weight="bold" className="admin-deployment-delivery-title">
-                  {t("admin.nodeTable.deliveryStatusTitle", "在线配置状态")}
+                  {t("admin.nodeTable.deliveryStatusTitle", "Live configuration status")}
                 </Text>
                 <div className="admin-deployment-delivery-body">
                   <div
@@ -2274,12 +2274,12 @@ function GenerateCommandButton({ node, settings }: { node: NodeDetail, settings:
                 onClick={() => void saveProfile(false)}
               >
                 <Save size={16} />
-                {t("admin.nodeTable.saveAndDispatch", "保存并下发")}
+                {t("admin.nodeTable.saveAndDispatch", "Save and dispatch")}
               </Button>
             </Flex>
           <Flex direction="column" gap="2">
             <label className="text-base font-bold">
-              {t("admin.nodeTable.generatedCommand", "生成的指令")}
+              {t("admin.nodeTable.generatedCommand", "Command")}
             </label>
             <div className="relative">
               <TextArea
@@ -2304,7 +2304,7 @@ function GenerateCommandButton({ node, settings }: { node: NodeDetail, settings:
               onClick={() => void saveProfile(true)}
             >
               <Copy size={16} />
-              {t("admin.nodeTable.saveAndCopyCommand", "保存并复制部署指令")}
+              {t("admin.nodeTable.saveAndCopyCommand", "Save and copy deployment command")}
             </Button>
             {isMobile && copyFeedback && (
               <Text
@@ -2352,7 +2352,7 @@ function EditButton({ node }: { node: NodeDetail }) {
   const regionOptions = React.useMemo(
     () => [
       {
-        label: t("admin.nodeEdit.regionAuto", "自动识别"),
+        label: t("admin.nodeEdit.regionAuto", "Automatic detection"),
         value: "",
       },
       ...getSupportedRegions().map((region) => {
@@ -2390,7 +2390,7 @@ function EditButton({ node }: { node: NodeDetail }) {
       toast.error(
         t(
           "admin.nodeEdit.trafficResetDayRequired",
-          "请先设置 1-31 日的流量重置日，再填写本周期重置流量",
+          "Set a traffic reset day from 1 to 31 before entering reset traffic",
         ),
       );
       return;
@@ -2436,10 +2436,10 @@ function EditButton({ node }: { node: NodeDetail }) {
       }
       refresh();
       setOpen(false);
-      toast.success(t("admin.nodeEdit.saveSuccess", "保存成功"));
+      toast.success(t("admin.nodeEdit.saveSuccess", "Save Successful"));
     } catch (error) {
       console.error("Error updating client:", error);
-      toast.error(t("admin.nodeEdit.saveError", "保存失败"));
+      toast.error(t("admin.nodeEdit.saveError", "Save Failed"));
     } finally {
       setSaving(false);
     }
@@ -2449,49 +2449,49 @@ function EditButton({ node }: { node: NodeDetail }) {
       <Dialog.Trigger>
         <IconButton
           variant="ghost"
-          title={t("admin.nodeEdit.editInfo", "编辑信息")}
+          title={t("admin.nodeEdit.editInfo", "Edit information")}
         >
           <Pencil size="18" />
         </IconButton>
       </Dialog.Trigger>
       <AppDialogContent>
-        <Dialog.Title>{t("admin.nodeEdit.editInfo", "编辑信息")}</Dialog.Title>
+        <Dialog.Title>{t("admin.nodeEdit.editInfo", "Edit information")}</Dialog.Title>
         <div className="flex flex-col gap-4">
           <div>
             <label className="block mb-1 text-sm font-medium text-muted-foreground">
-              {t("admin.nodeEdit.name", "名称")}
+              {t("admin.nodeEdit.name", "name")}
             </label>
             <TextField.Root
               defaultValue={node.name}
-              placeholder={t("admin.nodeEdit.namePlaceholder", "请输入名称")}
+              placeholder={t("admin.nodeEdit.namePlaceholder", "Please enter a name")}
               ref={nameRef}
             />
           </div>
           <div>
             <label className="block mb-1 text-sm font-medium text-muted-foreground">
-              {t("admin.nodeEdit.token", "Token 令牌")}
+              {t("admin.nodeEdit.token", "Token")}
             </label>
             <TextField.Root
               value={node.token}
-              placeholder={t("admin.nodeEdit.tokenPlaceholder", "请输入 Token")}
+              placeholder={t("admin.nodeEdit.tokenPlaceholder", "Please enter Token")}
               readOnly
             />
           </div>
           <div>
             <label className="block mb-1 text-sm font-medium text-muted-foreground">
-              {t("admin.nodeEdit.regionOverride", "国家图标")}
+              {t("admin.nodeEdit.regionOverride", "Country icon")}
             </label>
             <SelectOrInput
               options={regionOptions}
               value={regionOverride}
               allowCustomInput={false}
               onChange={setRegionOverride}
-              placeholder={t("admin.nodeEdit.regionAuto", "自动识别")}
+              placeholder={t("admin.nodeEdit.regionAuto", "Automatic detection")}
             />
             <p className="mt-1 text-xs text-muted-foreground">
               {t(
                 "admin.nodeEdit.regionOverride_description",
-                "用于广播 IP 或 GeoIP 识别不准的情况；清空后恢复自动识别。",
+                "Override an incorrect GeoIP result or an anycast IP; clear it to use automatic detection again.",
               )}
             </p>
           </div>
@@ -2517,7 +2517,7 @@ function EditButton({ node }: { node: NodeDetail }) {
           </div>
           <div>
             <label className="block mb-1 text-sm font-medium text-muted-foreground">
-              {t("admin.nodeEdit.remark", "私有备注")}
+              {t("admin.nodeEdit.remark", "Private Notes")}
             </label>
             <TextArea
               defaultValue={node.remark}
@@ -2525,20 +2525,20 @@ function EditButton({ node }: { node: NodeDetail }) {
               resize={"vertical"}
               placeholder={t(
                 "admin.nodeEdit.remarkPlaceholder",
-                "请输入私有备注"
+                "Please enter private notes"
               )}
             />
           </div>
           <div>
             <label className="block mb-1 text-sm font-medium text-muted-foreground">
-              {t("admin.nodeEdit.publicRemark", "公开备注")}
+              {t("admin.nodeEdit.publicRemark", "Public Notes")}
             </label>
             <TextArea
               defaultValue={node.public_remark}
               resize={"vertical"}
               placeholder={t(
                 "admin.nodeEdit.publicRemarkPlaceholder",
-                "请输入公开备注"
+                "Please enter public notes"
               )}
               ref={publicRemarkRef}
             />
@@ -2554,7 +2554,7 @@ function EditButton({ node }: { node: NodeDetail }) {
           <SettingCardCollapse title={t("admin.nodeEdit.trafficLimit")}>
             <div className="space-y-2 pb-3 pt-2">
               <label className="block text-base font-semibold leading-6">
-                {t("admin.nodeEdit.trafficResetDay", "流量重置日")}
+                {t("admin.nodeEdit.trafficResetDay", "Traffic Reset Day")}
               </label>
               <TextField.Root
                 aria-label={t("admin.nodeEdit.trafficResetDay")}
@@ -2575,7 +2575,7 @@ function EditButton({ node }: { node: NodeDetail }) {
               <p className="text-sm leading-6 text-muted-foreground">
                 {t(
                   "admin.nodeEdit.trafficResetDay_description",
-                  "0 表示关闭；1-31 表示每月重置日。保存后自动同步到 Agent。",
+                  "0 disables reset; 1-31 selects the monthly reset day. Changes sync to the Agent automatically.",
                 )}
               </p>
             </div>
@@ -2627,10 +2627,10 @@ function EditButton({ node }: { node: NodeDetail }) {
               <SettingCardShortTextInput
                 aria-label={t("admin.nodeEdit.trafficResetAllowance")}
                 bordless
-                title={t("admin.nodeEdit.trafficResetAllowance", "重置流量额度")}
+                title={t("admin.nodeEdit.trafficResetAllowance", "Reset traffic allowance")}
                 description={t(
                   "admin.nodeEdit.trafficResetAllowance_description",
-                  "同一计费周期可多次调整；与原流量限额相加，按上方统计方式计算，并在下个重置日自动归零。",
+                  "May be adjusted multiple times in one billing cycle. It is added to the original limit, uses the traffic counting method above, and clears on the next reset day.",
                 )}
                 defaultValue={formatBytes(trafficResetAllowance || 0)}
                 showSaveButton={false}
@@ -2645,7 +2645,7 @@ function EditButton({ node }: { node: NodeDetail }) {
             <div className="mt-3 space-y-1.5 pb-3 text-sm leading-6 text-muted-foreground">
               <div>
                 {t("admin.nodeEdit.trafficEffectiveFormula", {
-                  defaultValue: "原限额 {{base}} + 重置流量 {{reset}} = 本周期总限额 {{total}}",
+                  defaultValue: "Original limit {{base}} + reset traffic {{reset}} = cycle limit {{total}}",
                   base: formatBytes(traffic_limit),
                   reset: formatBytes(trafficResetAllowance),
                   total: formatBytes(traffic_limit + trafficResetAllowance),
@@ -2654,7 +2654,7 @@ function EditButton({ node }: { node: NodeDetail }) {
               <div>
                 {t(
                   "admin.nodeEdit.trafficResetReportNotice",
-                  "这里只调整本周期额度，不会清零或修改真实流量，日、周、月报仍按实际产生的流量统计。",
+                  "This only changes the current cycle quota. Real traffic and daily, weekly, and monthly reports remain unchanged.",
                 )}
               </div>
             </div>
@@ -2668,8 +2668,8 @@ function EditButton({ node }: { node: NodeDetail }) {
             onClick={save}
           >
             {saving
-              ? t("admin.nodeEdit.waiting", "等待...")
-              : t("save", "保存")}
+              ? t("admin.nodeEdit.waiting", "wait...")
+              : t("save", "Save")}
           </Button>
         </Flex>
       </AppDialogContent>
@@ -2706,8 +2706,8 @@ function ReadOnlyDetailField({
               size="1"
               variant="ghost"
               color="gray"
-              title={t("copy", "复制")}
-              aria-label={t("copy", "复制")}
+              title={t("copy", "Copy")}
+              aria-label={t("copy", "Copy")}
               onClick={async () => {
                 try {
                   await writeClipboardText(displayValue);
@@ -2730,8 +2730,8 @@ function DetailView({ node, online }: { node: NodeDetail; online: boolean }) {
   const { t } = useTranslation();
   const dialogContentRef = React.useRef<HTMLDivElement>(null);
   const statusLabel = online
-    ? t("nodeCard.online", "在线")
-    : t("nodeCard.offline", "离线");
+    ? t("nodeCard.online", "Online")
+    : t("nodeCard.offline", "Offline");
   const formatDateTime = (value?: string) =>
     value ? new Date(value).toLocaleString() : "-";
 
@@ -2789,54 +2789,54 @@ function DetailView({ node, online }: { node: NodeDetail; online: boolean }) {
               </span>
             </div>
             <Dialog.Description size="2" color="gray" className="mt-1">
-              {t("admin.nodeDetail.machineDetail", "机器详细信息")}
+              {t("admin.nodeDetail.machineDetail", "Machine details")}
             </Dialog.Description>
           </div>
         </div>
 
         <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="border-b border-[var(--gray-a5)] pb-2 text-sm font-semibold sm:col-span-2">
-            {t("admin.nodeDetail.network", "网络与客户端")}
+            {t("admin.nodeDetail.network", "Network and client")}
           </div>
           <ReadOnlyDetailField label="IPv4" value={node.ipv4} copyable mono />
           <ReadOnlyDetailField label="IPv6" value={node.ipv6} copyable mono />
-          <ReadOnlyDetailField label={t("admin.nodeDetail.clientVersion", "客户端版本")} value={publicVersion(node.version)} />
-          <ReadOnlyDetailField label={t("admin.nodeTable.region", "国家 / 地区")} value={getRegionDisplayName(node.region)} />
+          <ReadOnlyDetailField label={t("admin.nodeDetail.clientVersion", "Client version")} value={publicVersion(node.version)} />
+          <ReadOnlyDetailField label={t("admin.nodeTable.region", "Country / region")} value={getRegionDisplayName(node.region)} />
 
           <div className="border-b border-[var(--gray-a5)] pb-2 pt-1 text-sm font-semibold sm:col-span-2">
-            {t("admin.nodeDetail.system", "系统信息")}
+            {t("admin.nodeDetail.system", "System information")}
           </div>
-          <ReadOnlyDetailField label={t("admin.nodeDetail.os", "操作系统")} value={node.os} />
-          <ReadOnlyDetailField label={t("admin.nodeDetail.arch", "系统架构")} value={node.arch} />
+          <ReadOnlyDetailField label={t("admin.nodeDetail.os", "operating system")} value={node.os} />
+          <ReadOnlyDetailField label={t("admin.nodeDetail.arch", "Architecture")} value={node.arch} />
           <div className="sm:col-span-2">
-            <ReadOnlyDetailField label={t("admin.nodeDetail.cpu", "处理器")} value={node.cpu_name} />
+            <ReadOnlyDetailField label={t("admin.nodeDetail.cpu", "CPU")} value={node.cpu_name} />
           </div>
-          <ReadOnlyDetailField label={t("admin.nodeDetail.cpuCores", "CPU 核心")} value={node.cpu_cores ? `${node.cpu_cores} 核` : ""} />
-          <ReadOnlyDetailField label={t("admin.nodeDetail.virtualization", "虚拟化")} value={node.virtualization} />
+          <ReadOnlyDetailField label={t("admin.nodeDetail.cpuCores", "CPU core number")} value={node.cpu_cores ? `${node.cpu_cores} cores` : ""} />
+          <ReadOnlyDetailField label={t("admin.nodeDetail.virtualization", "Virtualization")} value={node.virtualization} />
           <div className="sm:col-span-2">
-            <ReadOnlyDetailField label={t("admin.nodeDetail.gpu", "显卡")} value={node.gpu_name} />
+            <ReadOnlyDetailField label={t("admin.nodeDetail.gpu", "GPU")} value={node.gpu_name} />
           </div>
 
           <div className="border-b border-[var(--gray-a5)] pb-2 pt-1 text-sm font-semibold sm:col-span-2">
-            {t("admin.nodeDetail.resources", "硬件资源")}
+            {t("admin.nodeDetail.resources", "Hardware resources")}
           </div>
-          <ReadOnlyDetailField label={t("admin.nodeDetail.memTotal", "内存")} value={formatBytes(node.mem_total)} />
+          <ReadOnlyDetailField label={t("admin.nodeDetail.memTotal", "Total Memory")} value={formatBytes(node.mem_total)} />
           <ReadOnlyDetailField label={t("admin.nodeDetail.swapTotal", "Swap")} value={formatBytes(node.swap_total)} />
-          <ReadOnlyDetailField label={t("admin.nodeDetail.diskTotal", "磁盘")} value={formatBytes(node.disk_total)} />
+          <ReadOnlyDetailField label={t("admin.nodeDetail.diskTotal", "Total disk space")} value={formatBytes(node.disk_total)} />
 
           <div className="border-b border-[var(--gray-a5)] pb-2 pt-1 text-sm font-semibold sm:col-span-2">
-            {t("admin.nodeDetail.identity", "标识与时间")}
+            {t("admin.nodeDetail.identity", "Identity and dates")}
           </div>
           <div className="sm:col-span-2">
             <ReadOnlyDetailField label={t("admin.nodeDetail.uuid", "UUID")} value={node.uuid} copyable mono />
           </div>
-          <ReadOnlyDetailField label={t("admin.nodeDetail.createdAt", "创建时间")} value={formatDateTime(node.created_at)} />
-          <ReadOnlyDetailField label={t("admin.nodeDetail.updatedAt", "更新时间")} value={formatDateTime(node.updated_at)} />
+          <ReadOnlyDetailField label={t("admin.nodeDetail.createdAt", "Creation time")} value={formatDateTime(node.created_at)} />
+          <ReadOnlyDetailField label={t("admin.nodeDetail.updatedAt", "Update time")} value={formatDateTime(node.updated_at)} />
         </div>
 
         <Flex justify="end" className="mt-5">
           <Dialog.Close>
-            <Button variant="soft">{t("admin.nodeDetail.done", "完成")}</Button>
+            <Button variant="soft">{t("admin.nodeDetail.done", "Finish")}</Button>
           </Dialog.Close>
         </Flex>
       </AppDialogContent>
@@ -2908,13 +2908,13 @@ function BillingButton({ node }: { node: NodeDetail }) {
       <Dialog.Trigger>
         <IconButton
           variant="ghost"
-          title={t("admin.nodeTable.billing", "账单")}
+          title={t("admin.nodeTable.billing", "Billing")}
         >
           <CircleDollarSign size="18" />
         </IconButton>
       </Dialog.Trigger>
       <AppDialogContent>
-        <Dialog.Title>{t("admin.nodeTable.billing", "账单")}</Dialog.Title>
+        <Dialog.Title>{t("admin.nodeTable.billing", "Billing")}</Dialog.Title>
         <form onSubmit={handleSave}>
           <Flex direction="column" gap="2">
             <label className="font-bold">
@@ -2926,7 +2926,7 @@ function BillingButton({ node }: { node: NodeDetail }) {
             <TextField.Root name="price" defaultValue={node.price} />
 
             <label className="font-bold">
-              <label>{t("admin.nodeTable.currency", "货币")}</label>
+              <label>{t("admin.nodeTable.currency", "Currency")}</label>
               <label className="text-muted-foreground text-sm ml-1 font-medium">
                 {t("admin.nodeTable.currencyTips")}
               </label>
@@ -2988,7 +2988,7 @@ function BillingButton({ node }: { node: NodeDetail }) {
                     }
                   }}
                 >
-                  {t("admin.nodeTable.setToLongTerm", "设置为长期")}
+                  {t("admin.nodeTable.setToLongTerm", "Set to Long term")}
                 </Button>
               </TextField.Slot>
             </TextField.Root>

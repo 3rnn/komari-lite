@@ -7,7 +7,7 @@ import (
 
 // TestDialectsGenerateBackendSpecificSQL verifies backend-specific SQL rendering.
 //
-// TestDialectsGenerateBackendSpecificSQL 验证不同数据库后端生成各自的 SQL。
+// TestDialectsGenerateBackendSpecificSQL Verifies that different database backends generate their own SQL.
 func TestDialectsGenerateBackendSpecificSQL(t *testing.T) {
 	tests := []struct {
 		name        string

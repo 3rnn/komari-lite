@@ -34,7 +34,7 @@ const Inner = () => {
       <AdminPageTitle
         description={t(
           "admin.notification.page_description",
-          "管理到期、登录和流量用量等通用通知规则。",
+          "Configure general expiration, login, and traffic usage notifications.",
         )}
       >
         {t("settings.general.title")}

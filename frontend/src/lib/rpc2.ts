@@ -12,8 +12,8 @@ import { RPC2ConnectionState } from "../types/rpc2";
 import i18n from "../i18n/config";
 
 /**
- * RPC2 客户端类
- * 支持通过 WebSocket 和 HTTP POST 调用 JSON-RPC 2.0 接口
+ * RPC2 client class
+ * Supports JSON-RPC 2.0 over WebSocket and HTTP POST.
  */
 export class RPC2Client {
   private ws: WebSocket | null = null;
@@ -51,21 +51,21 @@ export class RPC2Client {
       ...options,
     };
 
-    // 自动建立连接
+    // Connect automatically.
     if (this.options.autoConnect) {
       this.autoConnect();
     }
   }
 
   /**
-   * 获取当前连接状态
+   * Get the current connection state.
    */
   get state(): RPC2ConnectionStateType {
     return this.connectionState;
   }
 
   /**
-   * 设置事件监听器
+   * Set event listeners.
    */
   setEventListeners(listeners: RPC2EventListeners): void {
     this.eventListeners = { ...this.eventListeners, ...listeners };
@@ -76,7 +76,7 @@ export class RPC2Client {
   }
 
   /**
-   * 建立 WebSocket 连接
+   * Open a WebSocket connection.
    */
   async connect(): Promise<void> {
     if (this.connectionState === RPC2ConnectionState.CONNECTED ||
@@ -92,7 +92,7 @@ export class RPC2Client {
       this.ws = ws;
       this.setupWebSocketHandlers();
 
-      // 等待连接建立（不覆盖已设置的处理器，避免丢失心跳与状态更新）
+      // Wait for the connection without replacing the installed handlers (heartbeat and state updates rely on them).
       await new Promise<void>((resolve, reject) => {
         const handleOpen = () => {
           cleanup();
@@ -124,22 +124,22 @@ export class RPC2Client {
   }
 
   /**
-   * 自动建立连接（非阻塞）
+   * Connect automatically without blocking.
    */
   private autoConnect(): void {
     if (this.connectionState !== RPC2ConnectionState.DISCONNECTED) {
       return;
     }
 
-    // 异步尝试连接，不阻塞构造函数
+    // Attempt an asynchronous connection without blocking construction.
     this.connect().catch((error) => {
       console.warn(i18n.t("rpc2.automatic_connection_failed"), error.message);
-      // 连接失败时，如果启用了自动重连，会在 onclose 处理器中进行重连
+      // On failure, onclose handles retries when automatic reconnection is enabled.
     });
   }
 
   /**
-   * 断开 WebSocket 连接
+   * Close the WebSocket connection.
    */
   disconnect(): void {
     this.options.autoReconnect = false;
@@ -148,7 +148,7 @@ export class RPC2Client {
       this.reconnectTimeout = undefined;
     }
 
-    // 清理心跳包定时器
+    // Clear the heartbeat timer.
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
       this.heartbeatInterval = undefined;
@@ -164,7 +164,7 @@ export class RPC2Client {
   }
 
   /**
-   * 通过 WebSocket 调用 RPC 方法
+   * Call an RPC method via WebSocket.
    */
   async callViaWebSocket<TParams = any, TResult = any>(
     method: string,
@@ -183,7 +183,7 @@ export class RPC2Client {
     };
 
     if (options.notification) {
-      // 通知请求，不期望响应
+      // Notification: do not expect a response.
       this.sendMessage(request);
       return undefined as TResult;
     }
@@ -207,7 +207,7 @@ export class RPC2Client {
   }
 
   /**
-   * 通过 HTTP POST 调用 RPC 方法
+   * Call an RPC method via HTTP POST.
    */
   async callViaHTTP<TParams = any, TResult = any>(
     method: string,
@@ -253,7 +253,7 @@ export class RPC2Client {
   }
 
   /**
-   * 批量调用（仅支持 HTTP）
+   * Batch calls (HTTP only).
    */
   async batchCall(requests: Array<{
     method: string;
@@ -295,32 +295,32 @@ export class RPC2Client {
   }
 
   /**
-   * 自动选择调用方式（优先使用 WebSocket）
+   * Select the transport automatically (prefer WebSocket).
    */
   async call<TParams = any, TResult = any>(
     method: string,
     params?: TParams,
     options: RPC2CallOptions = {}
   ): Promise<TResult> {
-    // 如果启用了自动连接，且当前未连接，尝试建立连接（不阻塞使用 HTTP 回退）
+    // If automatic connection is enabled but disconnected, try connecting without blocking the HTTP fallback.
     if (this.options.autoConnect &&
         this.connectionState === RPC2ConnectionState.DISCONNECTED) {
       this.autoConnect();
     }
 
-    // 策略：
-    // 1) WS 已连接 → 尝试 WS；失败则回退一次 HTTP
-    // 2) 其他状态（未连/连接中/重连中/错误）→ 直接 HTTP
+    // Transport strategy:
+    // 1) Connected WS: try WS, then fall back to HTTP once on failure.
+    // 2) Otherwise (disconnected, connecting, reconnecting, or error): use HTTP directly.
     if (this.connectionState === RPC2ConnectionState.CONNECTED) {
       try {
         return await this.callViaWebSocket(method, params, options);
       } catch {
-        // 回退一次 HTTP
+        // Fall back to HTTP once.
         return this.callViaHTTP(method, params, options);
       }
     }
 
-    // 未连或重连等情况下，直接使用 HTTP
+    // Use HTTP directly while disconnected or reconnecting.
     return this.callViaHTTP(method, params, options);
   }
 
@@ -336,7 +336,7 @@ export class RPC2Client {
     this.ws.onopen = () => {
       this.setConnectionState(RPC2ConnectionState.CONNECTED);
       this.reconnectAttempts = 0;
-      this.startHeartbeat(); // 启动心跳包
+      this.startHeartbeat(); // Start the heartbeat.
       this.eventListeners.onConnect?.();
     };
 
@@ -352,7 +352,7 @@ export class RPC2Client {
 
     this.ws.onclose = () => {
       this.setConnectionState(RPC2ConnectionState.DISCONNECTED);
-      this.stopHeartbeat(); // 停止心跳包
+      this.stopHeartbeat(); // Stop the heartbeat.
       this.eventListeners.onDisconnect?.();
 
       if (this.options.autoReconnect &&
@@ -370,7 +370,7 @@ export class RPC2Client {
   }
 
   private handleMessage(data: JSONRPC2Response): void {
-    if (!data.id) return; // 忽略通知响应
+    if (!data.id) return; // Ignore notification responses.
 
     const pending = this.pendingRequests.get(data.id);
     if (!pending) return;
@@ -415,22 +415,22 @@ export class RPC2Client {
   }
 
   /**
-   * 启动心跳包
+   * Start the heartbeat.
    */
   private startHeartbeat(): void {
-    // 如果未启用心跳包，则不启动
+    // Do nothing if heartbeat is disabled.
     if (!this.options.enableHeartbeat) {
       return;
     }
 
-    // 先清理之前的心跳包定时器
+    // Clear any previous heartbeat timer.
     this.stopHeartbeat();
 
-    // 按配置的间隔发送心跳包
+    // Send heartbeats at the configured interval.
     this.heartbeatInterval = setInterval(() => {
       if (this.ws && this.ws.readyState === WebSocket.OPEN) {
         try {
-          // 发送心跳包作为通知请求（不期望响应）
+          // Send a heartbeat as a notification (no response expected).
           const heartbeatRequest: JSONRPC2Request = {
             jsonrpc: "2.0",
             method: "rpc.ping",
@@ -445,7 +445,7 @@ export class RPC2Client {
   }
 
   /**
-   * 停止心跳包
+   * Stop the heartbeat.
    */
   private stopHeartbeat(): void {
     if (this.heartbeatInterval) {
@@ -461,11 +461,11 @@ export class RPC2Client {
 
     this.reconnectTimeout = setTimeout(() => {
       this.connect().catch(() => {
-        // 重连失败会触发 onclose，从而继续重连或停止
+        // A failed retry triggers onclose to retry again or stop.
       });
     }, this.options.reconnectInterval);
   }
 }
 
-// 注意：避免在模块级别创建默认实例，以免在多处导入时重复建立 WebSocket 连接。
-// 请通过 RPC2Provider + useRPC2Call/useRPC2 使用该客户端，或在需要的地方手动创建实例。
+// Do not create a default instance at module scope: multiple imports could open duplicate WebSocket connections.
+// Use RPC2Provider with useRPC2Call/useRPC2, or instantiate the client explicitly.

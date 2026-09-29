@@ -256,57 +256,57 @@ export function SettingCardIconButton({
 
 interface SettingCardShortTextInputProps
   extends Omit<React.ComponentProps<typeof TextField.Root>, 'onChange' | 'onKeyDown'> {
-  // SettingCard 相关属性
+  // SettingCard props.
   title?: string;
   description?: string;
   descriptionPlacement?: "header" | "footer";
   bordless?: boolean;
 
-  // 按钮相关属性
+  // Button props.
   showSaveButton?: boolean;
   label?: string;
   autoDisabled?: boolean;
   isSaving?: boolean;
 
-  // 保存回调
+  // Save callback.
   OnSave?: (
     value: string,
     inputElement: HTMLInputElement,
     buttonElement: HTMLButtonElement
   ) => void | Promise<unknown>;
 
-  // 额外内容
+  // Additional content.
   children?: React.ReactNode | null;
 
-  // 输入框事件回调 (可选，用于额外处理)
+  // Optional input event callback.
   onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
 }
 
 export function SettingCardShortTextInput({
-  // SettingCard 属性
+  // SettingCard props.
   title = "",
   description = "",
   descriptionPlacement = "header",
   bordless = false,
 
-  // 按钮属性
+  // Button props.
   showSaveButton = true,
   label = "",
   autoDisabled = true,
   isSaving,
 
-  // 保存回调
+  // Save callback.
   OnSave = () => { },
 
-  // 额外内容
+  // Additional content.
   children = null,
 
-  // 事件回调
+  // Event callback.
   onChange,
   onKeyDown,
 
-  // TextField.Root 的所有其他属性
+  // All other TextField.Root props.
   value,
   defaultValue,
   placeholder,
@@ -342,7 +342,7 @@ export function SettingCardShortTextInput({
   const buttonRef = React.useRef<HTMLButtonElement>(null);
   const resolvedLabel = label || t("save");
 
-  // 当外部value改变时，同步内部状态
+  // Sync internal state when the external value changes.
   React.useEffect(() => {
     if (value !== undefined) {
       setInternalValue(normalizedValue);
@@ -383,23 +383,23 @@ export function SettingCardShortTextInput({
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
 
-    // 只有在非受控模式下才更新内部状态
+    // Update internal state only in uncontrolled mode.
     if (value === undefined) {
       setInternalValue(newValue);
     }
 
-    // 调用外部传入的 onChange 回调
+    // Invoke the external onChange callback.
     onChange?.(e);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    // 按 Enter 键时触发保存
+    // Save on Enter.
     if (e.key === 'Enter') {
       e.preventDefault();
       handleSave();
     }
 
-    // 调用外部传入的 onKeyDown 回调
+    // Invoke the external onKeyDown callback.
     onKeyDown?.(e);
   };
 
@@ -556,7 +556,7 @@ export function SettingCardLongTextInput({
 
   const handleTextAreaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setValue(e.target.value);
-    // 调用外部传入的 onChange 回调
+    // Invoke the external onChange callback.
     onChange?.(e);
   };
 
@@ -662,8 +662,8 @@ export function SettingCardSelect({
 
   const handleSave = (value: string) => {
     if (isSaving === undefined && autoDisabled) setDisabled(true);
-    const previousValue = selectedValue; // 保存之前的值
-    setSelectedValue(value); // 先更新选择的值
+    const previousValue = selectedValue; // Remember the prior value.
+    setSelectedValue(value); // Show the newly selected value.
 
     const result: any = buttonRef.current
       ? OnSave(value, buttonRef.current)
@@ -673,10 +673,10 @@ export function SettingCardSelect({
       if (promise && typeof promise.then === "function") {
         promise
           .then(() => {
-            // 成功时不需要额外操作，值已经更新
+            // The selected value is already updated after a successful save.
           })
           .catch(() => {
-            // 错误时自动切换回之前的值
+            // Revert to the previous value on error.
             setSelectedValue(previousValue);
           })
           .finally(() => {
@@ -692,7 +692,7 @@ export function SettingCardSelect({
     }
   };
 
-  // 获取要显示的文本，优先显示选择的值对应的标签
+  // Prefer the selected option's label for display.
   const getDisplayText = () => {
     if (selectedValue) {
       const selectedOption = options.find(

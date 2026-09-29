@@ -41,7 +41,7 @@ func Verify2Fa(uuid, code string) (bool, error) {
 	}
 
 	if user.TwoFactor == "" {
-		return false, nil // 用户未启用2FA
+		return false, nil // User does not enable 2FA
 	}
 
 	valid := totp.Validate(code, user.TwoFactor)

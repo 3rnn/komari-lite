@@ -1,4 +1,4 @@
-package geoip // 与 geoip.go 保持相同的包名，表示它们是同一个包的组成部分
+package geoip // Keep the same package name as geoip.go to indicate that they are part of the same package
 
 import (
 	"fmt"
@@ -7,21 +7,21 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"path/filepath" // 新增导入，用于处理文件路径
+	"path/filepath" // Added new import for processing file paths
 	"sync"
 
 	"github.com/komari-monitor/komari/database/auditlog"
 	"github.com/oschwald/maxminddb-golang"
 )
 
-// GeoIpUrl 是 MaxMind 数据库的下载地址。
+// GeoIpUrl is the download address of the MaxMind database.
 var GeoIpUrl = "https://raw.githubusercontent.com/Loyalsoldier/geoip/release/GeoLite2-Country.mmdb"
 
-// GeoIpFilePath 是本地存储 MaxMind 数据库的路径。
+// GeoIpFilePath is the path where the MaxMind database is stored locally.
 var GeoIpFilePath = "./data/GeoLite2-Country.mmdb"
 
-// GeoIpRecord 结构体定义了 MaxMind 数据库查询结果的原始结构。
-// 它是 MaxMind 库特有的，用于从 .mmdb 文件中解析数据。
+// The GeoIpRecord structure defines the original structure of MaxMind database query results.
+// It is specific to the MaxMind library and is used to parse data from .mmdb files.
 type GeoIpRecord struct {
 	Country struct {
 		ISOCode string            `maxminddb:"iso_code"`
@@ -29,37 +29,37 @@ type GeoIpRecord struct {
 	} `maxminddb:"country"`
 }
 
-// MaxMindGeoIPService 是 GeoIPService 接口的一个具体实现，
-// 它使用 MaxMind 数据库作为后端。
+// MaxMindGeoIPService is a specific implementation of the GeoIPService interface.
+// It uses MaxMind database as backend.
 type MaxMindGeoIPService struct {
-	// maxMindDBReader 内部持有的 MaxMind 数据库读取器实例。
+	// maxMindDBReader The MaxMind database reader instance held internally.
 	maxMindDBReader *maxminddb.Reader
-	// dbFilePath 是 MaxMind 数据库文件的路径。
+	// dbFilePath is the path to the MaxMind database file.
 	dbFilePath string
-	// mu 用于保护对 maxMindDBReader 的并发访问，确保线程安全。
+	// mu is used to protect concurrent access to maxMindDBReader and ensure thread safety.
 	mu sync.RWMutex
 }
 
-// Name 返回服务的名称。
+// Name returns the name of the service.
 func (s *MaxMindGeoIPService) Name() string {
 	return "MaxMind"
 }
 
-// NewMaxMindGeoIPService 创建并返回一个 MaxMindGeoIPService 实例。
-// 它负责初始化服务，包括尝试加载或下载数据库。
+// NewMaxMindGeoIPService Creates and returns a MaxMindGeoIPService instance.
+// It is responsible for initializing the service, including attempting to load or download the database.
 func NewMaxMindGeoIPService() (*MaxMindGeoIPService, error) {
 	dbFilePath := GeoIpFilePath
 	service := &MaxMindGeoIPService{
 		dbFilePath: dbFilePath,
 	}
 
-	// 确保数据目录存在
+	// Make sure the data directory exists
 	if err := os.MkdirAll(filepath.Dir(dbFilePath), os.ModePerm); err != nil {
 		auditlog.Log("", "", "Failed to create data directory for MaxMind database: "+err.Error(), "error")
 		return nil, fmt.Errorf("failed to create data directory for MaxMind database: %w", err)
 	}
 
-	// 检查数据库文件是否存在，如果不存在则尝试下载
+	// Check if the database file exists, if not try to download it
 	if _, err := os.Stat(dbFilePath); os.IsNotExist(err) {
 		if err := service.UpdateDatabase(); err != nil {
 			auditlog.Log("", "", "Failed to download initial MaxMind database: "+err.Error(), "error")
@@ -67,7 +67,7 @@ func NewMaxMindGeoIPService() (*MaxMindGeoIPService, error) {
 		}
 	}
 
-	// 初始化或重新加载 MaxMind 数据库。
+	// Initialize or reload the MaxMind database.
 	if err := service.initialize(); err != nil {
 		auditlog.Log("", "", "Failed to initialize MaxMind database: "+err.Error(), "error")
 		return nil, fmt.Errorf("failed to initialize MaxMind database: %w", err)
@@ -75,20 +75,20 @@ func NewMaxMindGeoIPService() (*MaxMindGeoIPService, error) {
 	return service, nil
 }
 
-// initialize 初始化或重新加载 MaxMind 数据库。
-// 这是一个内部方法，供 NewMaxMindGeoIPService 和 UpdateDatabase 调用。
-// 它会关闭现有连接（如果存在）并重新打开数据库文件。
+// initialize Initializes or reloads the MaxMind database.
+// This is an internal method called by NewMaxMindGeoIPService and UpdateDatabase.
+// It closes the existing connection (if one exists) and reopens the database file.
 func (s *MaxMindGeoIPService) initialize() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// 如果已存在数据库读取器，则先关闭它。
+	// If a database reader already exists, close it first.
 	if s.maxMindDBReader != nil {
 		s.maxMindDBReader.Close()
 		s.maxMindDBReader = nil
 	}
 
-	// 尝试打开新的数据库文件。
+	// Try opening a new database file.
 	reader, err := maxminddb.Open(s.dbFilePath)
 	if err != nil {
 		return fmt.Errorf("error opening MaxMind database at %s: %w", s.dbFilePath, err)
@@ -97,8 +97,8 @@ func (s *MaxMindGeoIPService) initialize() error {
 	return nil
 }
 
-// GetGeoInfo 根据 IP 地址获取 MaxMind 的地理位置信息。
-// 它查询 MaxMind 数据库并将其特有的 GeoIpRecord 转换为通用的 GeoInfo 结构体。
+// GetGeoInfo Gets MaxMind's geolocation information based on IP address.
+// It queries the MaxMind database and converts its unique GeoIpRecord into a generic GeoInfo structure.
 func (s *MaxMindGeoIPService) GetGeoInfo(ip net.IP) (*GeoInfo, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -110,31 +110,31 @@ func (s *MaxMindGeoIPService) GetGeoInfo(ip net.IP) (*GeoInfo, error) {
 		return nil, fmt.Errorf("IP address cannot be nil")
 	}
 
-	var record GeoIpRecord // 使用原始的 GeoIpRecord 结构体来接收查询结果
+	var record GeoIpRecord // Use the original GeoIpRecord structure to receive query results
 	err := s.maxMindDBReader.Lookup(ip, &record)
 	if err != nil {
-		// 返回错误，但避免直接返回 maxminddb 库的内部错误，提供更友好的信息
+		// Return errors, but avoid directly returning internal errors of the maxminddb library to provide more friendly information.
 		return nil, fmt.Errorf("error looking up IP %s in MaxMind database: %w", ip.String(), err)
 	}
 
-	// 将 MaxMind 的特定结构体转换为通用的 GeoInfo 结构体
+	// Convert MaxMind-specific structures to generic GeoInfo structures
 	geoInfo := &GeoInfo{
 		ISOCode: record.Country.ISOCode,
-		// 尝试获取英文国家名称，如果不存在则使用 ISO 代码作为备用
+		// Try to get the English country name, using the ISO code as a fallback if it doesn't exist
 		Name: record.Country.Names["en"],
 	}
 	if geoInfo.Name == "" && geoInfo.ISOCode != "" {
-		geoInfo.Name = geoInfo.ISOCode // 如果没有英文名称，回退到 ISO 代码
+		geoInfo.Name = geoInfo.ISOCode // If there is no English name, fall back to the ISO code
 	}
 	return geoInfo, nil
 }
 
-// UpdateDatabase 实现了 GeoIPService 接口的 UpdateDatabase 方法。
-// 它会下载最新的 GeoLite2-Country.mmdb 文件并重新加载数据库。
+// UpdateDatabase implements the UpdateDatabase method of the GeoIPService interface.
+// It downloads the latest GeoLite2-Country.mmdb file and reloads the database.
 func (s *MaxMindGeoIPService) UpdateDatabase() error {
-	s.mu.Lock() // 获取写锁，确保更新过程的互斥性
+	s.mu.Lock() // Obtain a write lock to ensure mutual exclusivity of the update process
 
-	resp, err := http.Get(GeoIpUrl) // GeoIpUrl 是预定义的 MaxMind 数据库下载地址
+	resp, err := http.Get(GeoIpUrl) // GeoIpUrl is the predefined MaxMind database download address
 	if err != nil {
 		return fmt.Errorf("failed to initiate MaxMind database download: %w", err)
 	}
@@ -144,34 +144,34 @@ func (s *MaxMindGeoIPService) UpdateDatabase() error {
 		return fmt.Errorf("failed to download MaxMind database: HTTP status %s", resp.Status)
 	}
 
-	// 确保数据目录存在（NewMaxMindGeoIPService 已处理，但这里再次确保以防直接调用）
+	// Make sure the data directory exists (NewMaxMindGeoIPService already handles this, but make sure again here in case of direct call)
 	if err := os.MkdirAll(filepath.Dir(s.dbFilePath), os.ModePerm); err != nil {
 		return fmt.Errorf("failed to create data directory for MaxMind database update: %w", err)
 	}
 
-	out, err := os.Create(s.dbFilePath) // 创建或覆盖本地数据库文件
+	out, err := os.Create(s.dbFilePath) // Create or overwrite local database files
 	if err != nil {
 		return fmt.Errorf("failed to create MaxMind database file at %s: %w", s.dbFilePath, err)
 	}
 	defer out.Close()
 
-	_, err = io.Copy(out, resp.Body) // 将下载内容写入文件
+	_, err = io.Copy(out, resp.Body) // Write the downloaded content to the file
 	if err != nil {
 		return fmt.Errorf("failed to write MaxMind database file: %w", err)
 	}
-	s.mu.Unlock() // initialize 方法需要在解锁后调用，以避免死锁
-	// 重新加载数据库以使用新下载的文件
+	s.mu.Unlock() // The initialize method needs to be called after unlocking to avoid deadlock
+	// Reload the database to use the newly downloaded file
 	return s.initialize()
 }
 
-// Close 实现了 GeoIPService 接口的 Close 方法。
-// 它关闭 MaxMind 数据库读取器，释放文件句柄和其他资源。
+// Close implements the Close method of the GeoIPService interface.
+// It closes the MaxMind database reader, releasing file handles and other resources.
 func (s *MaxMindGeoIPService) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.maxMindDBReader != nil {
 		err := s.maxMindDBReader.Close()
-		s.maxMindDBReader = nil // 清空读取器实例
+		s.maxMindDBReader = nil // Clear reader instance
 		if err != nil {
 			return fmt.Errorf("error closing MaxMind database: %w", err)
 		}

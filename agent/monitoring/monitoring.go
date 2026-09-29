@@ -110,19 +110,19 @@ func GenerateReport() []byte {
 
 	data.Process = unit.ProcessCount()
 
-	// GPU监控 - 根据标志决定详细程度
+	// GPU monitoring: select detail level based on the flag
 	if runtimeconfig.GPUEnabled() {
-		// 详细GPU监控模式
+		// Detailed GPU monitoring mode
 		gpuInfo, err := unit.GetDetailedGPUInfo()
 		if err != nil {
 			message += fmt.Sprintf("failed to get detailed GPU info: %v\n", err)
-			// 降级到基础GPU信息
+			// Fall back to basic GPU information
 			gpuNames, nameErr := unit.GetDetailedGPUHost()
 			if nameErr == nil && len(gpuNames) > 0 {
 				data.GPU = gpuModelsReport{Models: gpuNames}
 			}
 		} else if len(gpuInfo) > 0 {
-			// 成功获取详细信息
+			// Detailed information retrieved successfully
 			gpuData := make([]gpuDeviceReport, len(gpuInfo))
 			totalGPUUsage := 0.0
 
@@ -141,7 +141,7 @@ func GenerateReport() []byte {
 			data.GPU = gpuReport{Count: len(gpuInfo), AverageUsage: avgGPUUsage, DetailedInfo: gpuData}
 		}
 	}
-	// 基础模式下，GPU信息已在basicInfo中处理
+	// In basic mode, basicInfo already handles GPU information
 
 	data.Message = message
 

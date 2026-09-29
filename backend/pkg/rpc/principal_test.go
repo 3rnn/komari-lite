@@ -77,22 +77,22 @@ func TestCheckPrincipal(t *testing.T) {
 		method string
 		want   bool
 	}{
-		// agent 主体:可调 client 与 common,不可调 admin
+		// Agent subject: adjustable client and common, non-adjustable admin
 		{"agent->client", NewAgentPrincipal("c1"), "client:report", true},
 		{"agent->common", NewAgentPrincipal("c1"), "common:getNodes", true},
 		{"agent->admin", NewAgentPrincipal("c1"), "admin:addClient", false},
-		// user 主体:可调 admin 与 common,不可调 client(正交,堵住冒充)
+		// User subject: adjustable admin and common, non-adjustable client (orthogonal, blocking impersonation)
 		{"user->admin", NewUserPrincipal("u1"), "admin:addClient", true},
 		{"user->common", NewUserPrincipal("u1"), "common:getNodes", true},
 		{"user->client", NewUserPrincipal("u1"), "client:report", false},
-		// api key 主体:等同 admin 能力
+		// api key subject: equivalent to admin capability
 		{"apikey->admin", NewAPIKeyPrincipal(), "admin:addClient", true},
 		{"apikey->client", NewAPIKeyPrincipal(), "client:report", false},
-		// 匿名主体:仅公共方法
+		// Anonymous body: public methods only
 		{"anon->common", NewAnonymousPrincipal(), "common:getNodes", true},
 		{"anon->admin", NewAnonymousPrincipal(), "admin:addClient", false},
 		{"anon->client", NewAnonymousPrincipal(), "client:report", false},
-		// nil 主体按匿名处理
+		// nil subjects are treated anonymously
 		{"nil->common", nil, "common:getNodes", true},
 		{"nil->admin", nil, "admin:addClient", false},
 	}
@@ -104,4 +104,3 @@ func TestCheckPrincipal(t *testing.T) {
 		})
 	}
 }
-

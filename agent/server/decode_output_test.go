@@ -7,14 +7,14 @@ import (
 )
 
 func TestDecodeCommandOutputKeepsUTF8(t *testing.T) {
-	const text = "以太网适配器 Ethernet"
+	const text = "\u4ee5\u592a\u7f51\u9002\u914d\u5668 Ethernet"
 	if got := decodeCommandOutput([]byte(text)); got != text {
 		t.Fatalf("utf-8 output = %q, want %q", got, text)
 	}
 }
 
 func TestDecodeCommandOutputDecodesGB18030(t *testing.T) {
-	const text = "以太网适配器"
+	const text = "\u4ee5\u592a\u7f51\u9002\u914d\u5668"
 	encoded, err := simplifiedchinese.GB18030.NewEncoder().Bytes([]byte(text))
 	if err != nil {
 		t.Fatalf("encode GB18030: %v", err)

@@ -323,7 +323,7 @@ export function AlertOverviewPanel({
               ) : item.summary.current === 0 ? (
                 <span className="flex items-center gap-1 text-[11px] leading-4 text-[var(--green-11)]">
                   <CheckCircle2 size={12} className="shrink-0" />
-                  {t("admin_dashboard.alert_normal", "正常")}
+                  {t("admin_dashboard.alert_normal", "Normal")}
                 </span>
               ) : latest ? (
                 <Link

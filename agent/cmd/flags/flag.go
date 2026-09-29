@@ -2,37 +2,37 @@ package flags_pkg
 
 type Config struct {
 	AutoDiscoveryKey     string  `json:"auto_discovery_key" env:"AGENT_AUTO_DISCOVERY_KEY"`           // Deprecated: legacy marker to read auto-discovery.json; not a registration key
-	DisableAutoUpdate    bool    `json:"disable_auto_update" env:"AGENT_DISABLE_AUTO_UPDATE"`         // 禁用自动更新
-	RemoteControlEnabled bool    `json:"remote_control_enabled" env:"AGENT_REMOTE_CONTROL_ENABLED"`   // 已弃用：精简 Agent 无远程控制/终端/exec/MCP，仅为兼容旧配置保留解析
-	DisableWebSsh        bool    `json:"disable_web_ssh" env:"AGENT_DISABLE_WEB_SSH"`                 // 隐藏迁移输入：旧版禁用远程控制
-	MemoryModeAvailable  bool    `json:"memory_mode_available" env:"AGENT_MEMORY_MODE_AVAILABLE"`     // [deprecated] 已弃用，请使用 MemoryIncludeCache
+	DisableAutoUpdate    bool    `json:"disable_auto_update" env:"AGENT_DISABLE_AUTO_UPDATE"`         // Disable auto-update.
+	RemoteControlEnabled bool    `json:"remote_control_enabled" env:"AGENT_REMOTE_CONTROL_ENABLED"`   // Deprecated: no remote control/terminal/exec/MCP in the lite Agent; parsed for compatibility.
+	DisableWebSsh        bool    `json:"disable_web_ssh" env:"AGENT_DISABLE_WEB_SSH"`                 // Hidden migration input: legacy disable-remote-control flag.
+	MemoryModeAvailable  bool    `json:"memory_mode_available" env:"AGENT_MEMORY_MODE_AVAILABLE"`     // Deprecated; use MemoryIncludeCache.
 	Token                string  `json:"token" env:"AGENT_TOKEN"`                                     // Token
-	Endpoint             string  `json:"endpoint" env:"AGENT_ENDPOINT"`                               // 面板地址
-	Interval             float64 `json:"interval" env:"AGENT_INTERVAL"`                               // 数据采集间隔，单位秒
-	IgnoreUnsafeCert     bool    `json:"ignore_unsafe_cert" env:"AGENT_IGNORE_UNSAFE_CERT"`           // 忽略不安全的证书
-	MaxRetries           int     `json:"max_retries" env:"AGENT_MAX_RETRIES"`                         // 最大重试次数
-	ReconnectInterval    int     `json:"reconnect_interval" env:"AGENT_RECONNECT_INTERVAL"`           // 重连间隔，单位秒
-	InfoReportInterval   int     `json:"info_report_interval" env:"AGENT_INFO_REPORT_INTERVAL"`       // 基础信息上报间隔，单位分钟
-	IncludeNics          string  `json:"include_nics" env:"AGENT_INCLUDE_NICS"`                       // 仅统计网卡，逗号分隔的网卡名称列表，支持通配符
-	ExcludeNics          string  `json:"exclude_nics" env:"AGENT_EXCLUDE_NICS"`                       // 统计时排除的网卡，逗号分隔的网卡名称列表，支持通配符
-	IncludeMountpoints   string  `json:"include_mountpoints" env:"AGENT_INCLUDE_MOUNTPOINTS"`         // 磁盘统计的包含挂载点列表，使用分号分隔
-	MonthRotate          int     `json:"month_rotate" env:"AGENT_MONTH_ROTATE"`                       // 流量统计的月份重置日期（0表示禁用）
-	MonthRotateTime      string  `json:"month_rotate_time" env:"AGENT_MONTH_ROTATE_TIME"`             // 重置时刻 HH:MM:SS，空为 00:00:00
-	MonthRotateTimezone  string  `json:"month_rotate_timezone" env:"AGENT_MONTH_ROTATE_TIMEZONE"`     // IANA 时区，空为 Asia/Shanghai
+	Endpoint             string  `json:"endpoint" env:"AGENT_ENDPOINT"`                               // Panel URL.
+	Interval             float64 `json:"interval" env:"AGENT_INTERVAL"`                               // Collection interval in seconds.
+	IgnoreUnsafeCert     bool    `json:"ignore_unsafe_cert" env:"AGENT_IGNORE_UNSAFE_CERT"`           // Ignore invalid certificates.
+	MaxRetries           int     `json:"max_retries" env:"AGENT_MAX_RETRIES"`                         // Maximum retries.
+	ReconnectInterval    int     `json:"reconnect_interval" env:"AGENT_RECONNECT_INTERVAL"`           // Reconnect interval in seconds.
+	InfoReportInterval   int     `json:"info_report_interval" env:"AGENT_INFO_REPORT_INTERVAL"`       // Basic info report interval in minutes.
+	IncludeNics          string  `json:"include_nics" env:"AGENT_INCLUDE_NICS"`                       // Only count these comma-separated interfaces; wildcards supported.
+	ExcludeNics          string  `json:"exclude_nics" env:"AGENT_EXCLUDE_NICS"`                       // Exclude these comma-separated interfaces; wildcards supported.
+	IncludeMountpoints   string  `json:"include_mountpoints" env:"AGENT_INCLUDE_MOUNTPOINTS"`         // Only count these semicolon-separated mount points.
+	MonthRotate          int     `json:"month_rotate" env:"AGENT_MONTH_ROTATE"`                       // Monthly traffic reset day (0 disables reset).
+	MonthRotateTime      string  `json:"month_rotate_time" env:"AGENT_MONTH_ROTATE_TIME"`             // Reset time HH:MM:SS; empty means 00:00:00.
+	MonthRotateTimezone  string  `json:"month_rotate_timezone" env:"AGENT_MONTH_ROTATE_TIMEZONE"`     // IANA timezone; empty means Asia/Shanghai.
 	CFAccessClientID     string  `json:"cf_access_client_id" env:"AGENT_CF_ACCESS_CLIENT_ID"`         // Cloudflare Access Client ID
 	CFAccessClientSecret string  `json:"cf_access_client_secret" env:"AGENT_CF_ACCESS_CLIENT_SECRET"` // Cloudflare Access Client Secret
-	MemoryIncludeCache   bool    `json:"memory_include_cache" env:"AGENT_MEMORY_INCLUDE_CACHE"`       // 包括缓存/缓冲区的内存使用情况
-	MemoryReportRawUsed  bool    `json:"memory_report_raw_used" env:"AGENT_MEMORY_REPORT_RAW_USED"`   // 使用原始内存使用情况报告
-	CustomDNS            string  `json:"custom_dns" env:"AGENT_CUSTOM_DNS"`                           // 使用的自定义DNS服务器
-	EnableGPU            bool    `json:"enable_gpu" env:"AGENT_ENABLE_GPU"`                           // 启用详细GPU监控
-	CustomIpv4           string  `json:"custom_ipv4" env:"AGENT_CUSTOM_IPV4"`                         // 自定义 IPv4 地址
-	CustomIpv6           string  `json:"custom_ipv6" env:"AGENT_CUSTOM_IPV6"`                         // 自定义 IPv6 地址
-	GetIpAddrFromNic     bool    `json:"get_ip_addr_from_nic" env:"AGENT_GET_IP_ADDR_FROM_NIC"`       // 从网卡获取IP地址
-	HostProc             string  `json:"host_proc" env:"HOST_PROC"`                                   // 容器环境下宿主机/proc目录的挂载点，用于监控宿主机进程
-	ConfigFile           string  `json:"config_file" env:"AGENT_CONFIG_FILE"`                         // JSON配置文件路径
-	ProtocolVersion      int     `json:"protocol_version" env:"AGENT_PROTOCOL_VERSION"`               // 上报协议版本，仅支持 2
-	DisableCompression   bool    `json:"disable_compression" env:"AGENT_DISABLE_COMPRESSION"`         // 禁用v2传输压缩
-	PreferIPVersion      string  `json:"prefer_ip_version" env:"AGENT_PREFER_IP_VERSION"`             // 面板连接优先使用的 IP 版本：4 或 6
+	MemoryIncludeCache   bool    `json:"memory_include_cache" env:"AGENT_MEMORY_INCLUDE_CACHE"`       // Include cache/buffers in memory usage.
+	MemoryReportRawUsed  bool    `json:"memory_report_raw_used" env:"AGENT_MEMORY_REPORT_RAW_USED"`   // Report raw used memory.
+	CustomDNS            string  `json:"custom_dns" env:"AGENT_CUSTOM_DNS"`                           // Custom DNS server.
+	EnableGPU            bool    `json:"enable_gpu" env:"AGENT_ENABLE_GPU"`                           // Enable detailed GPU monitoring.
+	CustomIpv4           string  `json:"custom_ipv4" env:"AGENT_CUSTOM_IPV4"`                         // Custom IPv4 address.
+	CustomIpv6           string  `json:"custom_ipv6" env:"AGENT_CUSTOM_IPV6"`                         // Custom IPv6 address.
+	GetIpAddrFromNic     bool    `json:"get_ip_addr_from_nic" env:"AGENT_GET_IP_ADDR_FROM_NIC"`       // Get IP address from a network interface.
+	HostProc             string  `json:"host_proc" env:"HOST_PROC"`                                   // Host /proc mount point for monitoring host processes in a container.
+	ConfigFile           string  `json:"config_file" env:"AGENT_CONFIG_FILE"`                         // JSON configuration file path.
+	ProtocolVersion      int     `json:"protocol_version" env:"AGENT_PROTOCOL_VERSION"`               // Reporting protocol version (only 2 supported).
+	DisableCompression   bool    `json:"disable_compression" env:"AGENT_DISABLE_COMPRESSION"`         // Disable v2 transport compression.
+	PreferIPVersion      string  `json:"prefer_ip_version" env:"AGENT_PREFER_IP_VERSION"`             // Preferred IP version for panel connections: 4 or 6.
 
 }
 

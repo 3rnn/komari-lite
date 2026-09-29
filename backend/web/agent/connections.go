@@ -65,7 +65,7 @@ func DeleteClientConditionally(uuid string, connToRemove *connection.SafeConn) {
 	mu.Lock()
 	defer mu.Unlock()
 
-	// 检查当前 map 里的 conn 是否就是要删除的这一个
+	// Check if conn in the current map is the one you want to delete
 	if currentConn, exists := connectedClients[uuid]; exists && currentConn == connToRemove {
 		delete(connectedClients, uuid)
 		delete(connectedClientV2, uuid)

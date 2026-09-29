@@ -31,23 +31,23 @@ var legacyDefaultFaviconSHA256 = [32]byte{
 //go:embed systemUI rescueTheme all:bundledThemes
 var PublicFS embed.FS
 
-// 常量定义
+// Paths and identifiers for embedded and installed web resources.
 const (
 	DataDir            = "./data"
 	ThemesDir          = "theme"
 	FaviconFile        = "favicon.ico"
-	DefaultTheme       = "Glass" // 内置主题 Komari Glass（前后端“永久默认主题”）
+	DefaultTheme       = "Glass" // The built-in, permanent default public theme.
 	LegacyDefaultTheme = "default"
-	// RetiredThemeID 是精简版明确删除的主题（Nezha）：既不再内置，启动时也会清理历史安装副本。
+	// RetiredThemeID identifies the removed Nezha theme; startup cleans up legacy installations.
 	RetiredThemeID     = "nezha"
 	LanguageCookieName = "language"
 
-	// 主题内部结构定义
-	DistDir   = "dist"       // 静态资源存放目录
-	IndexFile = "index.html" // 相对于 DistDir
+	// Paths inside a theme directory.
+	DistDir   = "dist"       // Static resources.
+	IndexFile = "index.html" // Relative to DistDir.
 )
 
-// bundledThemeRoot 是内置默认主题在嵌入文件系统中的路径。
+// bundledThemeRoot locates the built-in default theme in the embedded filesystem.
 const bundledThemeRoot = "bundledThemes/" + DefaultTheme
 
 const adminApplicationTitle = "Komari Lite Monitor"
@@ -282,35 +282,34 @@ func replaceHTMLLanguage(htmlStr, language string) string {
 	return htmlStr
 }
 
-// isSafePath 验证路径是否在指定的基础目录内，防止路径穿透攻击
+// isSafePath verifies that a path stays within its base directory.
 func isSafePath(basePath, targetPath string) bool {
-	// 获取基础目录的绝对路径
+	// Resolve the base directory.
 	absBase, err := filepath.Abs(basePath)
 	if err != nil {
 		return false
 	}
 
-	// 清理目标路径，移除 ../ 等
+	// Normalize the requested relative path.
 	cleanTarget := filepath.Clean(targetPath)
 
-	// 拼接完整路径
+	// Join it to the base directory.
 	fullPath := filepath.Join(absBase, cleanTarget)
 
-	// 获取绝对路径
+	// Resolve the candidate path.
 	absTarget, err := filepath.Abs(fullPath)
 	if err != nil {
 		return false
 	}
 
-	// 检查目标路径是否以基础路径开头
-	// 使用 filepath.Rel 更可靠地检查路径关系
+	// Use filepath.Rel to verify containment rather than a string prefix.
 	rel, err := filepath.Rel(absBase, absTarget)
 	if err != nil {
 		return false
 	}
 
-	// 如果相对路径以 .. 开头，说明目标在基础目录之外
-	return !strings.HasPrefix(rel, "..") && rel != ".."
+	// Reject only a parent-directory component, not a filename such as "..preview.png".
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 func embeddedFileContent(root, relativePath string) ([]byte, string, bool) {
@@ -460,7 +459,7 @@ func EnsureBundledThemes() error {
 	return config.Set(config.ThemeKey, currentTheme)
 }
 
-// Static 注册静态资源和 SPA 路由处理
+// Static registers static-resource and SPA route handlers.
 func Static(r *gin.RouterGroup, noRoute func(handlers ...gin.HandlerFunc)) {
 	getConfig := func() map[string]any {
 		cfg, _ := config.GetMany(map[string]any{
@@ -489,7 +488,7 @@ func Static(r *gin.RouterGroup, noRoute func(handlers ...gin.HandlerFunc)) {
 		))
 	}
 
-	// 核心逻辑：渲染 Index.html
+	// Render the theme's index.html.
 	serveIndex := func(c *gin.Context) {
 		reqPath := c.Request.URL.Path
 		// index.html contains live site metadata and must never be served stale.
@@ -546,15 +545,15 @@ func Static(r *gin.RouterGroup, noRoute func(handlers ...gin.HandlerFunc)) {
 		c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(injectThemeChangeReload(rendered)))
 	}
 
-	// ================= 路由定义 =================
+	// Route definitions.
 
-	// 1. Favicon 优先策略
+	// 1. Favicon precedence.
 	r.GET("/favicon.ico", func(c *gin.Context) {
 		c.Header("Cache-Control", "no-store, no-cache, must-revalidate")
 		c.Header("Pragma", "no-cache")
 		c.Header("Expires", "0")
 
-		// 优先：./data/favicon.ico
+		// Prefer ./data/favicon.ico.
 		localFavicon := filepath.Join(DataDir, FaviconFile)
 		if _, err := os.Stat(localFavicon); err == nil {
 			c.Header("Content-Type", contentTypeForPath(localFavicon))
@@ -562,8 +561,7 @@ func Static(r *gin.RouterGroup, noRoute func(handlers ...gin.HandlerFunc)) {
 			return
 		}
 
-		// 其次：当前主题的 dist/favicon.ico 或 theme_root/favicon.ico ?
-		// 通常构建后的资源在 dist 中，这里假设优先找 dist 内的，如果你的 favicon 在根目录，去掉 DistDir 拼接即可
+		// Otherwise try the active theme's dist/favicon.ico, then its root favicon.
 		cfg := getConfig()
 		themeFaviconPath := path.Join(DistDir, FaviconFile)
 		content, mimeType, exists := getPublicFileContent(cfg[config.ThemeKey].(string), themeFaviconPath)
@@ -602,15 +600,15 @@ func Static(r *gin.RouterGroup, noRoute func(handlers ...gin.HandlerFunc)) {
 	})
 
 	// 2. Static theme files are served only from installed, manageable themes.
-	// 允许访问 /themes/MyTheme/theme.json 和 /themes/MyTheme/dist/assets/a.js
+	// Serve theme metadata and static assets under /themes/MyTheme/.
 	r.GET("/themes/:id/*path", func(c *gin.Context) {
 		themeID := c.Param("id")
-		// c.Param("path") 包含了开头的 /，getFileContent 会处理
+		// getFileContent handles the leading slash in c.Param("path").
 		filePath := c.Param("path")
 		serveThemeFile(c, themeID, filePath)
 	})
 
-	// 3. SPA 路由 (noRoute)
+	// 3. SPA fallback routes (noRoute).
 	noRoute(func(c *gin.Context) {
 		if c.Request.Method != http.MethodGet {
 			c.Status(http.StatusNotFound)
@@ -644,7 +642,7 @@ func Static(r *gin.RouterGroup, noRoute func(handlers ...gin.HandlerFunc)) {
 				c.SetCookie(
 					"temp_key",    // key
 					tempKey,       // value
-					expireSeconds, // maxAge（秒）
+					expireSeconds, // maxAge in seconds.
 					"/",           // path
 					"",            // domain
 					false,         // secure
@@ -681,7 +679,7 @@ func Static(r *gin.RouterGroup, noRoute func(handlers ...gin.HandlerFunc)) {
 			return
 		}
 
-		// 路由 (如 /dashboard, /settings) -> 返回 index.html
+		// Return index.html for SPA routes such as /dashboard and /settings.
 		serveIndex(c)
 	})
 }

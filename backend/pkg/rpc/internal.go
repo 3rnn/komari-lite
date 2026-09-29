@@ -1,7 +1,7 @@
 package rpc
 
 // internal.go
-// 定义并注册保留前缀 "rpc." 的内部方法及其元数据。
+// Defines and registers internal methods that retain the prefix "rpc." and their metadata.
 
 import (
 	"context"
@@ -9,8 +9,8 @@ import (
 	"strings"
 )
 
-// registerInternal 直接写入保留前缀方法。
-// 假定调用点受控（init 阶段），若重复则忽略以防 panic。
+// registerInternal writes directly to the reserved prefix method.
+// The call site is assumed to be under control (init phase), and duplicates are ignored to prevent panic.
 func registerInternal(method string, h Handler) {
 	if !strings.HasPrefix(method, "rpc.") {
 		method = "rpc." + method
@@ -22,7 +22,7 @@ func registerInternal(method string, h Handler) {
 	muHandlers.Unlock()
 }
 
-// listMethods 返回方法列表；includeInternal=false 时剔除 rpc.*
+// listMethods returns the method list; rpc.* is eliminated when includeInternal=false
 func listMethods(includeInternal bool) []string {
 	all := ListMethods()
 	out := make([]string, 0, len(all))
@@ -37,7 +37,7 @@ func listMethods(includeInternal bool) []string {
 }
 
 func init() {
-	// rpc.methods -> 列出方法名
+	// rpc.methods -> list method names
 	registerInternal("rpc.methods", func(ctx context.Context, req *JsonRpcRequest) (any, *JsonRpcError) {
 		var params struct {
 			ShowInternal bool `json:"internal"`
@@ -45,15 +45,15 @@ func init() {
 		req.BindParams(&params)
 		return listMethods(params.ShowInternal), nil
 	})
-	// rpc.version -> 协议版本
+	// rpc.version -> protocol version
 	registerInternal("rpc.version", func(ctx context.Context, req *JsonRpcRequest) (any, *JsonRpcError) {
 		return RPC_VERSION, nil
 	})
-	// rpc.ping -> 健康检查
+	// rpc.ping -> health check
 	registerInternal("rpc.ping", func(ctx context.Context, req *JsonRpcRequest) (any, *JsonRpcError) {
 		return "pong", nil
 	})
-	// rpc.help -> 方法元数据或概览
+	// rpc.help -> method metadata or overview
 	registerInternal("rpc.help", func(ctx context.Context, req *JsonRpcRequest) (any, *JsonRpcError) {
 		var params struct {
 			Method string `json:"method"`
@@ -69,7 +69,7 @@ func init() {
 		return listMetas(true), nil
 	})
 
-	// 元数据注册
+	// Metadata registration
 	RegisterMeta("rpc.methods", &MethodMeta{
 		Name:        "rpc.methods",
 		Summary:     "List methods",

@@ -17,16 +17,16 @@ type ROCmSMI struct {
 	data    []byte
 }
 
-// AMDGPUInfo AMD GPU详细信息
+// AMDGPUInfo holds detailed AMD GPU information.
 type AMDGPUInfo struct {
-	Name        string  // GPU型号
-	MemoryTotal uint64  // 总显存 (字节)
-	MemoryUsed  uint64  // 已用显存 (字节)
-	Utilization float64 // GPU使用率 (0-100)
-	Temperature uint64  // 温度 (摄氏度)
+	Name        string  // GPU model.
+	MemoryTotal uint64  // Total VRAM (bytes).
+	MemoryUsed  uint64  // Used VRAM (bytes).
+	Utilization float64 // GPU utilization (0-100).
+	Temperature uint64  // Temperature (Celsius).
 }
 
-// ROCmSMI JSON响应结构
+// ROCmSMI JSON response structure.
 type ROCmResponse map[string]ROCmGPUInfo
 
 type ROCmGPUInfo struct {
@@ -45,7 +45,7 @@ func (rsmi *ROCmSMI) GatherUsage() ([]float64, error) {
 	return rsmi.gatherUsage()
 }
 
-// GatherDetailedInfo 获取详细GPU信息
+// GatherDetailedInfo retrieves detailed GPU information.
 func (rsmi *ROCmSMI) GatherDetailedInfo() ([]AMDGPUInfo, error) {
 	return rsmi.gatherDetailedInfo()
 }
@@ -80,7 +80,7 @@ func (rsmi *ROCmSMI) gatherModel() ([]string, error) {
 		return nil, err
 	}
 
-	// 解析JSON结构获取GPU型号
+	// Parse GPU models from JSON.
 	for key, value := range data {
 		if strings.HasPrefix(key, "card") {
 			if cardData, ok := value.(map[string]interface{}); ok {
@@ -104,7 +104,7 @@ func (rsmi *ROCmSMI) gatherUsage() ([]float64, error) {
 		return nil, err
 	}
 
-	// 解析JSON结构获取GPU使用率
+	// Parse GPU utilization from JSON.
 	for key, value := range data {
 		if strings.HasPrefix(key, "card") {
 			if cardData, ok := value.(map[string]interface{}); ok {
@@ -136,20 +136,20 @@ func (rsmi *ROCmSMI) gatherDetailedInfo() ([]AMDGPUInfo, error) {
 		return nil, err
 	}
 
-	// 解析每个GPU卡的详细信息
+	// Parse each GPU device.
 	for key, value := range data {
 		if strings.HasPrefix(key, "card") {
 			if cardData, ok := value.(map[string]interface{}); ok {
 				gpuInfo := AMDGPUInfo{}
 
-				// 获取GPU名称
+				// Get GPU name.
 				if name, exists := cardData["Card series"]; exists {
 					if nameStr, ok := name.(string); ok {
 						gpuInfo.Name = nameStr
 					}
 				}
 
-				// 获取使用率
+				// Get utilization.
 				if utilizationData, exists := cardData["GPU use (%)"]; exists {
 					if utilizationStr, ok := utilizationData.(string); ok {
 						if usage, err := parseAMDPercentage(utilizationStr); err == nil {
@@ -158,7 +158,7 @@ func (rsmi *ROCmSMI) gatherDetailedInfo() ([]AMDGPUInfo, error) {
 					}
 				}
 
-				// 获取显存信息
+				// Get VRAM information.
 				if memUsedData, exists := cardData["VRAM Total Used Memory (B)"]; exists {
 					if memUsedStr, ok := memUsedData.(string); ok {
 						if memUsed, err := parseAMDMemoryBytes(memUsedStr); err == nil {
@@ -175,7 +175,7 @@ func (rsmi *ROCmSMI) gatherDetailedInfo() ([]AMDGPUInfo, error) {
 					}
 				}
 
-				// 获取温度信息
+				// Get temperature.
 				if tempData, exists := cardData["Temperature (Sensor junction) (C)"]; exists {
 					if tempStr, ok := tempData.(string); ok {
 						if temp, err := parseAMDTemperature(tempStr); err == nil {
@@ -192,7 +192,7 @@ func (rsmi *ROCmSMI) gatherDetailedInfo() ([]AMDGPUInfo, error) {
 	return gpuInfos, nil
 }
 
-// 解析AMD百分比值 (例如 "25" -> 25.0)
+// Parse an AMD percentage (e.g. "25" -> 25.0).
 func parseAMDPercentage(value string) (float64, error) {
 	cleaned := strings.TrimSpace(value)
 	cleaned = strings.TrimSuffix(cleaned, "%")
@@ -210,7 +210,7 @@ func parseAMDPercentage(value string) (float64, error) {
 	return result, nil
 }
 
-// 解析AMD显存字节 (例如 "1073741824" -> 1073741824字节)
+// Parse AMD VRAM bytes (e.g. "1073741824" -> 1073741824 bytes).
 func parseAMDMemoryBytes(value string) (uint64, error) {
 	cleaned := strings.TrimSpace(value)
 
@@ -223,11 +223,11 @@ func parseAMDMemoryBytes(value string) (uint64, error) {
 		return 0, err
 	}
 
-	// 直接返回字节数
+	// Return the byte count directly.
 	return bytes, nil
 }
 
-// 解析AMD温度值 (例如 "65" -> 65)
+// Parse an AMD temperature (e.g. "65" -> 65).
 func parseAMDTemperature(value string) (uint64, error) {
 	cleaned := strings.TrimSpace(value)
 	cleaned = strings.TrimSuffix(cleaned, "C")

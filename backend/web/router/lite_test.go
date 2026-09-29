@@ -18,7 +18,7 @@ func TestLiteDisabledRoutes(t *testing.T) {
 	r := gin.New()
 	Register(r)
 	for _, p := range []string{
-		// 已从代码中删除
+		// Removed from code
 		"/api/clients/terminal",
 		"/api/clients/remote",
 		"/api/clients/task/result",
@@ -33,12 +33,12 @@ func TestLiteDisabledRoutes(t *testing.T) {
 		"/terminal",
 		"/admin/terminal",
 		"/admin/exec",
-		// 主题市场（随主题市场功能一并删除）
+		// Theme Market (removed with Theme Market feature)
 		"/api/admin/theme/market/sources",
 		"/api/admin/theme/market/catalog",
 		"/api/admin/theme/market/preview",
 		"/api/admin/theme/market/install",
-		// 仅运行时禁用
+		// Disabled only when running
 		"/api/admin/clipboard",
 		"/api/admin/cloudflared",
 		"/api/admin/self-update",
@@ -51,9 +51,9 @@ func TestLiteDisabledRoutes(t *testing.T) {
 	}
 }
 
-// 精简中间件只能拦截「已经删除」的路径。任何仍在注册中的路由被 404，都会让面板
-// 出现「菜单在、接口全挂」的死功能（回程路由曾因被误拦而整页 404）。
-// 这里只跑精简中间件本身，不执行真实 handler（它们依赖数据库与运行期状态）。
+// Lite middleware may only block removed paths. Blocking a registered route with 404 leaves the panel
+// with a visible menu but broken endpoints (return routes were previously blocked, causing full-page 404s).
+// Test only the lite middleware, not handlers that depend on the database and runtime state.
 func TestLiteFiltersNeverBlockRegisteredRoutes(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	registered := gin.New()
@@ -77,8 +77,8 @@ func TestLiteFiltersNeverBlockRegisteredRoutes(t *testing.T) {
 	}
 }
 
-// litePolicyDisabledRoutes 是明确保留的例外：OAuth/OIDC 登录流程属于登录子系统
-// 的一部分，精简版按策略关闭（前端入口已一并移除），而不是当作已删除功能处理。
+// litePolicyDisabledRoutes is an explicit exception: OAuth/OIDC login is part of the login subsystem
+// and disabled by lite policy, not treated as a removed feature (its frontend entry point is also gone).
 var litePolicyDisabledRoutes = map[string]bool{
 	"/api/oauth":               true,
 	"/api/oauth_callback":      true,
@@ -87,7 +87,7 @@ var litePolicyDisabledRoutes = map[string]bool{
 	"/api/admin/settings/oidc": true,
 }
 
-// fillRouteParams 把 gin 的路由参数占位换成可请求的字面量。
+// fillRouteParams swaps gin's routing parameter placeholder for the requestable literal.
 func fillRouteParams(routePath string) string {
 	segments := strings.Split(routePath, "/")
 	for i, segment := range segments {

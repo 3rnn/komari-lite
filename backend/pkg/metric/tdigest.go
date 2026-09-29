@@ -24,70 +24,70 @@ import (
 // accuracy matters), giving relative error that is small at the extremes — the
 // regime that matters for p95/p99/p99.9 latency work.
 //
-// TDigest 是用于估算 float64 数据流任意分位数的可合并 sketch。它让降采样对
-// 百分位来说“足够无损”：count/sum/min/max 可以在把细桶合入粗桶时精确重聚合，
-// 但仅靠这些标量无法恢复百分位。每个 rollup 桶保存一个小型 t-digest 后，
-// 粗桶的 pXX 就可以通过合并其覆盖的细桶 digest 来计算，并保持有界误差和有界大小。
+// TDigest is a mergeable sketch for estimating arbitrary quantiles of float64 data streams. It allows downsampling
+// "Lossless enough" in terms of percentiles: count/sum/min/max can accurately re-aggregate when the thin bucket is merged into the thick bucket,
+// But these scalars alone cannot recover percentiles. After each rollup bucket saves a small t-digest,
+// The pXX of a coarse bucket can then be calculated by merging the thin bucket digests it covers, while maintaining bounded error and bounded size.
 //
-// 这是 Dunning 与 Ertl 的 t-digest 的“merging”变体。靠近中位数的质心允许吸收
-// 更多权重（CDF 平坦处使用较低分辨率），尾部质心则保持较小（精度重要处使用
-// 较高分辨率），从而在极端位置取得较小相对误差，这正是 p95/p99/p99.9 延迟分析
-// 最关心的区间。
+// This is the "merging" variant of Dunning and Ertl's t-digest. Center of mass near the median allows absorption
+// More weight (use lower resolution where CDF is flat), keep the tail center of mass smaller (use where accuracy is important)
+// higher resolution), resulting in smaller relative errors at extreme positions, which is exactly what p95/p99/p99.9 delay analysis
+// The range of greatest concern.
 type TDigest struct {
 	// compression controls the size/accuracy tradeoff.
 	//
-	// compression 控制大小与精度之间的取舍。
+	// compression controls the trade-off between size and precision.
 	compression float64
 	// centroids stores the digest's weighted clusters.
 	//
-	// centroids 保存 digest 的加权簇。
+	// centroids holds weighted clusters of digests.
 	centroids []centroid
 	// count is the total observed weight.
 	//
-	// count 是已观测的总权重。
+	// count is the total observed weight.
 	count float64
 	// min is the minimum observed value.
 	//
-	// min 是已观测的最小值。
+	// min is the observed minimum value.
 	min float64
 	// max is the maximum observed value.
 	//
-	// max 是已观测的最大值。
+	// max is the observed maximum value.
 	max float64
 	// processed reports whether centroids is sorted+merged. Add() appends
 	// unprocessed singletons and flips this false; process() restores it.
 	//
-	// processed 表示 centroids 是否已排序并合并。Add() 会追加未处理的单点并把它
-	// 置为 false；process() 会恢复它。
+	// processed indicates whether centroids have been sorted and merged. Add() will append the unhandled single point and put it
+	// Set to false; process() will restore it.
 	processed bool
 }
 
 // centroid stores one t-digest centroid.
 //
-// centroid 保存一个 t-digest 质心。
+// centroid saves a t-digest centroid.
 type centroid struct {
 	// mean is the centroid's weighted mean.
 	//
-	// mean 是质心的加权均值。
+	// mean is the weighted mean of the centroids.
 	mean float64
 	// weight is the total weight represented by the centroid.
 	//
-	// weight 是该质心代表的总权重。
+	// weight is the total weight represented by this centroid.
 	weight float64
 }
 
 const (
 	// defaultTDigestCompression is used when a caller supplies no useful value.
 	//
-	// defaultTDigestCompression 在调用方未提供有效值时使用。
+	// defaultTDigestCompression is used when the caller does not provide a valid value.
 	defaultTDigestCompression = 100.0
 	// tdigestMagic0 is the first magic byte in the binary format.
 	//
-	// tdigestMagic0 是二进制格式的第一个 magic 字节。
+	// tdigestMagic0 is the first magic byte in binary format.
 	tdigestMagic0 = 'T'
 	// tdigestMagic1 is the second magic byte in the binary format.
 	//
-	// tdigestMagic1 是二进制格式的第二个 magic 字节。
+	// tdigestMagic1 is the second magic byte in binary format.
 	tdigestMagic1 = 'D'
 	// tdigestCompressedMagic1 identifies a losslessly DEFLATE-compressed V1
 	// digest. The compressed payload is the complete legacy TD blob, so decoding
@@ -95,7 +95,7 @@ const (
 	tdigestCompressedMagic1 = 'Z'
 	// tdigestVersion is the current binary encoding version.
 	//
-	// tdigestVersion 是当前二进制编码版本。
+	// tdigestVersion is the current binary encoding version.
 	tdigestVersion = 1
 )
 
@@ -104,9 +104,9 @@ const (
 // which keeps each digest to a few KB while holding tail error to well under
 // 1% for typical distributions.
 //
-// NewTDigest 返回一个空 digest。compression 在大小和精度之间取舍；值越高会保留
-// 更多质心。小于等于 1 的值会回退到默认值（100），这通常能把每个 digest 控制在
-// 几 KB，同时让典型分布的尾部误差远低于 1%。
+// NewTDigest returns an empty digest. compression trade-off between size and precision; higher values preserve
+// More centroids. Values less than or equal to 1 will fall back to the default value (100), which usually keeps each digest within
+// A few KB while keeping the tail error of a typical distribution well below 1%.
 func NewTDigest(compression float64) *TDigest {
 	if compression <= 1 {
 		compression = defaultTDigestCompression
@@ -121,7 +121,7 @@ func NewTDigest(compression float64) *TDigest {
 
 // Add folds a single observation with weight w (w must be > 0) into the digest.
 //
-// Add 将一个观测值及其权重合入摘要；权重必须大于 0。
+// Add adds an observation and its weight to the summary; the weight must be greater than 0.
 func (t *TDigest) Add(x, w float64) {
 	if w <= 0 || math.IsNaN(x) || math.IsInf(x, 0) {
 		return
@@ -146,8 +146,8 @@ func (t *TDigest) Add(x, w float64) {
 // composition relies on: a coarse bucket merges the digests of the finer
 // buckets it spans.
 //
-// Merge 将 other 的每个质心合入 t。rollup 合成依赖这个操作：粗桶会合并它所覆盖的
-// 细桶 digest。
+// Merge merges each centroid of other into t. rollup synthesis relies on this operation: the rough bucket merges the
+// Thin barrel digest.
 func (t *TDigest) Merge(other *TDigest) {
 	if other == nil || other.count == 0 {
 		return
@@ -169,7 +169,7 @@ func (t *TDigest) Merge(other *TDigest) {
 
 // Count returns the total weight observed.
 //
-// Count 返回已观测样本的总权重。
+// Count returns the total weight of the observed samples.
 func (t *TDigest) Count() float64 { return t.count }
 
 // process sorts the buffered centroids by mean and merges adjacent ones while
@@ -177,9 +177,9 @@ func (t *TDigest) Count() float64 { return t.count }
 // 4*N*q*(1-q)/compression. That limit is generous near q=0.5 and tightens to
 // near zero in the tails, which is exactly the t-digest accuracy profile.
 //
-// process 将缓冲质心按均值排序，并在合并后权重仍低于分位数相关大小限制
-// 4*N*q*(1-q)/compression 时合并相邻质心。这个限制在 q=0.5 附近较宽松，
-// 到尾部会收紧到接近零，这正是 t-digest 的精度分布特征。
+// process sorts the buffer centroids by mean and after merging the weights are still below the quantile related size limit
+// Merge adjacent centroids when 4*N*q*(1-q)/compression. This restriction is looser around q=0.5,
+// It will tighten to close to zero in the tail, which is exactly the accuracy distribution characteristic of t-digest.
 func (t *TDigest) process() {
 	if t.processed {
 		return
@@ -219,8 +219,8 @@ func (t *TDigest) process() {
 // Quantile estimates the value at q in [0,1] using linear interpolation between
 // centroid centers, with the extreme tails anchored to the observed min/max.
 //
-// Quantile 用质心中心之间的线性插值估算 [0,1] 分位点，极端尾部锚定到
-// 已观测的最小值和最大值。
+// Quantile estimates the [0,1] quantiles with linear interpolation between centroid centers, with extreme tails anchored to
+// Observed minimum and maximum values.
 func (t *TDigest) Quantile(q float64) float64 {
 	t.process()
 	n := len(t.centroids)
@@ -268,9 +268,9 @@ func (t *TDigest) Quantile(q float64) float64 {
 // magic[2] version[1] compression[8] min[8] max[8] count[8] nCentroids[4]
 // then nCentroids * (mean[8] weight[8]).
 //
-// Encode 将处理后的 digest 序列化为紧凑的小端二进制 blob：
-// magic[2] version[1] compression[8] min[8] max[8] count[8] nCentroids[4]，
-// 后接 nCentroids * (mean[8] weight[8])。
+// Encode serializes the processed digest into a compact little-endian binary blob:
+// magic[2] version[1] compression[8] min[8] max[8] count[8] nCentroids[4],
+// Followed by nCentroids * (mean[8] weight[8]).
 func (t *TDigest) Encode() []byte {
 	return compressTDigestBlob(t.encodeRaw())
 }
@@ -326,8 +326,8 @@ func compressTDigestBlob(raw []byte) []byte {
 // DecodeTDigest reconstructs a digest produced by Encode. A nil/empty blob
 // yields an empty digest so callers can treat "no sketch stored" uniformly.
 //
-// DecodeTDigest 还原 Encode 生成的摘要；nil 或空 blob 会返回空摘要，
-// 方便调用方统一处理“没有保存 sketch”的情况。
+// DecodeTDigest restores the digest generated by Encode; nil or empty blob returns an empty digest.
+// It is convenient for the caller to uniformly handle the situation of "no sketch is saved".
 func DecodeTDigest(b []byte) (*TDigest, error) {
 	if len(b) == 0 {
 		return NewTDigest(defaultTDigestCompression), nil

@@ -12,38 +12,38 @@ import (
 	"github.com/komari-monitor/komari/utils/messageSender/factory"
 )
 
-// ServerChanTurboSender 为 Server酱 Turbo 推送实现
+// ServerChanTurboSender implements Serverchan Turbo push
 type ServerChanTurboSender struct {
 	Addition
 }
 
-// GetName 返回推送通道名称
+// GetName returns the push channel name
 func (s *ServerChanTurboSender) GetName() string {
-	return "Server酱Turbo"
+	return "Server\u9171Turbo"
 }
 
-// GetConfiguration 返回配置结构体指针
+// GetConfiguration returns the configuration structure pointer
 func (s *ServerChanTurboSender) GetConfiguration() factory.Configuration {
 	return &s.Addition
 }
 
-// Init 初始化（当前无需处理）
+// Init initialization (no need to process currently)
 func (s *ServerChanTurboSender) Init() error { return nil }
 
-// Destroy 清理（当前无需处理）
+// Destroy cleanup (no need to process currently)
 func (s *ServerChanTurboSender) Destroy() error { return nil }
 
-// SendTextMessage 固定以 JSON 发送，仅组装 title 与 desp，支持可选 channel/noip/openid
+// SendTextMessage is always sent as JSON, only assembles title and desp, and supports optional channel/noip/openid
 func (s *ServerChanTurboSender) SendTextMessage(message, title string) error {
 	apiURL := strings.TrimSpace(s.Addition.APIURL)
 	if apiURL == "" {
-		return fmt.Errorf("未配置 Server酱 Turbo 接口地址(api_url)")
+		return fmt.Errorf("ServerChan Turbo API URL (api_url) is not configured")
 	}
 
 	finalTitle := strings.TrimSpace(title)
 	finalMessage := strings.TrimSpace(message)
 	if finalTitle == "" && finalMessage == "" {
-		return fmt.Errorf("serverchanturbo: 标题与正文均为空")
+		return fmt.Errorf("serverchanturbo: both title and body are empty")
 	}
 
 	payload := map[string]interface{}{
@@ -62,20 +62,20 @@ func (s *ServerChanTurboSender) SendTextMessage(message, title string) error {
 
 	bodyBytes, err := json.Marshal(payload)
 	if err != nil {
-		return fmt.Errorf("serverchanturbo: 组装 JSON 失败: %v", err)
+		return fmt.Errorf("serverchanturbo: failed to build JSON: %v", err)
 	}
 
 	client := &http.Client{Timeout: 30 * time.Second}
 	req, err := http.NewRequest("POST", apiURL, bytes.NewBuffer(bodyBytes))
 	if err != nil {
-		return fmt.Errorf("serverchanturbo: 创建请求失败: %v", err)
+		return fmt.Errorf("serverchanturbo: failed to create request: %v", err)
 	}
-	// 使用 JSON 传递参数，需要设置 Content-Type
+	// To use JSON to pass parameters, you need to set Content-Type
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("serverchanturbo: 发送请求失败: %v", err)
+		return fmt.Errorf("serverchanturbo: failed to send request: %v", err)
 	}
 	defer resp.Body.Close()
 
@@ -83,13 +83,13 @@ func (s *ServerChanTurboSender) SendTextMessage(message, title string) error {
 		b, _ := io.ReadAll(resp.Body)
 		msg := strings.TrimSpace(string(b))
 		if msg == "" {
-			return fmt.Errorf("serverchanturbo: 接口返回非 2xx 状态码: %d", resp.StatusCode)
+			return fmt.Errorf("serverchanturbo: API returned a non-2xx status: %d", resp.StatusCode)
 		}
-		return fmt.Errorf("serverchanturbo: 接口返回非 2xx 状态码: %d，响应: %s", resp.StatusCode, msg)
+		return fmt.Errorf("serverchanturbo: API returned a non-2xx status: %d, response: %s", resp.StatusCode, msg)
 	}
 
 	return nil
 }
 
-// 确保实现 IMessageSender 接口
+// Make sure to implement the IMessageSender interface
 var _ factory.IMessageSender = (*ServerChanTurboSender)(nil)

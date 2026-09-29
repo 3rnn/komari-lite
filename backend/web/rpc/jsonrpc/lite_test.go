@@ -8,8 +8,8 @@ import (
 	"github.com/komari-monitor/komari/pkg/rpc"
 )
 
-// 精简版已把「远程管理 / 远程执行 / 远程终端 / 终端设置」从代码里删除，
-// 而不是仅在运行时拒绝：注册表中不应再存在这些方法。
+// Lite removes remote management, execution, terminal, and terminal settings from the code,
+// not merely at runtime; their methods must not remain registered.
 func TestLiteRemovedRPCsAreUnregistered(t *testing.T) {
 	forbidden := []string{"exec", "terminal", "xtermjs", "remote", "taskresult", "gettasks"}
 	registered := rpc.ListMethods()
@@ -26,15 +26,15 @@ func TestLiteRemovedRPCsAreUnregistered(t *testing.T) {
 	}
 }
 
-// 分发层的黑名单只能拦截「已经删除」的方法。任何仍在注册表中的方法被拒绝，
-// 都意味着面板存在一个永远不可用的功能。
+// The dispatch denylist may only block removed methods. Blocking a registered method
+// would leave a visible panel feature permanently unavailable.
 func TestLiteDenylistNeverBlocksRegisteredMethods(t *testing.T) {
 	registered := rpc.ListMethods()
 	if len(registered) == 0 {
 		t.Fatal("method registry is empty; the guard would pass vacuously")
 	}
-	// 明确保留的例外：OAuth/OIDC 登录配置属于登录子系统，精简版按策略关闭
-	//（前端入口已一并移除），不作为「已删除功能」处理。
+	// OAuth/OIDC login configuration is an explicit exception: lite policy disables this login subsystem
+	// (and removes its frontend entry point), rather than treating it as deleted.
 	policyDisabled := map[string]bool{
 		"admin:getOidcProvider": true,
 		"admin:setOidcProvider": true,
@@ -50,7 +50,7 @@ func TestLiteDenylistNeverBlocksRegisteredMethods(t *testing.T) {
 	}
 }
 
-// 即使有人手写请求，分发层也必须拒绝这些方法。
+// Dispatch must reject these methods even for manually crafted requests.
 func TestLiteBlockedRPC(t *testing.T) {
 	for _, m := range []string{"admin:exec", "admin:getXtermjsSettings", "admin:getTasks", "admin:startCloudflared", "admin:listClipboard"} {
 		r := Dispatch(context.Background(), &rpc.ContextMeta{Permission: "admin"}, &rpc.JsonRpcRequest{Method: m})

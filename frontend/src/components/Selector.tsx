@@ -13,31 +13,31 @@ import {
 } from "./ui/table";
 
 /**
- * 通用多选列表组件：提供搜索、全选、半选（indeterminate）和孤立值渲染能力。
- * 通过传入任意 items，并提供 getId / getLabel 来定义唯一标识与显示内容。
+ * Generic multiselect list with search, select-all, indeterminate state, and orphaned values.
+ * Pass items and getId/getLabel callbacks to define identity and display labels.
  */
 export interface SelectorProps<T> {
   className?: string;
   hiddenDescription?: boolean;
-  /** 已选择的 id 列表 */
+  /** Selected ID list */
   value: string[];
-  /** 选择变化回调 */
+  /** Selection change callback */
   onChange: (ids: string[]) => void;
-  /** 数据源 */
+  /** Data source */
   items: T[];
-  /** 获取唯一 id */
+  /** Extract the unique ID */
   getId: (item: T) => string;
-  /** 获取显示标签（单元格内容） */
+  /** Get the display label (cell content) */
   getLabel: (item: T) => React.ReactNode;
-  /** 自定义排序（可选） */
+  /** Optional custom sorting */
   sortItems?: (a: T, b: T) => number;
-  /** 自定义搜索过滤；返回 true 表示保留 */
+  /** Custom search filter; return true to retain */
   filterItem?: (item: T, keyword: string) => boolean;
-  /** 搜索占位符 */
+  /** Search placeholder */
   searchPlaceholder?: string;
-  /** 表头标题（第二列） */
+  /** Header title for the second column */
   headerLabel?: React.ReactNode;
-  /** 是否在标题行显示全选框 */
+  /** Show a select-all checkbox in the header */
   showHeaderSelectAll?: boolean;
 }
 
@@ -61,7 +61,7 @@ function SelectorInner<T>(props: SelectorProps<T>) {
   const value = externalValue ?? [];
   const [search, setSearch] = React.useState("");
 
-  // 排序 & 搜索
+  // Sort and search.
   const processed = React.useMemo(() => {
     let arr = [...items];
     if (sortItems) arr.sort(sortItems);
@@ -78,14 +78,14 @@ function SelectorInner<T>(props: SelectorProps<T>) {
 
   const allIds = processed.map(getId);
 
-  // 半选逻辑
+  // Indeterminate selection state.
   const allChecked =
     allIds.length > 0 && allIds.every((id) => value.includes(id));
   const isIndeterminate =
     value.length > 0 && value.some((id) => allIds.includes(id)) && !allChecked;
   const checkAllState = allChecked ? true : isIndeterminate ? "indeterminate" : false;
 
-  // 孤立（value 中但 items 不再存在）
+  // IDs that are selected but no longer in items.
   const orphanIds = value.filter((id) => !items.some((it) => getId(it) === id));
 
   const resolvedSearchPlaceholder =
@@ -189,7 +189,7 @@ function SelectorInner<T>(props: SelectorProps<T>) {
   );
 }
 
-/** 泛型组件导出 */
+/** Export the generic component. */
 export function Selector<T>(props: SelectorProps<T>) {
   return <SelectorInner {...props} />;
 }

@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next';
 export const OfflineIndicator = () => {
   const { isOnline: isOnlineOffline } = usePWA();
   const { t: tOffline } = useTranslation();
-  // 只在离线时弹出 Toast
+  // Show a toast only when offline.
   useEffect(() => {
     if (!isOnlineOffline) {
       toast.error(

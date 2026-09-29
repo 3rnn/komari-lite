@@ -30,10 +30,10 @@ func getFromLspci() string {
 	}
 	excludePatterns := []string{
 		"^1111",                             // 1111 (rev 02)
-		`(?i)^cirrus logic (cl[-\s]?)?gd 5`, // CL-GD 系列 1990 年代中期的产物, 现常用于虚拟机
+		`(?i)^cirrus logic (cl[-\s]?)?gd 5`, // CL-GD series from the mid-1990s, now often found in VMs.
 		"(?i)virtio",
 		"(?i)vmware",
-		`(?i)qxl`, // SPICE 虚拟显卡
+		`(?i)qxl`, // SPICE virtual graphics adapter.
 		`(?i)hyper-v`,
 	}
 
@@ -60,25 +60,25 @@ func getFromLspci() string {
 	}
 
 	extractName := func(line string) string {
-		// 取最后一个冒号之后的内容
+		// Take the text after the final colon.
 		idx := strings.LastIndex(line, ":")
 		if idx == -1 || idx == len(line)-1 {
 			return ""
 		}
 		name := strings.TrimSpace(line[idx+1:])
 
-		// 去除末尾的 (rev xx)
+		// Strip a trailing (rev xx).
 		if parenIdx := strings.LastIndex(name, "("); parenIdx != -1 {
 			name = strings.TrimSpace(name[:parenIdx])
 		}
 		return name
 	}
 
-	// 寻找 priorityVendors
+	// Find priorityVendors.
 	for _, line := range lines {
 		lower := strings.ToLower(line)
 
-		// 必须确认是显示设备，防止匹配到 Intel 网卡或 Qualcomm 蓝牙
+		// Confirm this is a display device, not an Intel NIC or Qualcomm Bluetooth adapter.
 		if !strings.Contains(lower, "vga") && !strings.Contains(lower, "3d") && !strings.Contains(lower, "display") {
 			continue
 		}
@@ -96,7 +96,7 @@ func getFromLspci() string {
 		return formatGPUNameList(result)
 	}
 
-	// 任意非黑名单的 VGA 设备
+	// Any VGA device not on the denylist.
 	for _, line := range lines {
 		lower := strings.ToLower(line)
 		if strings.Contains(lower, "vga") || strings.Contains(lower, "3d") || strings.Contains(lower, "display") {
@@ -144,7 +144,7 @@ func getFromSysfsDRM() string {
 			continue
 		}
 
-		// 驱动名称
+		// Driver name.
 		driverLink, err := os.Readlink(filepath.Join(path, "device", "driver"))
 		if err != nil {
 			continue
@@ -155,7 +155,7 @@ func getFromSysfsDRM() string {
 			continue
 		}
 
-		// 设备树 compatible 提取具体型号
+		// Extract the model from the device-tree compatible string.
 		// /sys/class/drm/card0/device/of_node/compatible
 		// "qcom,adreno-750.1\0qcom,adreno"
 		exactModel := ""
@@ -164,13 +164,13 @@ func getFromSysfsDRM() string {
 			exactModel = parseSocModel(driverName, compatibleBytes)
 		}
 
-		// 有具体型号则直接返回
+		// Return a specific model if found.
 		if exactModel != "" {
 			appendName(exactModel)
 			continue
 		}
 
-		// 通用的驱动名称映射
+		// Map generic driver names.
 		switch driverName {
 		case "vc4", "vc4-drm":
 			appendName("Broadcom VideoCore IV/VI (Raspberry Pi)")
@@ -186,7 +186,7 @@ func getFromSysfsDRM() string {
 			appendName("Allwinner Display Engine")
 		case "tegra":
 			appendName("NVIDIA Tegra")
-		case "ast": // LXC 容器映射物理显卡
+		case "ast": // LXC container exposing a physical GPU.
 			appendName("ASPEED Technology, Inc. ASPEED Graphics Family")
 		case "i915", "i915-drm":
 			appendName("Intel Integrated Graphics")
@@ -203,7 +203,7 @@ func getFromSysfsDRM() string {
 		return formatGPUNameList(result)
 	}
 
-	// 开发板 Model
+	// Development board model.
 	modelData, err := os.ReadFile("/sys/firmware/devicetree/base/model")
 	if err == nil {
 		model := string(modelData)
@@ -237,13 +237,13 @@ func isExcludedSysfsGPUName(name string) bool {
 		strings.Contains(lower, "cirrus")
 }
 
-// parseSocModel 解析设备树 compatible 字符串，提取人性化名称
+// parseSocModel extracts a human-readable model from device-tree compatible strings.
 func parseSocModel(driver string, rawBytes []byte) string {
-	// compatible 文件包含多个以 \0 分隔的字符串
+	// The compatible file has multiple NUL-separated strings.
 	content := string(bytes.ReplaceAll(rawBytes, []byte{0}, []byte(" ")))
 	lower := strings.ToLower(content)
 
-	// 高通 Adreno (Qualcomm)
+	// Qualcomm Adreno.
 	if driver == "msm" || strings.Contains(lower, "adreno") {
 		// "adreno-750", "adreno-660"
 		re := regexp.MustCompile(`adreno[-_](\d+)`)
@@ -262,10 +262,10 @@ func parseSocModel(driver string, rawBytes []byte) string {
 		if len(matches) > 1 {
 			return "ARM Mali " + strings.ToUpper(matches[1]) // Mali G610
 		}
-		return "ARM Mali" // 泛指
+		return "ARM Mali" // Generic name.
 	}
 
-	// 树莓派 VideoCore
+	// Raspberry Pi VideoCore.
 	if driver == "vc4" || driver == "vc4-drm" || driver == "v3d" {
 		if strings.Contains(lower, "bcm2712") {
 			return "Broadcom VideoCore VII (Pi 5)"
@@ -278,7 +278,7 @@ func parseSocModel(driver string, rawBytes []byte) string {
 		}
 	}
 
-	// Allwinner (全志)
+	// Allwinner.
 	// "allwinner,sun50i-h6-display-engine"
 	if strings.Contains(lower, "allwinner") || strings.Contains(lower, "sun50i") || strings.Contains(lower, "sun8i") {
 		re := regexp.MustCompile(`sun\d+i-([a-z0-9]+)`)

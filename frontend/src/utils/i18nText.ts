@@ -14,9 +14,13 @@ export function resolveI18nText(
 
   const normalize = (value: string) =>
     value.trim().replace(/_/g, "-").toLowerCase();
+  // Stored locale identifiers remain valid, but the administration UI is English-only.
+  const english = entries.find(([key]) => normalize(key) === "en") ||
+    entries.find(([key]) => normalize(key).startsWith("en-"));
+  if (english) return english[1];
   const languageKey = normalize(language || "");
   const base = languageKey.split("-")[0];
-  const candidates = [languageKey, base, "en", "en-us"].filter(Boolean);
+  const candidates = [languageKey, base].filter(Boolean);
 
   for (const candidate of candidates) {
     const match = entries.find(([key]) => normalize(key) === candidate);

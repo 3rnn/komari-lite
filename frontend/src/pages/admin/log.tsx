@@ -75,7 +75,7 @@ const LogPage = () => {
         <AdminPageTitle
           description={t(
             "logs.description",
-            "查看后台操作与系统事件记录。",
+            "Review system activity, requests, and error records.",
           )}
         >
           {t("logs.title")}

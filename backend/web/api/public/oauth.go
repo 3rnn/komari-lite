@@ -30,23 +30,23 @@ func OAuth(c *gin.Context) {
 // /api/oauth_callback
 func OAuthCallback(c *gin.Context) {
 
-	// 验证state防止CSRF攻击
+	// Validate state against CSRF attacks
 	state, _ := c.Cookie("oauth_state")
 	c.SetCookie("oauth_state", "", -1, "/", "", false, true)
 
-	// 获取当前OAuth提供商名称
+	// Get the current OAuth provider name
 	providerName := oauth.CurrentProvider().GetName()
 
 	providersSkipStateCheck := []string{"qq"}
 	if slices.Contains(providersSkipStateCheck, providerName) {
-		// 对于QQ登录，由于是通过QQ聚合登录平台中转，state可能会不匹配
-		// 但我们仍然需要验证state的存在性（不能是空的）
+		// For QQ login, state may not match due to transit through QQ aggregation login platform
+		// But we still need to verify the existence of state (can't be empty)
 		if state == "" {
 			c.JSON(400, gin.H{"status": "error", "error": "Invalid state"})
 			return
 		}
 	} else {
-		// 对于其他提供商，严格验证state匹配
+		// For other providers, strictly validate state matches
 		if state == "" || state != c.Query("state") {
 			c.JSON(400, gin.H{"status": "error", "error": "Invalid state"})
 			return
@@ -65,15 +65,15 @@ func OAuthCallback(c *gin.Context) {
 		return
 	}
 
-	// ID作为SSO ID
+	// ID as SSO ID
 	sso_id := fmt.Sprintf("%s_%s", oauth.CurrentProvider().GetName(), oidcUser.UserId)
 
-	// 如果cookie中有binding_external_account，说明是绑定外部账号
-	// 否则是登录
+	// If there is a binding_external_account in the cookie, it means that the external account is linked
+	// Otherwise, log in
 	uuid, _ := c.Cookie("binding_external_account")
 	c.SetCookie("binding_external_account", "", -1, "/", "", false, true)
 	if uuid != "" {
-		// 绑定外部账号
+		// Link an external account
 		session, _ := c.Cookie("session_token")
 		user, err := accounts.GetUserBySession(session)
 		if err != nil || user.UUID != uuid {
@@ -90,7 +90,7 @@ func OAuthCallback(c *gin.Context) {
 		return
 	}
 
-	// 尝试获取用户
+	// Attempting to fetch users
 	user, err := accounts.GetUserBySSO(sso_id)
 	if err != nil {
 		c.JSON(401, gin.H{
@@ -100,14 +100,14 @@ func OAuthCallback(c *gin.Context) {
 		return
 	}
 
-	// 创建会话
+	// Create Session
 	session, err := accounts.CreateSession(user.UUID, sessionCookieMaxAge, c.Request.UserAgent(), c.ClientIP(), "oauth")
 	if err != nil {
 		c.JSON(500, gin.H{"status": "error", "message": err.Error()})
 		return
 	}
 
-	// 设置cookie并返回
+	// Set cookie and go back
 	setSessionCookie(c, session, sessionCookieMaxAge)
 	auditlog.Log(c.ClientIP(), user.UUID, "logged in (OAuth)", "login")
 	c.Redirect(302, "/admin")

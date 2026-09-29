@@ -17,8 +17,8 @@ import (
 )
 
 // admin.client.go
-// client 资源的 RPC2 方法（admin 命名空间）。承载原 web/api/admin/client.go 的业务逻辑，
-// 包含审计日志与运行时副作用。传统 REST handler 经 CallFromGin 转调这些方法。
+// Client RPC2 methods (admin namespace) contain the business logic formerly in web/api/admin/client.go,
+// including audit logs and runtime effects. Traditional REST handlers invoke them through CallFromGin.
 
 func init() {
 	RegisterWithGroupAndMeta("addClient", rpc.RoleAdmin, adminAddClient, &rpc.MethodMeta{
@@ -81,7 +81,7 @@ func init() {
 	})
 }
 
-// auditActor 从上下文提取审计用的 actor UUID 与来源 IP。
+// auditActor extracts the actor UUID and source IP from the context for auditing.
 func auditActor(ctx context.Context) (uuid, ip string) {
 	if meta := rpc.MetaFromContext(ctx); meta != nil {
 		uuid = meta.UserUUID

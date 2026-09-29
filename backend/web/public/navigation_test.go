@@ -34,8 +34,8 @@ func TestThemeNavigationRejectsExternalAndTraversalRoutes(t *testing.T) {
 }
 
 func TestBundledThemeNavigationUsesInstanceRoutesForBundledAndLegacyThemes(t *testing.T) {
-	// 内置主题 Komari Glass 与第三方主题一致使用 /instance/:uuid，
-	// 历史 Nezha 的 /server/:uuid 路由随该主题一并删除。
+	// Glass and other themes use /instance/:uuid. The legacy Nezha
+	// /server/:uuid route was removed with that theme.
 	if got := bundledThemeNavigation(DefaultTheme).ServerDetailURL("node-a", 9); got != "/instance/node-a" {
 		t.Fatalf("bundled theme detail URL = %q", got)
 	}

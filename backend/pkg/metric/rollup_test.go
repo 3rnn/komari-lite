@@ -13,8 +13,8 @@ import (
 // newRollupStore opens an in-memory SQLite store with the given policy. A unique
 // DSN per test keeps the shared-cache in-memory databases isolated.
 //
-// newRollupStore 使用给定策略打开内存 SQLite store；每个测试使用唯一 DSN，
-// 避免 shared-cache 内存数据库相互影响。
+// newRollupStore Opens an in-memory SQLite store using the given policy; uses a unique DSN for each test,
+// Avoid shared-cache in-memory database interaction.
 func newRollupStore(t *testing.T, policy RollupPolicy) *Store {
 	t.Helper()
 	dsn := fmt.Sprintf("file:rollup-%d?mode=memory&cache=shared", time.Now().UnixNano())
@@ -73,8 +73,8 @@ func TestLatestBeforeUsesRawAndRollupData(t *testing.T) {
 // TestArbitraryPercentileOverRaw verifies arbitrary percentile (pxx)
 // aggregation end-to-end over raw points.
 //
-// TestArbitraryPercentileOverRaw 验证任意百分位（pxx）聚合在原始点路径上的
-// 端到端行为。
+// TestArbitraryPercentileOverRaw verifies that any percentile (pxx) aggregate on the original point path
+// End-to-end behavior.
 func TestArbitraryPercentileOverRaw(t *testing.T) {
 	ctx := context.Background()
 	s := newMemStore(t)
@@ -158,7 +158,7 @@ func TestAggregateRollupSkipsDigestForNonPercentile(t *testing.T) {
 
 // percentileSortedRange computes an exact percentile for an integer range.
 //
-// percentileSortedRange 为整数范围计算精确百分位。
+// percentileSortedRange calculates the exact percentile for an integer range.
 func percentileSortedRange(lo, hi int, q float64) float64 {
 	vals := make([]float64, 0, hi-lo+1)
 	for i := lo; i <= hi; i++ {
@@ -169,7 +169,7 @@ func percentileSortedRange(lo, hi int, q float64) float64 {
 
 // TestPxxStringForms verifies arbitrary percentile aggregation names.
 //
-// TestPxxStringForms 验证任意百分位聚合名的字符串形式。
+// TestPxxStringForms validates the string form of any percentile aggregate name.
 func TestPxxStringForms(t *testing.T) {
 	if Pxx(95) != AggP95 {
 		t.Fatalf("Pxx(95)=%q, want %q", Pxx(95), AggP95)
@@ -190,8 +190,8 @@ func TestPxxStringForms(t *testing.T) {
 // TestCompactBuildsFinestTier verifies Compact builds correct finest-tier
 // rollup statistics from raw points.
 //
-// TestCompactBuildsFinestTier 验证 Compact 能从原始点构建正确的最细层
-// rollup 统计。
+// TestCompactBuildsFinestTier Verifies that Compact can build the correct finest layer from the original point
+// rollup statistics.
 func TestCompactBuildsFinestTier(t *testing.T) {
 	ctx := context.Background()
 	policy := RollupPolicy{
@@ -263,8 +263,8 @@ func TestCompactBuildsFinestTier(t *testing.T) {
 // TestCompactCascadeFineToCoarse verifies a coarse tier composed from a fine
 // tier matches a direct raw rollup.
 //
-// TestCompactCascadeFineToCoarse 验证由细层合成的粗层与直接从原始点计算的
-// rollup 一致。
+// TestCompactCascadeFineToCoarse verifies that the coarse layer synthesized from the fine layer is the same as the coarse layer calculated directly from the original point.
+// rollup consistent.
 func TestCompactCascadeFineToCoarse(t *testing.T) {
 	ctx := context.Background()
 	policy := RollupPolicy{
@@ -441,8 +441,8 @@ func TestCompactMergesLateFineDeltaLargerThanCoarseBucket(t *testing.T) {
 // TestRetentionDropsRawButPercentileSurvives verifies the TSDB property that
 // raw data can age out while percentiles remain answerable from rollups.
 //
-// TestRetentionDropsRawButPercentileSurvives 验证 TSDB 特性：原始数据可以过期，
-// 但百分位仍能从 rollup 中回答。
+// TestRetentionDropsRawButPercentileSurvives verifies TSDB characteristics: raw data can expire,
+// But the percentile can still be answered from the rollup.
 func TestRetentionDropsRawButPercentileSurvives(t *testing.T) {
 	ctx := context.Background()
 	policy := RollupPolicy{
@@ -496,8 +496,8 @@ func TestRetentionDropsRawButPercentileSurvives(t *testing.T) {
 // for an already-retained rollup bucket is folded into the stored rollup instead
 // of replacing the bucket with only the late sample.
 //
-// TestCompactMergesLateRawIntoExpiredRollup 验证已过原始保留期的 rollup 桶收到
-// 迟到 raw 点时，会把迟到样本合入已有 rollup，而不是用迟到样本覆盖整桶。
+// TestCompactMergesLateRawIntoExpiredRollup verifies that rollup buckets that have passed their original retention period receive
+// When a raw point is late, late samples will be merged into the existing rollup instead of covering the entire bucket with late samples.
 func TestCompactMergesLateRawIntoExpiredRollup(t *testing.T) {
 	ctx := context.Background()
 	policy := RollupPolicy{
@@ -627,8 +627,8 @@ func TestSeriesStartBeforeLongestRetentionReturnsAvailableRollup(t *testing.T) {
 // TestSeriesRoutesByAge verifies Series auto-routes between raw and rollup data
 // based on the query window's age.
 //
-// TestSeriesRoutesByAge 验证 Series 会根据查询窗口的新旧程度在原始数据和
-// rollup 数据之间自动路由。
+// TestSeriesRoutesByAge verifies that a Series is split between original data and
+// Automatic routing between rollup data.
 func TestSeriesRoutesByAge(t *testing.T) {
 	ctx := context.Background()
 	policy := RollupPolicy{
@@ -708,8 +708,8 @@ func TestSeriesRoutesByAge(t *testing.T) {
 // spans the raw-retention boundary uses rollups for old buckets and raw data for
 // recent buckets that may not have been compacted yet.
 //
-// TestSeriesAcrossRetentionIncludesUncompactedRecentRaw 验证跨原始保留期边界的查询
-// 会用 rollup 回答旧桶，并包含可能尚未 compact 的近期 raw 桶。
+// TestSeriesAcrossRetentionIncludesUncompactedRecentRaw Validates queries that cross raw retention boundaries
+// Old buckets will be answered with a rollup, and include recent raw buckets that may not have been compacted yet.
 func TestSeriesAcrossRetentionIncludesUncompactedRecentRaw(t *testing.T) {
 	ctx := context.Background()
 	policy := RollupPolicy{
@@ -767,7 +767,7 @@ func TestSeriesAcrossRetentionIncludesUncompactedRecentRaw(t *testing.T) {
 
 // TestRollupPolicyValidate verifies rollup policy validation rules.
 //
-// TestRollupPolicyValidate 验证 rollup 策略校验规则。
+// TestRollupPolicyValidate validates rollup policy validation rules.
 func TestRollupPolicyValidate(t *testing.T) {
 	ok := RollupPolicy{
 		RawRetention: 10 * time.Minute,
@@ -906,7 +906,7 @@ func TestCompactRemovesRollupsFromRedundantTiers(t *testing.T) {
 
 // TestCompactIdempotent verifies Compact is idempotent for unchanged windows.
 //
-// TestCompactIdempotent 验证 Compact 对未变化窗口保持幂等。
+// TestCompactIdempotent Verifies that Compact remains idempotent for unchanged windows.
 func TestCompactIdempotent(t *testing.T) {
 	ctx := context.Background()
 	policy := RollupPolicy{Tiers: []RollupTier{{Interval: time.Minute, Retention: 24 * time.Hour}}}

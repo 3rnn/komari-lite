@@ -73,7 +73,7 @@ func Login(c *gin.Context) {
 	}
 	// 2FA
 	user, _ := accounts.GetUserByUUID(uuid)
-	if user.TwoFactor != "" { // 开启了2FA
+	if user.TwoFactor != "" { // 2FA turned on
 		if data.TwoFa == "" {
 			loginFails.fail(ip)
 			api.RespondError(c, http.StatusUnauthorized, "2FA code is required")

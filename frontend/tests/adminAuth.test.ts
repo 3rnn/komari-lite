@@ -8,7 +8,7 @@ import {
   submitPasswordLogin,
 } from "../src/utils/adminAuth.ts";
 
-test("登录切换期间保持后台启动加载状态", () => {
+test("loading remains active while switching to the admin login", () => {
   assert.equal(isAdminNodeBootstrapLoading(true, null, null), true);
   assert.equal(isAdminNodeBootstrapLoading(false, "account-1", null), true);
   assert.equal(
@@ -21,7 +21,7 @@ test("登录切换期间保持后台启动加载状态", () => {
   );
 });
 
-test("未登录时只进入登录视图", () => {
+test("unauthenticated users only see the login view", () => {
   assert.equal(
     resolveAdminAuthView({
       account: { logged_in: false },
@@ -32,7 +32,7 @@ test("未登录时只进入登录视图", () => {
   );
 });
 
-test("已登录后才进入后台视图", () => {
+test("authenticated users enter the admin view", () => {
   assert.equal(
     resolveAdminAuthView({
       account: { logged_in: true },
@@ -43,7 +43,7 @@ test("已登录后才进入后台视图", () => {
   );
 });
 
-test("账户接口失败时进入可重试错误视图", async () => {
+test("account API errors enter a retryable error view", async () => {
   await assert.rejects(
     () => fetchAccount(async () => new Response(null, { status: 503 })),
     /Failed to fetch account data \(503\)/,
@@ -58,7 +58,7 @@ test("账户接口失败时进入可重试错误视图", async () => {
   );
 });
 
-test("登录成功后刷新外层账户信息", async () => {
+test("a successful login refreshes the outer account", async () => {
   let refreshCount = 0;
 
   const result = await submitPasswordLogin({

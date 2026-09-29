@@ -118,7 +118,7 @@ const InnerLayout = () => {
       });
   }
   
-  // SSO 辅助函数
+  // SSO helper functions.
   return (
     <Flex gap="4" direction="column" align="stretch">
       <Flex gap="4" direction="column" className="w-full">

@@ -7,19 +7,19 @@ import (
 	_ "time/tzdata"
 )
 
-// AgentVersion 是精简版 Agent 的版本号（原 update 包连同自动更新能力已删除）。
-// 保持纯数字点分格式，面板节点列表的版本展示依赖该格式。
+// AgentVersion is the lite Agent version (the update package and auto-update were removed).
+// Keep the dotted numeric format; the panel node list expects it.
 const AgentVersion = "1.0.5"
 
 const DefaultResetTimezone = "Asia/Shanghai"
 
-// GetLastResetDate 计算上一个重置日期（北京时间当天 0:00）。
+// GetLastResetDate returns the previous reset date (midnight in Beijing time).
 func GetLastResetDate(resetDay int, currentDate time.Time) time.Time {
 	return GetLastResetInstant(resetDay, "", "", currentDate)
 }
 
-// GetLastResetInstant 按指定时区与时刻计算上一次流量重置。
-// 时区或时刻为空时与 Lite 存量升级一致：Asia/Shanghai + 00:00:00。
+// GetLastResetInstant computes the last traffic reset in the specified timezone at the specified time.
+// Empty timezone/time values retain the existing Lite migration defaults: Asia/Shanghai and 00:00:00.
 func GetLastResetInstant(resetDay int, clock, timezone string, currentDate time.Time) time.Time {
 	if resetDay < 1 || resetDay > 31 {
 		return currentDate

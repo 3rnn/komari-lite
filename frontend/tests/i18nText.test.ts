@@ -10,23 +10,27 @@ const repositoryRoot = path.resolve(
   "..",
 );
 
-test("theme text resolves locale aliases before English fallback", () => {
+test("theme text uses English even with a stored legacy locale", () => {
   const text = {
     en: "English",
-    zh_CN: "简体中文",
+    zh_CN: "Simplified Chinese",
   };
-  assert.equal(resolveI18nText(text, "zh-CN"), "简体中文");
-  assert.equal(resolveI18nText(text, "zh_CN"), "简体中文");
+  assert.equal(resolveI18nText(text, "zh-CN"), "English");
+  assert.equal(resolveI18nText(text, "zh_CN"), "English");
   assert.equal(resolveI18nText(text, "fr-FR"), "English");
+  assert.equal(
+    resolveI18nText({ "zh-CN": "\u4e3b\u9898", "en-US": "Theme" }, "zh-CN"),
+    "Theme",
+  );
 });
 
 test("theme text skips empty translations and keeps legacy strings", () => {
   assert.equal(resolveI18nText("Legacy", "zh-CN"), "Legacy");
   assert.equal(
-    resolveI18nText({ zh_CN: "", en: "English", ja: "日本語" }, "zh-CN"),
+    resolveI18nText({ zh_CN: "", en: "English", ja: "Japanese" }, "zh-CN"),
     "English",
   );
-  assert.equal(resolveI18nText({ zh_CN: "", ja: "日本語" }, "fr"), "日本語");
+  assert.equal(resolveI18nText({ zh_CN: "", ja: "Japanese" }, "fr"), "Japanese");
   assert.equal(resolveI18nText({ en: "   " }, "en"), undefined);
 });
 

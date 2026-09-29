@@ -442,7 +442,7 @@ func processV2Event(conn *ws.SafeConn, method string, params interface{}, eventI
 	return false
 }
 
-// newWSDialer 构造统一的 WebSocket 拨号器（自定义解析、IPv4/IPv6 动态排序、可选 TLS 忽略）
+// newWSDialer builds a shared WebSocket dialer (custom DNS, dynamic IPv4/IPv6 ordering, optional insecure TLS).
 func newWSDialer() *websocket.Dialer {
 	d := &websocket.Dialer{
 		HandshakeTimeout:  15 * time.Second,

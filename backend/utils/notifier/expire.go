@@ -33,9 +33,9 @@ func CheckExpire() {
 
 	checkTime := time.Now().UTC()
 
-	// 过期提醒检查（仅当启用过期通知时）
+	// Expiration reminder check (only when expiration notifications are enabled)
 	if cfg[config.ExpireNotificationEnabledKey].(bool) {
-		notificationLeadDays := int(cfg[config.ExpireNotificationLeadDaysKey].(float64)) // Json unmarshal 会将数字解析为 float64
+		notificationLeadDays := int(cfg[config.ExpireNotificationLeadDaysKey].(float64)) // Json unmarshal will parse the number into float64
 
 		type clientToExpireInfo struct {
 			Name     string

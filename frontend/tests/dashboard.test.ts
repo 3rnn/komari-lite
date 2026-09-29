@@ -114,6 +114,6 @@ test("dashboard alert links preserve category and exact target filters", () => {
 
 test("billing alert labels distinguish overdue and upcoming states", () => {
   const now = Date.parse("2026-08-08T00:00:00Z");
-  assert.equal(formatBillingAlertStatus("2026-08-11T00:00:00Z", "zh-CN", now), "3 天后到期");
-  assert.equal(formatBillingAlertStatus("2026-08-07T12:00:00Z", "zh-CN", now), "已到期 1 天");
+  assert.equal(formatBillingAlertStatus("2026-08-11T00:00:00Z", "zh-CN", now), "Due in 3d");
+  assert.equal(formatBillingAlertStatus("2026-08-07T12:00:00Z", "zh-CN", now), "Expired 1d");
 });

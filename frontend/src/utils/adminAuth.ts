@@ -27,7 +27,7 @@ export function normalizeAccountPreferenceLanguage(language?: string | null) {
 
   const lower = normalized.toLowerCase();
   if (lower === "en" || lower.startsWith("en-")) return "en-US";
-  // 面板只保留英文与简体中文：繁中/日文/印尼文等历史偏好统一回落到简体中文
+  // The panel offers English and Simplified Chinese; historic preferences fall back to the existing locale.
   if (lower === "zh" || lower.startsWith("zh-")) return "zh-CN";
   return "";
 }
@@ -139,8 +139,8 @@ export async function submitPasswordLogin({
     body: JSON.stringify({
       username,
       password,
-      // 只要用户填了动态口令就随请求发送：服务端仅在账号开启 2FA 时校验它。
-      // 旧的判断在账号已开启 2FA 时会把口令丢掉，导致验证永远不过，故移除该分支。
+      // Send a code whenever provided; the server validates it only for accounts with 2FA enabled.
+      // The old guard dropped the code for 2FA-enabled accounts, so verification could never succeed.
       ...(twoFactorCode ? { "2fa_code": twoFactorCode } : {}),
     }),
   });

@@ -9,7 +9,7 @@ import (
 )
 
 // admin.ping.go
-// 延迟监测任务（ping task）的 RPC2 方法（admin 命名空间）。
+// The RPC2 method (admin namespace) for delaying a ping task.
 
 func init() {
 	RegisterWithGroupAndMeta("addPingTask", rpc.RoleAdmin, adminAddPingTask, &rpc.MethodMeta{
@@ -104,7 +104,7 @@ func adminGetAllPingTasks(_ context.Context, _ *rpc.JsonRpcRequest) (any, *rpc.J
 }
 
 func adminOrderPingTask(_ context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
-	// 参数为 { idStr: weight } 映射。
+	// The argument is a {idStr: weight} mapping.
 	order := map[uint]int{}
 	var raw map[string]int
 	if err := req.BindParams(&raw); err != nil {

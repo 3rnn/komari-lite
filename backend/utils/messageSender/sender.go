@@ -27,7 +27,7 @@ func CurrentProvider() factory.IMessageSender {
 	return currentProvider
 }
 
-// Shutdown 销毁当前消息发送 provider，释放其持有的资源。供关闭流程调用。
+// Shutdown destroys the current message sending provider and releases the resources it holds. Called by the shutdown process.
 func Shutdown() error {
 	mu.Lock()
 	defer mu.Unlock()
@@ -47,7 +47,7 @@ func Initialize() {
 				if _, err := database.GetMessageSenderConfigByName(provider.GetName()); err == nil {
 					continue
 				}
-				// 如果数据库中没有该提供者的配置，则保存默认配置
+				// If there is no configuration for this provider in the database, the default configuration is saved
 				config := provider.GetConfiguration()
 				configBytes, err := json.Marshal(config)
 				if err != nil {
@@ -71,14 +71,14 @@ func Initialize() {
 		return
 	}
 
-	// 尝试从数据库加载配置
+	// Try loading configuration from database
 	senderConfig, err := database.GetMessageSenderConfigByName(NotificationMethod)
 	if err != nil {
-		// 如果没有找到配置，使用empty provider
+		// If no configuration is found, use empty provider
 		LoadProvider("empty", "{}")
 		return
 	}
-	// 精简构建可能移除了该 provider；加载失败时回退到 empty，避免通知通道处于未初始化状态。
+	// The streamlined build may have removed the provider; fallback to empty when loading fails to avoid leaving the notification channel in an uninitialized state.
 	if err := LoadProvider(NotificationMethod, senderConfig.Addition); err != nil {
 		logger.Errorf("message-sender", "Failed to load provider %s: %v", NotificationMethod, err)
 		LoadProvider("empty", "{}")
@@ -128,9 +128,9 @@ func SendEvent(event models.EventMessage) error {
 		return nil
 	}
 
-	// 检查提供者是否实现了 IEventMessageSender 接口
+	// Check if the provider implements the IEventMessageSender interface
 	if eventSender, ok := CurrentProvider().(factory.IEventMessageSender); ok {
-		// 如果实现了,直接调用 SendEvent
+		// If implemented, call SendEvent directly
 		for i := 0; i < 3; i++ {
 			err = eventSender.SendEvent(event)
 			if err == nil || err.Error() == "short response: \x00\x00\x00\x1a\x00\x00\x00" {
@@ -142,14 +142,14 @@ func SendEvent(event models.EventMessage) error {
 		return err
 	}
 
-	// 如果没有实现,使用模板格式化为文本消息
+	// If not implemented, use templates to format text messages
 	messageTemplate := cfg[config.NotificationTemplateKey].(string)
 
 	messageTemplate = parseTemplate(messageTemplate, event)
 
 	for i := 0; i < 3; i++ {
 		err = CurrentProvider().SendTextMessage(messageTemplate, event.Event)
-		if err == nil || err.Error() == "short response: \x00\x00\x00\x1a\x00\x00\x00" { // QQ 会返回这个错误，但实际上消息是发送成功的
+		if err == nil || err.Error() == "short response: \x00\x00\x00\x1a\x00\x00\x00" { // QQ will return this error, but in fact the message is sent successfully
 			auditlog.Log("", "", "Event message sent: "+event.Event, "info")
 			return nil
 		}

@@ -33,15 +33,15 @@ var allowedPreferenceColors = map[string]struct{}{
 	"mint": {}, "sky": {},
 }
 
-// CheckPassword 检查密码是否正确
+// CheckPassword Check whether the password is correct
 //
-// 如果密码正确，返回用户的 UUID 和 true；否则返回空字符串和 false
+// Returns the user's UUID and true if the password is correct; otherwise returns an empty string and false
 func CheckPassword(username, passwd string) (uuid string, success bool) {
 	db := dbcore.GetDBInstance()
 	var user models.User
 	result := db.Where("username = ?", username).First(&user)
 	if result.Error != nil {
-		// 静默处理错误，不显示日志
+		// Handle errors silently without displaying logs
 		return "", false
 	}
 	if strings.HasPrefix(user.Passwd, "$2") {
@@ -59,7 +59,7 @@ func CheckPassword(username, passwd string) (uuid string, success bool) {
 	return user.UUID, true
 }
 
-// ForceResetPassword 强制重置用户密码
+// ForceResetPassword Forcefully reset user password
 func ForceResetPassword(username, passwd string) (err error) {
 	db := dbcore.GetDBInstance()
 	result := db.Model(&models.User{}).Where("username = ?", username).Update("passwd", hashPasswd(passwd))
@@ -67,12 +67,12 @@ func ForceResetPassword(username, passwd string) (err error) {
 		return result.Error
 	}
 	if result.RowsAffected == 0 {
-		return fmt.Errorf("无法找到用户名")
+		return fmt.Errorf("Username not found")
 	}
 	return nil
 }
 
-// hashPasswd 对密码进行加盐哈希
+// hashPasswd salts a password and hashes it
 func hashPasswd(passwd string) string {
 	hashed, err := bcrypt.GenerateFromPassword([]byte(legacyHash(passwd)), 12)
 	if err != nil {
@@ -128,18 +128,18 @@ func GetUserByUUID(uuid string) (user models.User, err error) {
 	return user, nil
 }
 
-// 通过 SSO 信息获取用户
+// Get users via SSO messages
 func GetUserBySSO(ssoID string) (user models.User, err error) {
 	db := dbcore.GetDBInstance()
 
-	// 首先尝试查找已存在的用户
+	// First try to find an existing user
 	err = db.Where("sso_id = ?", ssoID).First(&user).Error
 	if err == nil {
 		return user, nil
 	}
 
-	// 如果找不到用户，返回明确的错误信息
-	return models.User{}, fmt.Errorf("用户不存在：%s", ssoID)
+	// If the user cannot be found, return an explicit error message
+	return models.User{}, fmt.Errorf("User not found: %s", ssoID)
 }
 
 func BindingExternalAccount(uuid string, sso_id string) error {

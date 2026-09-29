@@ -7,7 +7,7 @@ on:
 
 jobs:
   sync:
-    # 避免由机器人再次触发循环
+    # Avoid a loop triggered by the bot's own commits.
     if: ${{ github.actor != 'github-actions[bot]' }}
     runs-on: ubuntu-latest
     permissions:

@@ -32,13 +32,13 @@ test("global list pagination is configured under general settings", () => {
   assert.match(generalSource, /<SettingCardLabel>[\s\S]*settings\.general\.admin_default_page_size[\s\S]*<SettingCardShortTextInput/);
   assert.doesNotMatch(generalSource, /<SettingCardShortTextInput\s+title=\{t\("settings\.general\.admin_default_page_size"\)\}/);
   assert.doesNotMatch(source, /settings\.site\.admin_default_page_size/);
-  assert.equal(zhCN.settings.general.admin_default_page_size, "列表默认分页");
+  assert.equal(zhCN.settings.general.admin_default_page_size, "Default list pagination");
 });
 
 test("general settings exposes the Komari motion preference", () => {
   assert.match(generalSource, /settings\.general\.reduce_motion/);
   assert.match(generalSource, /reduce_motion: checked/);
-  assert.equal(zhCN.settings.general.reduce_motion, "减少动态效果");
+  assert.equal(zhCN.settings.general.reduce_motion, "Reduce motion");
 });
 
 test("auto discovery help opens the dedicated agent guide", () => {
@@ -82,7 +82,7 @@ test("account backup hint points to the actual site settings page", () => {
     assert.equal(typeof hint, "string");
     assert.ok(hint.length > 0);
   }
-  assert.match(String(zhCN.account_settings.looking_for_backup), /设置/);
+  assert.match(String(zhCN.account_settings.looking_for_backup), /Settings/);
 });
 
 test("backup restore dialog uses staged progress instead of a fake 95 percent finish", () => {

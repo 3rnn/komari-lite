@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
 import { mergeLatestStatus } from "../src/utils/liveData.ts";
 

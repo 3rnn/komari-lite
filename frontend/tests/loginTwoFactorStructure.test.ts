@@ -3,9 +3,9 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
 
-// 这一组断言用真正的 TSX 解析器检查登录页的渲染结构，而不是搜字符串：
-// 曾经出现过「动态口令输入框与提交按钮被写进 `!require2FA` 分支」的回归——
-// 账号一开 2FA，登录页就只剩「正在验证账号 xxx」一行，用户根本没法输入口令。
+// Inspect the login page with a real TSX parser rather than matching raw strings.
+// Previously the one-time-code field and submit button were nested under !require2FA.
+// With 2FA enabled, only a status line was visible and the user could not submit a code.
 const LOGIN_SOURCE = readFileSync("src/components/Login.tsx", "utf8");
 const sourceFile = ts.createSourceFile(
   "Login.tsx",
@@ -33,37 +33,37 @@ function collectConditionals(): Conditional[] {
 }
 
 const conditionals = collectConditionals();
-// 动态口令界面专有的 i18n key（`login.two_factor_account` 是 2FA 状态行，不算）
+// Keys unique to the 2FA step (login.two_factor_account is only a status line).
 const twoFactorKeys = /login\.two_factor(?!_account)/;
 const credentialBranches = conditionals.filter((entry) => /!\s*require2FA/.test(entry.condition));
 
-test("登录页存在「未要求 2FA」的条件分支", () => {
-  assert.ok(credentialBranches.length > 0, "没找到 !require2FA 分支，登录页结构可能被改写");
+test("login page has a branch for the non-2FA step", () => {
+  assert.ok(credentialBranches.length > 0, "Missing !require2FA branch in the login page");
 });
 
-test("动态口令界面不能落在「未要求 2FA」的分支里", () => {
+test("the 2FA UI is not nested in the non-2FA branch", () => {
   for (const branch of credentialBranches) {
     assert.doesNotMatch(
       branch.whenTrue,
       twoFactorKeys,
-      "动态口令界面被写进了「未要求 2FA」的分支：开启 2FA 后用户只能看到提示，无法输入口令",
+      "The 2FA UI is inside the non-2FA branch, so users cannot enter a code",
     );
   }
 });
 
-test("要求 2FA 时必须渲染动态口令输入界面", () => {
+test("the 2FA step renders its one-time-code field", () => {
   const step = conditionals.find(
     (entry) => /require2FA/.test(entry.condition) && !/!/.test(entry.condition) && twoFactorKeys.test(entry.whenTrue),
   );
-  assert.ok(step, "找不到「require2FA 为真时渲染动态口令输入」的分支");
+  assert.ok(step, "Missing branch for the one-time-code input when require2FA is true");
 });
 
-test("提交按钮不能被「未要求 2FA」的分支包住", () => {
+test("the submit button remains available on the 2FA step", () => {
   for (const branch of credentialBranches) {
     assert.doesNotMatch(
       branch.whenTrue,
       /type="submit"/,
-      "提交按钮被写进「未要求 2FA」的分支：开启 2FA 后无法提交口令",
+      "Submit is inside the non-2FA branch, so users cannot send a code",
     );
   }
 });

@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   groupThemeConfigFields,
   resolveActiveThemeConfigGroup,
+  resolveThemeOptionLabel,
 } from "../src/utils/themeConfigTabs.ts";
 
 const tabsSource = readFileSync(
@@ -19,6 +20,14 @@ const globalStyles = readFileSync(
   new URL("../src/global.css", import.meta.url),
   "utf8",
 );
+
+test("legacy theme sentinel values display in English without changing saved values", () => {
+  assert.equal(resolveThemeOptionLabel("\u8ddf\u968f\u7cfb\u7edf"), "Follow system");
+  assert.equal(resolveThemeOptionLabel("\u8ddf\u968f\u540e\u7aef"), "Follow backend");
+  assert.equal(resolveThemeOptionLabel("dark", "Dark mode"), "Dark mode");
+  assert.equal(resolveThemeOptionLabel("light"), "light");
+  assert.match(tabsSource, /resolveThemeOptionLabel\(option, resolveText\(field\.optionLabels\?\.\[option\]\)\)/);
+});
 
 test("groups theme fields without exposing empty category tabs", () => {
   assert.deepEqual(

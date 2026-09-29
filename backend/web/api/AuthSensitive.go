@@ -17,7 +17,7 @@ func RequireSensitive2FA() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-		// 标记本请求已通过敏感操作校验，避免下游（RPC 边界）重复校验。
+		// Mark this request as checked by sensitive operation to avoid duplicate checking downstream (RPC boundary).
 		c.Set("sensitive_2fa_verified", true)
 		c.Next()
 	}
@@ -49,7 +49,7 @@ func VerifySensitive2FACore(userUUID, code string, _ bool) error {
 	return nil
 }
 
-// VerifySensitive2FA gin 适配层:从 gin.Context 提取参数后委托核心校验。
+// VerifySensitive2FA gin adaptation layer: Extract the parameters from gin.Context and delegate the core verification.
 func VerifySensitive2FA(c *gin.Context) error {
 	_, isAPIKey := c.Get("api_key")
 	uuidRaw, _ := c.Get("uuid")

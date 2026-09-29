@@ -1,7 +1,6 @@
 import { Flex } from "@radix-ui/themes";
 
 import ColorSwitch from "./ColorSwitch";
-import LanguageSwitch from "./Language";
 import ThemeSwitch from "./ThemeSwitch";
 import KomariLiteBrand from "./KomariLiteBrand";
 import { getAppAssetUrl } from "@/utils/assetUrl";
@@ -18,7 +17,6 @@ export default function GuideHeader() {
         <KomariLiteBrand size="sm" />
       </Flex>
       <Flex gap="2">
-        <LanguageSwitch />
         <ThemeSwitch />
         <ColorSwitch />
       </Flex>

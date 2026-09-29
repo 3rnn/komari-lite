@@ -50,7 +50,7 @@ func trafficReportTargetsInClientOrder(notifications []models.TrafficReportNotif
 	return targets
 }
 
-// InitTrafficReportSchedule 注册三个按北京时间执行的定时任务：日报、周报、月报。
+// InitTrafficReportSchedule registers three scheduled tasks executed according to Beijing time: daily report, weekly report, and monthly report.
 func InitTrafficReportSchedule() {
 	if err := ReloadTrafficReportSchedule(); err != nil {
 		logger.ErrorArgs("notifier", "Failed to register traffic report schedules:", err)
@@ -106,10 +106,10 @@ func SendDailyTrafficReportNow() (TrafficReportSendResult, error) {
 	return sendTrafficReport(true, false, false, true)
 }
 
-// sendTrafficReport 汇聚所有启用了指定报告类型的服务器流量，合并成一条通知发送。
+// sendTrafficReport aggregates all server traffic with the specified report type enabled and combines it into a notification to send.
 func sendTrafficReport(daily, weekly, monthly, currentDaily bool) (TrafficReportSendResult, error) {
 	result := TrafficReportSendResult{}
-	// 检查全局通知开关
+	// Check the global notification switch
 	enabled, err := config.GetAs[bool](config.NotificationEnabledKey, false)
 	if err != nil {
 		return result, fmt.Errorf("load notification setting: %w", err)
@@ -128,18 +128,18 @@ func sendTrafficReport(daily, weekly, monthly, currentDaily bool) (TrafficReport
 		eventType = messageevent.DReport
 		label = "daily"
 		if currentDaily {
-			suffix = "今日流量"
+			suffix = "Today's traffic"
 		} else {
-			suffix = "昨日流量"
+			suffix = "Yesterday's traffic"
 		}
 	case weekly:
 		eventType = messageevent.WReport
 		label = "weekly"
-		suffix = "上周流量"
+		suffix = "Last week's traffic"
 	case monthly:
 		eventType = messageevent.MReport
 		label = "monthly"
-		suffix = "上个月流量"
+		suffix = "Last month's traffic"
 	default:
 		return result, fmt.Errorf("traffic report cadence is required")
 	}
@@ -148,7 +148,7 @@ func sendTrafficReport(daily, weekly, monthly, currentDaily bool) (TrafficReport
 		start, end = currentDailyTrafficReportRange(now)
 	}
 
-	// 查询所有启用该类型报告的服务器配置
+	// Query all server configurations that enable this type of reporting
 	var notifications []models.TrafficReportNotification
 	query := db.Model(&models.TrafficReportNotification{}).Where("enable = ?", true)
 	if daily {
@@ -165,7 +165,7 @@ func sendTrafficReport(daily, weekly, monthly, currentDaily bool) (TrafficReport
 		return result, nil
 	}
 
-	// 获取客户端信息
+	// Get client information
 	clientUUIDs := make([]string, 0, len(notifications))
 	for _, n := range notifications {
 		clientUUIDs = append(clientUUIDs, n.Client)
@@ -192,7 +192,7 @@ func sendTrafficReport(daily, weekly, monthly, currentDaily bool) (TrafficReport
 		}
 	}
 
-	// 为每个服务器统计流量并拼接消息
+	// Count traffic and splice messages for each server
 	var lines []string
 	eventClients := make([]models.Client, 0, len(targets))
 	var lastClientError error
@@ -295,7 +295,7 @@ func formatTrafficReportLine(client models.Client, suffix string, usage trafficU
 	}
 	parts := make([]string, 0, 3)
 	if includeTraffic {
-		parts = append(parts, "上行 "+humanBytes(usage.Up), "下行 "+humanBytes(usage.Down))
+		parts = append(parts, "Upload "+humanBytes(usage.Up), "Download "+humanBytes(usage.Down))
 	}
 	if includeBilling && client.Price > 0 {
 		rule := strings.ToLower(strings.TrimSpace(client.TrafficLimitType))
@@ -305,18 +305,18 @@ func formatTrafficReportLine(client models.Client, suffix string, usage trafficU
 			rule = "max"
 		}
 		used := computeUsedByType(rule, usage.Up, usage.Down)
-		parts = append(parts, fmt.Sprintf("计费流量 %s（%s）", humanBytes(used), rule))
+		parts = append(parts, fmt.Sprintf("Billable traffic %s (%s)", humanBytes(used), rule))
 	}
 	if len(parts) == 0 {
 		return ""
 	}
-	return fmt.Sprintf("%s %s：%s", name, suffix, strings.Join(parts, "，"))
+	return fmt.Sprintf("%s %s:%s", name, suffix, strings.Join(parts, ","))
 }
 
-// getClientTrafficInRange 查询某客户端在指定时间段内的上下行流量增量。
+// getClientTrafficInRange queries the upstream and downstream traffic increments of a client within a specified time period.
 //
-// 历史监控数据已完全迁移到 metric store，这里从 metric store 读取区间内记录并
-// 累加精确的流量增量字段计算用量；缺失增量时回退到累计流量差值。
+// The historical monitoring data has been completely migrated to the metric store. Here, the records in the interval are read from the metric store and
+// Accumulate the exact flow increment field to calculate usage; fall back to the accumulated flow difference when the increment is missing.
 func getClientTrafficInRange(clientUUID string, start, end time.Time) (trafficUsage, error) {
 	return trafficledger.MetricUsage(context.Background(), clientUUID, start, end)
 }

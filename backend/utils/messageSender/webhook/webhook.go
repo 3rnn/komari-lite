@@ -41,7 +41,7 @@ func (w *WebhookSender) SendTextMessage(message, title string) error {
 
 	method := strings.ToUpper(w.Addition.Method)
 	if method == "" {
-		method = "GET" // 默认使用 GET
+		method = "GET" // Use GET by default
 	}
 
 	client := outboundhttp.NewClient(30 * time.Second)
@@ -62,7 +62,7 @@ func (w *WebhookSender) SendTextMessage(message, title string) error {
 		return fmt.Errorf("failed to create request: %v", err)
 	}
 
-	// 解析并设置自定义头部
+	// Parse and set custom headers
 	if w.Addition.Headers != "" {
 		var headers map[string]string
 		if err := json.Unmarshal([]byte(w.Addition.Headers), &headers); err == nil {
@@ -72,7 +72,7 @@ func (w *WebhookSender) SendTextMessage(message, title string) error {
 		}
 	}
 
-	// 设置基本认证
+	// Set up basic authentication
 	if w.Addition.Username != "" && w.Addition.Password != "" {
 		req.SetBasicAuth(w.Addition.Username, w.Addition.Password)
 	}
@@ -97,7 +97,7 @@ func (w *WebhookSender) createPOSTRequest(message, title string) (*http.Request,
 		contentType = "application/json"
 	}
 
-	// 用户自定义模板，按 Content-Type 决定如何替换占位符
+	// User-defined template, determine how to replace placeholders according to Content-Type
 	var body string
 	if isJSONContentType(contentType) {
 		body = w.replaceTemplateJSON(w.Addition.Body, message, title)
@@ -129,7 +129,7 @@ func (w *WebhookSender) createGETRequest(message, title string) (*http.Request, 
 	return req, nil
 }
 
-// replaceTemplate 替换模板中的 {{message}} 和 {{title}} 占位符（不做转义）
+// replaceTemplate replaces the {{message}} and {{title}} placeholders in the template (without escaping)
 func (w *WebhookSender) replaceTemplate(template, message, title string) string {
 	result := template
 	result = strings.ReplaceAll(result, "{{message}}", message)
@@ -137,7 +137,7 @@ func (w *WebhookSender) replaceTemplate(template, message, title string) string 
 	return result
 }
 
-// replaceTemplateJSON 在 JSON 场景下替换占位符，使用 \uXXXX 形式进行转义（尤其换行/控制字符）
+// replaceTemplateJSON replaces placeholders in JSON scenarios and uses \uXXXX forms for escaping (especially newlines/control characters)
 func (w *WebhookSender) replaceTemplateJSON(template, message, title string) string {
 	result := template
 	result = strings.ReplaceAll(result, "{{message}}", jsonUnicodeEscapeString(message))
@@ -145,13 +145,13 @@ func (w *WebhookSender) replaceTemplateJSON(template, message, title string) str
 	return result
 }
 
-// isJSONContentType 判断是否为 JSON 内容类型
+// isJSONContentType determines whether it is a JSON content type
 func isJSONContentType(ct string) bool {
 	return strings.Contains(strings.ToLower(ct), "application/json")
 }
 
-// jsonUnicodeEscapeString 将字符串按 JSON 规则进行转义，并尽量使用 \uXXXX 形式（尤其控制字符、引号和反斜杠）
-// 注意：该结果适合放入 JSON 字符串字面量的引号内部。
+// jsonUnicodeEscapeString escapes the string according to JSON rules, and try to use \uXXXX forms (especially control characters, quotes and backslashes)
+// Note: The result fits within quotes of a JSON string literal.
 func jsonUnicodeEscapeString(s string) string {
 	var b strings.Builder
 	for _, r := range s {
@@ -172,10 +172,10 @@ func jsonUnicodeEscapeString(s string) string {
 			b.WriteString("\\u0009")
 		default:
 			if r < 0x20 {
-				// 其他控制字符
+				// Other control characters
 				b.WriteString(fmt.Sprintf("\\u%04X", r))
 			} else {
-				// 其余字符按原样输出（UTF-8），JSON 允许非 ASCII 字符
+				// The remaining characters are output as-is (UTF-8), JSON allows non-ASCII characters
 				b.WriteRune(r)
 			}
 		}

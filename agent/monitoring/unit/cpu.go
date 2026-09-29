@@ -42,11 +42,11 @@ func readCPUStaticInfo() CpuInfo {
 		CPUName:          "Unknown",
 		CPUArchitecture:  runtime.GOARCH,
 		CPUCores:         1,
-		CPUPhysicalCores: 0, // 为兼容旧版 agent，0 表示未上报或未知，避免与实际核心数混淆
+		CPUPhysicalCores: 0, // For compatibility with older Agents, 0 means unknown or unreported, not an actual core count.
 		CPUUsage:         0.0,
 	}
 
-	// 优先使用 gopsutil 获取 CPU 信息，避免触发 lscpu 在部分内核上的 lockdown 日志刷屏。
+	// Prefer gopsutil for CPU information to avoid lscpu flooding lockdown logs on some kernels.
 	info, err := cpu.Info()
 	if err == nil && len(info) > 0 {
 		cpuinfo.CPUName = strings.TrimSpace(info[0].ModelName)
@@ -77,7 +77,7 @@ func readCPUStaticInfo() CpuInfo {
 	return cpuinfo
 }
 
-// readCPUNameFromProc 从 /proc/cpuinfo 读取 CPU 名称
+// readCPUNameFromProc reads the CPU name from /proc/cpuinfo.
 func readCPUNameFromProc() (string, error) {
 	file, err := os.Open("/proc/cpuinfo")
 	if err != nil {

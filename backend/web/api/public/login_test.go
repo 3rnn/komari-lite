@@ -16,7 +16,7 @@ import (
 )
 
 func TestLogin(t *testing.T) {
-	// 设置测试模式
+	// Set Test Mode
 	gin.SetMode(gin.TestMode)
 	accounts.CreateAccount("testuser", "correctpassword")
 	tests := []struct {
@@ -26,7 +26,7 @@ func TestLogin(t *testing.T) {
 		expectedBody   map[string]interface{}
 	}{
 		{
-			name: "成功登录",
+			name: "successful login",
 			requestBody: LoginRequest{
 				Username: "testuser",
 				Password: "correctpassword",
@@ -34,7 +34,7 @@ func TestLogin(t *testing.T) {
 			expectedStatus: http.StatusOK,
 		},
 		{
-			name: "无效的请求体",
+			name: "invalid request body",
 			requestBody: LoginRequest{
 				Username: "",
 				Password: "",
@@ -46,7 +46,7 @@ func TestLogin(t *testing.T) {
 			},
 		},
 		{
-			name: "错误的凭据",
+			name: "invalid credentials",
 			requestBody: LoginRequest{
 				Username: "wronguser",
 				Password: "wrongpassword",
@@ -61,32 +61,32 @@ func TestLogin(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// 创建测试路由
+			// Create test route
 			router := gin.New()
 			router.POST("/login", Login)
 
-			// 创建测试请求
+			// Create test request
 			jsonBody, _ := json.Marshal(tt.requestBody)
 			req, _ := http.NewRequest("POST", "/login", bytes.NewBuffer(jsonBody))
 			req.Header.Set("Content-Type", "application/json")
 
-			// 创建响应记录器
+			// Create a response recorder.
 			w := httptest.NewRecorder()
 
-			// 执行请求
+			// Execute the request.
 			router.ServeHTTP(w, req)
 
-			// 断言状态码
+			// Assert the status code.
 			assert.Equal(t, tt.expectedStatus, w.Code)
 
-			// 解析响应体
+			// Parse the response body.
 			var response map[string]interface{}
 			err := json.Unmarshal(w.Body.Bytes(), &response)
 			assert.NoError(t, err)
 
-			// 断言响应体
+			// Assert the response body.
 			if tt.expectedStatus == http.StatusOK {
-				// 对于成功的情况，我们只检查响应结构，不检查具体的 session token
+				// For successful cases, we only check the response structure, not the specific session token
 				assert.Equal(t, "success", response["status"])
 				assert.Equal(t, "", response["message"])
 				data, ok := response["data"].(map[string]interface{})
@@ -100,7 +100,7 @@ func TestLogin(t *testing.T) {
 			}
 		})
 	}
-	// 清除测试数据
+	// Clear test data
 	accounts.DeleteAccountByUsername("testuser")
 	accounts.DeleteAllSessions()
 }
@@ -162,9 +162,9 @@ func TestSessionCookieSecureFollowsRequestScheme(t *testing.T) {
 	}
 }
 
-// 登录页靠这两条文案切换「输入动态口令」界面：
-// 文案一改，前端就认不出「需要 2FA」，用户会卡在登录页。
-// 这里把服务端契约钉死：开了 2FA 就必须带口令，且只接受有效口令。
+// The login page relies on these two messages to show the 2FA code prompt:
+// Changing them would break the frontend’s 2FA detection and leave users stuck.
+// Keep the server contract: require a 2FA code and accept only a valid one.
 func TestLoginEnforcesTwoFactorCode(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -187,17 +187,17 @@ func TestLoginEnforcesTwoFactorCode(t *testing.T) {
 		return recorder.Code, parsed
 	}
 
-	// 只给账号密码 → 必须要求动态口令（前端据此弹出输入框）
+	// Password alone must trigger the 2FA code prompt.
 	status, payload := post(LoginRequest{Username: "twofactoruser", Password: "correctpassword"})
 	assert.Equal(t, http.StatusUnauthorized, status)
 	assert.Equal(t, "2FA code is required", payload["message"])
 
-	// 口令不合法 → 明确的口令错误文案（前端据此显示口令提示而非密码错误）
+	// An invalid 2FA code must show a code error, not a password error.
 	status, payload = post(LoginRequest{Username: "twofactoruser", Password: "correctpassword", TwoFa: "000000"})
 	assert.Equal(t, http.StatusUnauthorized, status)
 	assert.Equal(t, "Invalid 2FA code", payload["message"])
 
-	// 有效口令 → 登录成功
+	// A valid code completes login.
 	code, err := totp.GenerateCode(secret, time.Now())
 	assert.NoError(t, err)
 	status, _ = post(LoginRequest{Username: "twofactoruser", Password: "correctpassword", TwoFa: code})

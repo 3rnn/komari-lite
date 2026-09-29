@@ -17,19 +17,19 @@ import (
 func UpdateThemeSettings(c *gin.Context) {
 	theme := c.Query("theme")
 	if theme != public.DefaultTheme {
-		api.RespondError(c, http.StatusNotFound, "主题不存在")
+		api.RespondError(c, http.StatusNotFound, "Theme not found")
 		return
 	}
 
 	var req map[string]any
 	if err := c.ShouldBindJSON(&req); err != nil {
-		api.RespondError(c, http.StatusBadRequest, "参数错误: "+err.Error())
+		api.RespondError(c, http.StatusBadRequest, "Invalid parameters: "+err.Error())
 		return
 	}
 
 	data, err := json.Marshal(&req)
 	if err != nil {
-		api.RespondError(c, http.StatusInternalServerError, "生成主题配置失败: "+err.Error())
+		api.RespondError(c, http.StatusInternalServerError, "Failed to generate theme configuration: "+err.Error())
 		return
 	}
 
@@ -38,7 +38,7 @@ func UpdateThemeSettings(c *gin.Context) {
 	if err := db.Where("short = ?", public.DefaultTheme).
 		Assign(models.ThemeConfiguration{Short: public.DefaultTheme, Data: string(data)}).
 		FirstOrCreate(&themeCfg).Error; err != nil {
-		api.RespondError(c, http.StatusInternalServerError, "保存主题配置失败: "+err.Error())
+		api.RespondError(c, http.StatusInternalServerError, "Failed to save theme configuration: "+err.Error())
 		return
 	}
 	api.RespondSuccess(c, nil)

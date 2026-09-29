@@ -8,7 +8,7 @@ import (
 
 // dialect abstracts SQL differences between supported databases.
 //
-// dialect 抽象不同数据库后端的 SQL 差异。
+// dialect abstracts the SQL differences of different database backends.
 type dialect interface {
 	placeholder(n int) string
 	// jsonPlaceholder returns the bind placeholder for a JSON column value.
@@ -16,9 +16,9 @@ type dialect interface {
 	// strings with a text OID, which the server refuses to assign to a jsonb
 	// column. SQLite and MySQL store JSON as text/native and need no cast.
 	//
-	// jsonPlaceholder 返回 JSON 列值的绑定占位符。PostgreSQL 需要显式的
-	// ::jsonb 转换，因为驱动会以 text OID 发送 Go 字符串，服务器拒绝把它赋给
-	// jsonb 列。SQLite 和 MySQL 将 JSON 存为文本或原生类型，不需要转换。
+	// jsonPlaceholder Returns the bound placeholder for the JSON column value. PostgreSQL requires explicit
+	// ::jsonb conversion, because the driver will send the Go string as text OID and the server refuses to assign it to
+	// jsonb column. SQLite and MySQL store JSON as text or native type, no conversion is required.
 	jsonPlaceholder(n int) string
 	jsonType() string
 	autoIncrementPrimaryKey() string
@@ -30,17 +30,17 @@ type dialect interface {
 	// into the SQL (callers must restrict it to a safe charset); the compared
 	// value is always bound.
 	//
-	// jsonExtractEquals 渲染一个布尔谓词，用于比较 JSON 列内 key 对应的文本值和
-	// 绑定占位符。key 会插入 SQL 中（调用方必须限制到安全字符集）；被比较的值
-	// 始终通过绑定参数传入。
+	// jsonExtractEquals renders a Boolean predicate that compares the text value corresponding to the key in the JSON column and
+	// Binding placeholder. key will be inserted into SQL (caller must restrict to safe character set); the value being compared
+	// Always passed in via bind parameters.
 	jsonExtractEquals(column, key, placeholder string) string
 	// blobType is the column type for the rollup t-digest sketch.
 	//
-	// blobType 是 rollup t-digest sketch 的列类型。
+	// blobType is the column type of the rollup t-digest sketch.
 	blobType() string
 	// upsertRollupSQL builds a single-row upsert for one rollup bucket cell.
 	//
-	// upsertRollupSQL 为单个 rollup 桶单元构造单行 upsert。
+	// upsertRollupSQL Constructs a single-row upsert for a single rollup bucket unit.
 	upsertRollupSQL(t tables) string
 	// upsertCompactionWatermarkSQL builds a single-row upsert for the metric's
 	// persisted compaction watermark.
@@ -51,32 +51,32 @@ type dialect interface {
 	// cannot be deleted without first being rolled up. SQLite returns nil
 	// (its default) because a single connection already serializes writes.
 	//
-	// compactTxOptions 返回 compaction 事务使用的事务选项。PostgreSQL/MySQL 会
-	// 提升到 SERIALIZABLE，使 raw 扫描和 raw 删除共享同一个快照，让两者之间写入
-	// 的点不会在尚未进入 rollup 前被删除。SQLite 返回 nil（默认），因为单连接
-	// 已经串行化写入。
+	// compactTxOptions Returns the transaction options used by the compaction transaction. PostgreSQL/MySQL will
+	// Promote to SERIALIZABLE so that raw scans and raw deletes share the same snapshot, allowing writes between the two
+	// The points will not be deleted before entering rollup. SQLite returns nil (default) because of single join
+	// The write has been serialized.
 	compactTxOptions() *sql.TxOptions
 }
 
 // tables stores the physical table names used by a Store.
 //
-// tables 保存 Store 使用的实际表名。
+// tables holds the actual table names used by Store.
 type tables struct {
 	// definitions is the metric definitions table.
 	//
-	// definitions 是指标定义表。
+	// definitions is the metric definition table.
 	definitions string
 	// points is the raw points table.
 	//
-	// points 是原始采样点表。
+	// points is the original sample point table.
 	points string
 	// rollups is the downsampled rollups table.
 	//
-	// rollups 是降采样 rollup 表。
+	// rollups are downsampled rollup tables.
 	rollups string
 	// watermarks stores the last successfully compacted raw boundary per metric.
 	//
-	// watermarks 保存每个指标最近一次成功压缩到的 raw 边界。
+	// watermarks holds the raw bounds to which each metric was last successfully compressed.
 	watermarks string
 	// SQLite V3 stores repeated series identity once and keeps point/rollup
 	// values in narrow tables. Other backends leave these names unused.
@@ -93,7 +93,7 @@ type tables struct {
 
 // newDialect returns the SQL dialect implementation for a backend.
 //
-// newDialect 根据数据库后端创建对应 SQL 方言实现。
+// newDialect creates a corresponding SQL dialect implementation based on the database backend.
 func newDialect(driver Driver) dialect {
 	switch driver {
 	case DriverPostgreSQL:
@@ -107,37 +107,37 @@ func newDialect(driver Driver) dialect {
 
 // sqliteDialect implements SQL rendering for SQLite.
 //
-// sqliteDialect 实现 SQLite 方言。
+// sqliteDialect implements the SQLite dialect.
 type sqliteDialect struct{}
 
 // placeholder returns a bind placeholder for this SQL dialect.
 //
-// placeholder 返回 SQLite 的绑定参数占位符。
+// placeholder returns SQLite's bind parameter placeholder.
 func (sqliteDialect) placeholder(int) string { return "?" }
 
 // jsonPlaceholder returns a bind placeholder for JSON values.
 //
-// jsonPlaceholder 返回 SQLite JSON 值的绑定参数占位符。
+// jsonPlaceholder Returns a bind parameter placeholder for a SQLite JSON value.
 func (sqliteDialect) jsonPlaceholder(int) string { return "?" }
 
 // jsonType returns the SQL column type used for JSON values.
 //
-// jsonType 返回 SQLite 使用的 JSON 存储类型。
+// jsonType Returns the JSON storage type used by SQLite.
 func (sqliteDialect) jsonType() string { return "TEXT" }
 
 // autoIncrementPrimaryKey returns the SQL definition for an auto-incrementing primary key.
 //
-// autoIncrementPrimaryKey 返回 SQLite 自增主键定义。
+// autoIncrementPrimaryKey Returns the SQLite auto-increment primary key definition.
 func (sqliteDialect) autoIncrementPrimaryKey() string { return "INTEGER PRIMARY KEY AUTOINCREMENT" }
 
 // nowExpr returns the SQL expression for the current time.
 //
-// nowExpr 返回 SQLite 当前时间表达式。
+// nowExpr returns a SQLite current time expression.
 func (sqliteDialect) nowExpr() string { return "CURRENT_TIMESTAMP" }
 
 // insertDefinitionSQL builds SQL for inserting or updating a metric definition.
 //
-// insertDefinitionSQL 构造 SQLite 指标定义 upsert SQL。
+// insertDefinitionSQL constructs a SQLite metric definition upsert SQL.
 func (sqliteDialect) insertDefinitionSQL(t tables) string {
 	return fmt.Sprintf(`INSERT INTO %s
 		(name, type, unit, description, retention_days, metadata, created_at, updated_at)
@@ -153,7 +153,7 @@ func (sqliteDialect) insertDefinitionSQL(t tables) string {
 
 // upsertPointSQL builds SQL for inserting or updating metric points.
 //
-// upsertPointSQL 构造 SQLite 采样点批量 upsert SQL。
+// upsertPointSQL constructs SQLite sample point batch upsert SQL.
 func (sqliteDialect) upsertPointSQL(t tables, rowCount int) string {
 	return buildInsertPointsSQL(t.points, sqliteDialect{}, rowCount, `ON CONFLICT(metric_name, entity_id, tags_hash, ts_nano) DO UPDATE SET
 		value = excluded.value,
@@ -174,37 +174,37 @@ func (sqliteDialect) upsertCompactionWatermarkSQL(t tables) string {
 
 // mysqlDialect implements SQL rendering for MySQL.
 //
-// mysqlDialect 实现 MySQL 方言。
+// mysqlDialect implements the MySQL dialect.
 type mysqlDialect struct{}
 
 // placeholder returns a bind placeholder for this SQL dialect.
 //
-// placeholder 返回 MySQL 的绑定参数占位符。
+// placeholder returns the MySQL bind parameter placeholder.
 func (mysqlDialect) placeholder(int) string { return "?" }
 
 // jsonPlaceholder returns a bind placeholder for JSON values.
 //
-// jsonPlaceholder 返回 MySQL JSON 值的绑定参数占位符。
+// jsonPlaceholder Returns the bind parameter placeholder for a MySQL JSON value.
 func (mysqlDialect) jsonPlaceholder(int) string { return "?" }
 
 // jsonType returns the SQL column type used for JSON values.
 //
-// jsonType 返回 MySQL 使用的 JSON 存储类型。
+// jsonType returns the JSON storage type used by MySQL.
 func (mysqlDialect) jsonType() string { return "JSON" }
 
 // autoIncrementPrimaryKey returns the SQL definition for an auto-incrementing primary key.
 //
-// autoIncrementPrimaryKey 返回 MySQL 自增主键定义。
+// autoIncrementPrimaryKey returns the MySQL auto-increment primary key definition.
 func (mysqlDialect) autoIncrementPrimaryKey() string { return "BIGINT AUTO_INCREMENT PRIMARY KEY" }
 
 // nowExpr returns the SQL expression for the current time.
 //
-// nowExpr 返回 MySQL 当前时间表达式。
+// nowExpr returns the MySQL current time expression.
 func (mysqlDialect) nowExpr() string { return "CURRENT_TIMESTAMP" }
 
 // insertDefinitionSQL builds SQL for inserting or updating a metric definition.
 //
-// insertDefinitionSQL 构造 MySQL 指标定义 upsert SQL。
+// insertDefinitionSQL constructs the MySQL metric definition upsert SQL.
 func (mysqlDialect) insertDefinitionSQL(t tables) string {
 	return fmt.Sprintf(`INSERT INTO %s
 		(name, type, unit, description, retention_days, metadata, created_at, updated_at)
@@ -220,7 +220,7 @@ func (mysqlDialect) insertDefinitionSQL(t tables) string {
 
 // upsertPointSQL builds SQL for inserting or updating metric points.
 //
-// upsertPointSQL 构造 MySQL 采样点批量 upsert SQL。
+// upsertPointSQL constructs MySQL sample point batch upsert SQL.
 func (mysqlDialect) upsertPointSQL(t tables, rowCount int) string {
 	return buildInsertPointsSQL(t.points, mysqlDialect{}, rowCount, `ON DUPLICATE KEY UPDATE
 		value = VALUES(value),
@@ -241,37 +241,37 @@ func (mysqlDialect) upsertCompactionWatermarkSQL(t tables) string {
 
 // postgresDialect implements SQL rendering for PostgreSQL.
 //
-// postgresDialect 实现 PostgreSQL 方言。
+// postgresDialect implements the PostgreSQL dialect.
 type postgresDialect struct{}
 
 // placeholder returns a bind placeholder for this SQL dialect.
 //
-// placeholder 返回 PostgreSQL 的编号绑定参数占位符。
+// placeholder returns the numbered bind parameter placeholder for PostgreSQL.
 func (postgresDialect) placeholder(n int) string { return fmt.Sprintf("$%d", n) }
 
 // jsonPlaceholder returns a bind placeholder for JSON values.
 //
-// jsonPlaceholder 返回 PostgreSQL JSONB 值的绑定参数占位符。
+// jsonPlaceholder Returns the bind parameter placeholder for a PostgreSQL JSONB value.
 func (postgresDialect) jsonPlaceholder(n int) string { return fmt.Sprintf("$%d::jsonb", n) }
 
 // jsonType returns the SQL column type used for JSON values.
 //
-// jsonType 返回 PostgreSQL 使用的 JSONB 存储类型。
+// jsonType returns the JSONB storage type used by PostgreSQL.
 func (postgresDialect) jsonType() string { return "JSONB" }
 
 // autoIncrementPrimaryKey returns the SQL definition for an auto-incrementing primary key.
 //
-// autoIncrementPrimaryKey 返回 PostgreSQL 自增主键定义。
+// autoIncrementPrimaryKey returns the PostgreSQL auto-increment primary key definition.
 func (postgresDialect) autoIncrementPrimaryKey() string { return "BIGSERIAL PRIMARY KEY" }
 
 // nowExpr returns the SQL expression for the current time.
 //
-// nowExpr 返回 PostgreSQL 当前时间表达式。
+// nowExpr returns the PostgreSQL current time expression.
 func (postgresDialect) nowExpr() string { return "CURRENT_TIMESTAMP" }
 
 // insertDefinitionSQL builds SQL for inserting or updating a metric definition.
 //
-// insertDefinitionSQL 构造 PostgreSQL 指标定义 upsert SQL。
+// insertDefinitionSQL Constructs a PostgreSQL metric definition upsert SQL.
 func (postgresDialect) insertDefinitionSQL(t tables) string {
 	return fmt.Sprintf(`INSERT INTO %s
 		(name, type, unit, description, retention_days, metadata, created_at, updated_at)
@@ -287,7 +287,7 @@ func (postgresDialect) insertDefinitionSQL(t tables) string {
 
 // upsertPointSQL builds SQL for inserting or updating metric points.
 //
-// upsertPointSQL 构造 PostgreSQL 采样点批量 upsert SQL。
+// upsertPointSQL constructs PostgreSQL sample point batch upsert SQL.
 func (postgresDialect) upsertPointSQL(t tables, rowCount int) string {
 	return buildInsertPointsSQL(t.points, postgresDialect{}, rowCount, `ON CONFLICT(metric_name, entity_id, tags_hash, ts_nano) DO UPDATE SET
 		value = EXCLUDED.value,
@@ -308,7 +308,7 @@ func (postgresDialect) upsertCompactionWatermarkSQL(t tables) string {
 
 // buildInsertPointsSQL builds a multi-row insert statement for metric points.
 //
-// buildInsertPointsSQL 构造多行采样点 INSERT/UPSERT SQL。
+// buildInsertPointsSQL constructs multi-row sample point INSERT/UPSERT SQL.
 func buildInsertPointsSQL(table string, d dialect, rowCount int, suffix string) string {
 	var b strings.Builder
 	b.WriteString("INSERT INTO ")
@@ -342,7 +342,7 @@ func buildInsertPointsSQL(table string, d dialect, rowCount int, suffix string) 
 
 // tableName combines a table prefix and logical table name.
 //
-// tableName 用表名前缀和逻辑表名生成实际表名。
+// tableName generates the actual table name using the table name prefix and the logical table name.
 func tableName(prefix, name string) string {
 	return prefix + name
 }
@@ -351,8 +351,8 @@ func tableName(prefix, name string) string {
 // definition. CreateMetric uses it so a duplicate name surfaces as a unique
 // constraint violation instead of silently overwriting the existing row.
 //
-// insertDefinitionOnlySQL 构造普通 INSERT（不带 upsert），供
-// CreateMetric 保持“只创建”语义；重复名称会暴露为唯一约束错误。
+// insertDefinitionOnlySQL constructs a normal INSERT (without upsert) for
+// CreateMetric maintains "create-only" semantics; duplicate names are exposed as unique constraint errors.
 func insertDefinitionOnlySQL(d dialect, t tables) string {
 	cols := "(name, type, unit, description, retention_days, metadata, created_at, updated_at)"
 	ph := []string{
@@ -371,8 +371,8 @@ func insertDefinitionOnlySQL(d dialect, t tables) string {
 // sqlSingleQuote escapes a string for safe inclusion inside a single-quoted SQL
 // string literal by doubling embedded single quotes.
 //
-// sqlSingleQuote 通过把单引号加倍，安全地转义可放入 SQL 单引号字符串
-// 字面量的内容。
+// sqlSingleQuote Safely escapes single-quoted strings that can be placed in SQL by doubling the single quotes.
+// The content of the literal.
 func sqlSingleQuote(s string) string {
 	return strings.ReplaceAll(s, "'", "''")
 }
@@ -390,15 +390,15 @@ func sqlSingleQuote(s string) string {
 //     quote are backslash-escaped.
 //  2. SQL string-literal escaping of the whole path: single quotes doubled.
 //
-// sqlJSONPathQuoted 为给定对象键构造带引号的 JSON path 成员访问（$."key"），
-// 并返回可嵌入 SQL 单引号字符串字面量的结果。必须使用带引号形式（$."key"），
-// 而不是裸形式（$.key），因为包含点号、连字符、空格或其他 JSON path 语法字符的
-// key 会被误解；例如点号是成员分隔符，所以裸路径 "$.region.zone" 会查找对象
-// "region" 的嵌套成员 "zone"，而不是平铺 key "region.zone"。
+// sqlJSONPathQuoted Constructs a quoted JSON path member access ($."key") for the given object key,
+// And returns results that can be embedded in SQL single-quoted string literals. Must use quoted form ($."key"),
+// Instead of the bare form ($.key), because it contains dots, hyphens, spaces, or other JSON path syntax characters
+// key can be misinterpreted; for example, the dot is the member separator, so the bare path "$.region.zone" will find the object
+// Nested member "zone" of "region" instead of flat key "region.zone".
 //
-// 转义按从内到外两层应用：
-//  1. 双引号内的 JSON path 字符串转义：反斜杠和双引号使用反斜杠转义。
-//  2. 整个 path 的 SQL 字符串字面量转义：单引号加倍。
+// Escapes are applied in two layers from the inside to the outside:
+//  1. JSON path string escaping within double quotes: backslashes and double quotes are escaped with backslashes.
+//  2. SQL string literal escaping of the entire path: double the single quotes.
 func sqlJSONPathQuoted(key string) string {
 	escaped := strings.ReplaceAll(key, "\\", "\\\\")
 	escaped = strings.ReplaceAll(escaped, "\"", "\\\"")
@@ -407,21 +407,21 @@ func sqlJSONPathQuoted(key string) string {
 
 // jsonExtractEquals renders a JSON equality predicate.
 //
-// jsonExtractEquals 构造 SQLite JSON 字段等值过滤表达式。
+// jsonExtractEquals constructs a SQLite JSON field equality filter expression.
 func (sqliteDialect) jsonExtractEquals(column, key, placeholder string) string {
 	return fmt.Sprintf("json_extract(%s, '%s') = %s", column, sqlJSONPathQuoted(key), placeholder)
 }
 
 // jsonExtractEquals renders a JSON equality predicate.
 //
-// jsonExtractEquals 构造 MySQL JSON 字段等值过滤表达式。
+// jsonExtractEquals constructs a MySQL JSON field equality filter expression.
 func (mysqlDialect) jsonExtractEquals(column, key, placeholder string) string {
 	return fmt.Sprintf("JSON_UNQUOTE(JSON_EXTRACT(%s, '%s')) = %s", column, sqlJSONPathQuoted(key), placeholder)
 }
 
 // jsonExtractEquals renders a JSON equality predicate.
 //
-// jsonExtractEquals 构造 PostgreSQL JSONB 字段等值过滤表达式。
+// jsonExtractEquals constructs a PostgreSQL JSONB field equality filter expression.
 func (postgresDialect) jsonExtractEquals(column, key, placeholder string) string {
 	// PostgreSQL's ->> takes the key as a plain text literal (not a JSON path),
 	// so a dot or hyphen in the key is harmless; only single quotes need SQL
@@ -445,18 +445,18 @@ func (postgresDialect) jsonExtractEquals(column, key, placeholder string) string
 //
 // The simple reductions (avg/min/max/sum/count) are portable everywhere.
 //
-// sqlAggValueExpr 返回给定驱动上对 "value" 列计算 agg 的 SQL 值表达式，
-// 以及该聚合是否能下推到该后端。需要有序原始序列的聚合（first/last/rate）
-// 永远不会在这里下推。百分位和总体标准差只会在后端提供可移植且语义匹配的函数时
-// 下推：
+// sqlAggValueExpr returns the SQL value expression that calculates agg on the "value" column on the given driver.
+// And whether the aggregation can be pushed down to that backend. Aggregation that requires ordered raw sequence (first/last/rate)
+// Never push down here. Percentile and population standard deviation will only work if the backend provides portable and semantically matching functions
+// Push down:
 //
-//   - STDDEV_POP：MySQL 和 PostgreSQL 支持（匹配内存中的总体标准差，
-//     即除以 N）。SQLite 没有内置函数，因此回退到内存计算。
-//   - percentile_cont(p) WITHIN GROUP (ORDER BY value)：仅 PostgreSQL 支持。
-//     它匹配内存中任意 p（p50、p95、p99、p99.9 等）的线性插值百分位。
-//     MySQL 没有可移植的连续百分位函数，SQLite 也没有，因此两者都回退到内存计算。
+//   - STDDEV_POP: MySQL and PostgreSQL support (matches the population standard deviation in memory,
+//     That is divided by N). SQLite has no built-in functions, so falls back to in-memory calculations.
+//   - percentile_cont(p) WITHIN GROUP (ORDER BY value): only supported by PostgreSQL.
+//     It matches the linearly interpolated percentile of any p in memory (p50, p95, p99, p99.9, etc.).
+//     MySQL doesn't have a portable continuous percentile function, and neither does SQLite, so both fall back to in-memory calculations.
 //
-// 简单归约（avg/min/max/sum/count）在所有后端都可移植。
+// Simple reductions (avg/min/max/sum/count) are portable across all backends.
 func sqlAggValueExpr(driver Driver, agg Aggregation) (string, bool) {
 	switch agg {
 	case AggAvg:

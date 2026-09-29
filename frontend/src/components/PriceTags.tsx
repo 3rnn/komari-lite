@@ -184,13 +184,13 @@ const CustomTags = ({ tags }: { tags?: string }) => {
     "sky",
   ];
 
-  // 解析带颜色的标签
+  // Parse a color-coded tag.
   const parseTagWithColor = (tag: string) => {
     const colorMatch = tag.match(/<(\w+)>$/);
     if (colorMatch) {
       const color = colorMatch[1].toLowerCase();
       const text = tag.replace(/<\w+>$/, "");
-      // 检查颜色是否在支持的颜色列表中
+      // Check whether its color is supported.
       if (colors.includes(color as any)) {
         return { text, color: color as (typeof colors)[number] };
       }

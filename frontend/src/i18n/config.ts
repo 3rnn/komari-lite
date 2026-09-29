@@ -9,8 +9,8 @@ import {
   writeLanguageCookie,
 } from "@/utils/language";
 
-// 不添加 name 字段的语言将不会在语言切换菜单中显示
-// not adding the name field will hide the language from the language switcher menu
+// Legacy locale identifiers remain available for stored preferences, but only
+// English is offered to new users through the language switcher.
 const resources = {
   en: {
     translation: en,
@@ -30,16 +30,15 @@ const resources = {
   },
   "zh-CN": {
     translation: zh_CN,
-    name: "简体中文",
   },
   "zh-SG": {
-    translation: zh_CN,  // Singapore uses Simplified Chinese
+    translation: zh_CN,
   },
   "zh-HK": {
-    translation: zh_CN,  // 繁体已移除，港澳回落到简体中文
+    translation: zh_CN,
   },
   "zh-MO": {
-    translation: zh_CN,  // 同上
+    translation: zh_CN,
   },
 };
 
@@ -56,14 +55,13 @@ void i18n
   .use(initReactI18next)
   .init({
     resources,
-    // 面板只提供英文与简体中文，默认简体中文
-    fallbackLng: "zh-CN",
-    lng: readStoredLanguage() || "zh-CN",
+    fallbackLng: "en-US",
+    lng: readStoredLanguage() || "en-US",
     interpolation: {
       escapeValue: false, // React handles XSS
     },
     detection: {
-      // 不再按浏览器语言自动切换：只认用户显式选择，其余一律简体中文
+      // Do not detect browser language; use the explicit selection or the existing default.
       order: ["localStorage"],
       caches: ["localStorage"],
       lookupLocalStorage: LANGUAGE_STORAGE_KEY,

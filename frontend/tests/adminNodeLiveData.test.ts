@@ -33,8 +33,8 @@ test("admin node status uses one guarded compact poll", () => {
 test("admin node table keeps persisted ordering and prioritizes identity and billing", () => {
   assert.match(pageSource, /\/api\/admin\/client\/order/);
   assert.doesNotMatch(pageSource, /ResourceStatus|TrafficQuota|ResourceUsage/);
-  assert.match(pageSource, /t\("common\.group", "分组"\)/);
-  assert.match(pageSource, /t\("common\.remark", "备注"\)/);
+  assert.match(pageSource, /t\("common\.group", "Group"\)/);
+  assert.match(pageSource, /t\("common\.remark", "Remark"\)/);
   assert.match(pageSource, /w-\[224px\].*admin\.nodeTable\.billing/);
   assert.match(pageSource, /nodeTable\.agent[\s\S]*publicVersion\(node\.version\)/);
   assert.match(pageSource, /admin-node-country-flag/);
@@ -92,7 +92,7 @@ test("all admin information lists share configurable pagination", () => {
   assert.match(pingTaskSource, /destinationPage = page \+ 1/);
 });
 
-// 主题市场与其源文件已随精简版删除，相关的源码断言不再适用。
+// Theme-market source assertions no longer apply to the lite build, where the market was removed.
 
 test("admin node toolbar aligns status left and search actions right", () => {
   assert.match(pageSource, /<AdminNodeStatusSummary/);

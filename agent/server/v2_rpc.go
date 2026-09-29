@@ -82,8 +82,8 @@ func bodySnippet(body []byte) string {
 	return fmt.Sprintf("%q", string(body))
 }
 
-// postV2RPC 向面板投递一条 v2 JSON-RPC 请求（原来的实现随远程执行子系统一起被删除，
-// 这里保留通用传输能力：路由探测与基础信息上报仍需要它）。
+// postV2RPC sends a v2 JSON-RPC request to the panel. The original implementation was
+// removed with the remote-execution subsystem; probes and basic-info reports still need this transport.
 func postV2RPC(payload interface{}) error {
 	body, err := json.Marshal(payload)
 	if err != nil {

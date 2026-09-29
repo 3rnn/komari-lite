@@ -70,7 +70,7 @@ func buildEnabledTrafficReportNotifications(uuids []string, existing []models.Tr
 	return notifications, nil
 }
 
-// ListTrafficReportNotifications 获取所有流量定时报告配置（关联客户端信息）
+// ListTrafficReportNotifications Gets all traffic scheduled report configurations (associated client information)
 func ListTrafficReportNotifications() ([]models.TrafficReportNotification, error) {
 	db := dbcore.GetDBInstance()
 	var notifications []models.TrafficReportNotification
@@ -78,7 +78,7 @@ func ListTrafficReportNotifications() ([]models.TrafficReportNotification, error
 	return notifications, err
 }
 
-// EditTrafficReportNotifications 批量更新流量定时报告配置
+// EditTrafficReportNotifications Batch update traffic timing report configuration
 func EditTrafficReportNotifications(notifications []models.TrafficReportNotification) error {
 	if err := ValidateTrafficReportNotifications(notifications); err != nil {
 		return err
@@ -116,7 +116,7 @@ func upsertTrafficReportNotifications(db *gorm.DB, notifications []models.Traffi
 		Create(rows).Error
 }
 
-// EnableTrafficReportNotifications 批量启用（仅更新 enable 字段）
+// EnableTrafficReportNotifications batch enable (only update enable field)
 func EnableTrafficReportNotifications(uuids []string) error {
 	if len(uuids) == 0 {
 		return fmt.Errorf("at least one client UUID is required")
@@ -143,7 +143,7 @@ func EnableTrafficReportNotifications(uuids []string) error {
 	return EnsureTrafficReportMetricRetention(context.Background())
 }
 
-// DisableTrafficReportNotifications 批量禁用
+// DisableTrafficReportNotifications batch disable
 func DisableTrafficReportNotifications(uuids []string) error {
 	if len(uuids) == 0 {
 		return fmt.Errorf("at least one client UUID is required")
@@ -168,7 +168,7 @@ func DisableTrafficReportNotifications(uuids []string) error {
 		Create(notifications).Error
 }
 
-// GetEnabledTrafficReportByType 获取启用了指定类型报告的客户端配置
+// GetEnabledTrafficReportByType Gets the client configuration that enables the specified type of report
 func GetEnabledTrafficReportByType(daily, weekly, monthly bool) ([]models.TrafficReportNotification, error) {
 	db := dbcore.GetDBInstance()
 	var notifications []models.TrafficReportNotification

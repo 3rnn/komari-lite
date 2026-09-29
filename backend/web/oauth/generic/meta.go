@@ -13,7 +13,7 @@ func init() {
 
 type Generic struct {
 	Addition
-	stateCache *cache.Cache // 用于存储state和用户信息的映射
+	stateCache *cache.Cache // Mappings for storing state and user information
 }
 
 type Addition struct {

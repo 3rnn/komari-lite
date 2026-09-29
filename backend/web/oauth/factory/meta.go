@@ -4,9 +4,9 @@ import "github.com/gin-gonic/gin"
 
 type IOidcProvider interface {
 	GetName() string
-	// 请务必返回 &Configuration{} 的指针
+	// Return a *Configuration (for example, &Configuration{}).
 	GetConfiguration() Configuration
-	// 获取授权URL和状态
+	// Return the authorization URL and state.
 	GetAuthorizationURL(redirectURI string) (string, string)
 	OnCallback(ctx *gin.Context, state string, query map[string]string, callbackURI string) (OidcCallback, error)
 	Init() error

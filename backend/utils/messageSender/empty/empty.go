@@ -39,5 +39,5 @@ func init() {
 	})
 }
 
-// 确保实现了 IMessageSender 接口
+// Make sure you implement the IMessageSender interface
 var _ factory.IMessageSender = (*EmptyProvider)(nil)

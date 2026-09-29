@@ -8,7 +8,7 @@ func TestIsLocalizedText(t *testing.T) {
 		want  bool
 	}{
 		"legacy string":   {value: "Theme", want: true},
-		"localized":       {value: map[string]any{"zh_CN": "主题", "en": "Theme"}, want: true},
+		"localized":       {value: map[string]any{"zh_CN": "Theme", "en": "Theme"}, want: true},
 		"localized empty": {value: map[string]any{"en": "  "}},
 		"wrong type":      {value: []string{"Theme"}},
 	} {

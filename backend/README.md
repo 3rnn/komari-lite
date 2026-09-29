@@ -5,7 +5,7 @@ Go service that serves the administrator API, the public dashboard, and the embe
 Build instructions, native deployment, and the Agent release workflow live in the repository root:
 
 - [`../README.md`](../README.md) — build, deploy, and release (English)
-- [`../README.zh-CN.md`](../README.zh-CN.md) — 同上（简体中文）
+- [`../README.zh-CN.md`](../README.zh-CN.md) — the same guidance in Simplified Chinese
 
 ## Layout
 

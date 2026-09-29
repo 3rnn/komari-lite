@@ -7,7 +7,7 @@ import (
 	"github.com/komari-monitor/komari/utils/geoip"
 )
 
-// 测试GeoIP数据库的初始化和更新功能
+// Test the initialization and update functions of the GeoIP database
 func TestMmdb(t *testing.T) {
 	geoip.CurrentProvider, _ = geoip.NewMaxMindGeoIPService()
 	testIpAddr(t)

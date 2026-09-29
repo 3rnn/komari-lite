@@ -1,42 +1,42 @@
 package rpc
 
 // principal.go
-// 调用主体(Principal)定义。区分不同主体类型(匿名/agent/用户/API Key),
-// 替代原先的单一 group string,使身份信息更结构化、便于后续能力模型扩展。
+// Calling principal (Principal) definition. Distinguish between different subject types (anonymous/agent/user/API Key),
+// Replacing the original single group string makes the identity information more structured and facilitates subsequent capability model expansion.
 
-// PrincipalType 调用主体类型
+// PrincipalType calling principal type
 type PrincipalType int
 
 const (
-	// PrincipalAnonymous 匿名访客(未认证)
+	// PrincipalAnonymous anonymous visitor (unauthenticated)
 	PrincipalAnonymous PrincipalType = iota
-	// PrincipalAgent 通过 client token 认证的 agent 客户端
+	// PrincipalAgent The agent client authenticated by client token
 	PrincipalAgent
-	// PrincipalUser 通过 session cookie 认证的管理员用户
+	// PrincipalUser Administrator user authenticated via session cookie
 	PrincipalUser
-	// PrincipalAPIKey 通过 API Key 认证的调用方
+	// PrincipalAPIKey The caller authenticated by the API Key
 	PrincipalAPIKey
 )
 
-// Principal 调用主体,携带身份信息和能力。
+// Principal calls the subject, carrying identity information and capabilities.
 type Principal struct {
-	// Type 主体类型
+	// Type subject type
 	Type PrincipalType
-	// UserUUID 用户 UUID(PrincipalUser 时存在)
+	// UserUUID User UUID (exists when PrincipalUser)
 	UserUUID string
-	// ClientUUID agent 客户端 UUID(PrincipalAgent 时存在)
+	// ClientUUID agent client UUID (exists when PrincipalAgent)
 	ClientUUID string
-	// IsAPIKey 是否为 API Key 调用(快速判定,等价于 Type==PrincipalAPIKey)
+	// Whether IsAPIKey is an API Key call (quick determination, equivalent to Type==PrincipalAPIKey)
 	IsAPIKey bool
-	// Roles 角色/能力集。默认由 Type 推导:
+	// Roles role/ability set. Default is deduced from Type:
 	//   - PrincipalAnonymous → [RoleGuest]
 	//   - PrincipalAgent → [RoleClient]
 	//   - PrincipalUser / PrincipalAPIKey → [RoleAdmin]
-	// 未来可扩展为多角色(只读 admin / API Key scope 等)。
+	// In the future, it can be expanded to multiple roles (read-only admin / API Key scope, etc.).
 	Roles []string
 }
 
-// NewAnonymousPrincipal 创建匿名访客主体
+// NewAnonymousPrincipal creates an anonymous visitor principal
 func NewAnonymousPrincipal() *Principal {
 	return &Principal{
 		Type:  PrincipalAnonymous,
@@ -44,7 +44,7 @@ func NewAnonymousPrincipal() *Principal {
 	}
 }
 
-// NewAgentPrincipal 创建 agent 客户端主体
+// NewAgentPrincipal creates agent client principal
 func NewAgentPrincipal(clientUUID string) *Principal {
 	return &Principal{
 		Type:       PrincipalAgent,
@@ -53,7 +53,7 @@ func NewAgentPrincipal(clientUUID string) *Principal {
 	}
 }
 
-// NewUserPrincipal 创建管理员用户主体
+// NewUserPrincipal creates an administrator user principal
 func NewUserPrincipal(userUUID string) *Principal {
 	return &Principal{
 		Type:     PrincipalUser,
@@ -62,7 +62,7 @@ func NewUserPrincipal(userUUID string) *Principal {
 	}
 }
 
-// NewAPIKeyPrincipal 创建 API Key 调用主体
+// NewAPIKeyPrincipal creates API Key calling body
 func NewAPIKeyPrincipal() *Principal {
 	return &Principal{
 		Type:     PrincipalAPIKey,
@@ -71,8 +71,8 @@ func NewAPIKeyPrincipal() *Principal {
 	}
 }
 
-// PrimaryRole 返回主体的主要角色(兼容现有单角色模型)。
-// 多角色场景下返回权限等级最高的那个。
+// PrimaryRole Returns the principal's primary role (compatible with existing single-role models).
+// In a multi-role scenario, return the one with the highest authority level.
 func (p *Principal) PrimaryRole() string {
 	if p == nil || len(p.Roles) == 0 {
 		return RoleGuest
@@ -88,7 +88,7 @@ func (p *Principal) PrimaryRole() string {
 	return bestRole
 }
 
-// HasRole 判断主体是否拥有指定角色
+// HasRole determines whether the subject has the specified role
 func (p *Principal) HasRole(role string) bool {
 	if p == nil {
 		return false
@@ -101,10 +101,12 @@ func (p *Principal) HasRole(role string) bool {
 	return false
 }
 
-// PrincipalFromRole 按角色构造一个最小主体,用于内部调用(OnInternalRequest)等
-// 仅知道角色、无具体身份信息的场景。Type 按角色合理推断:
-//   guest → Anonymous, client → Agent, admin → User。
-// 注意:此构造不携带 UUID/token,仅用于权限判定与兜底,不应据此做审计 actor 归属。
+// PrincipalFromRole constructs a minimal principal based on role for internal calls (OnInternalRequest), etc.
+// A scene in which only the characters are known, with no specific identifying information. Type is reasonably inferred based on role:
+//
+//	guest → Anonymous, client → Agent, admin → User.
+//
+// Note: This structure does not carry UUID/token, it is only used for permission determination and disclosure, and should not be used to audit actor ownership.
 func PrincipalFromRole(role string) *Principal {
 	switch role {
 	case RoleClient:
@@ -115,4 +117,3 @@ func PrincipalFromRole(role string) *Principal {
 		return NewAnonymousPrincipal()
 	}
 }
-

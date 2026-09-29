@@ -15,13 +15,13 @@ export interface AccountContextType {
   updatePreferences: (preferences: AccountPreferences) => Promise<void>;
 }
 
-// 创建Context
+// Create the context.
 
 const AccountContext = React.createContext<AccountContextType | undefined>(
   undefined,
 );
 
-// Provider组件
+// Account provider.
 export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [account, setAccount] = React.useState<Account | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -72,7 +72,7 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
 export const useOptionalAccount = () => React.useContext(AccountContext);
 
-// 自定义Hook
+// Custom hook.
 export const useAccount = () => {
   const context = useOptionalAccount();
   if (!context) {

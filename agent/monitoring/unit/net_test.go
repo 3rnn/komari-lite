@@ -257,7 +257,7 @@ func TestShouldInclude(t *testing.T) {
 }
 
 func TestNetworkSpeedFallback(t *testing.T) {
-	// 测试回退方法
+	// Test the fallback method.
 	includeNics := map[string]struct{}{}
 	excludeNics := map[string]struct{}{}
 
@@ -275,7 +275,7 @@ func TestNetworkSpeedWithoutMonthRotate(t *testing.T) {
 	t.Cleanup(func() { runtimeconfig.SetMonthRotateDay(originalMonthRotate) })
 	runtimeconfig.SetMonthRotateDay(0)
 
-	// 设置测试值
+	// Set test values.
 	flags.IncludeNics = ""
 	flags.ExcludeNics = ""
 
@@ -289,13 +289,13 @@ func TestNetworkSpeedWithoutMonthRotate(t *testing.T) {
 }
 
 func TestNetworkSpeedWithMonthRotate(t *testing.T) {
-	// 保存原始值
+	// Save original values.
 	originalMonthRotate := flags.MonthRotate
 	originalRuntimeMonthRotate := runtimeconfig.MonthRotateDay()
 	originalIncludeNics := flags.IncludeNics
 	originalExcludeNics := flags.ExcludeNics
 
-	// 恢复原始值
+	// Restore original values.
 	defer func() {
 		flags.MonthRotate = originalMonthRotate
 		runtimeconfig.SetMonthRotateDay(originalRuntimeMonthRotate)
@@ -303,7 +303,7 @@ func TestNetworkSpeedWithMonthRotate(t *testing.T) {
 		flags.ExcludeNics = originalExcludeNics
 	}()
 
-	// 设置测试值 - 启用月重置
+	// Set test values with monthly reset enabled.
 	flags.MonthRotate = 1
 	runtimeconfig.SetMonthRotateDay(1)
 	flags.IncludeNics = ""
@@ -311,7 +311,7 @@ func TestNetworkSpeedWithMonthRotate(t *testing.T) {
 
 	totalUp, totalDown, upSpeed, downSpeed, err := NetworkSpeed()
 
-	// 如果vnstat不可用，可能会回退到原来的方法，这是正常的
+	// If vnstat is unavailable, falling back to the old method is expected.
 	if err != nil {
 		t.Fatalf("NetworkSpeed failed: %v", err)
 	}
@@ -321,13 +321,13 @@ func TestNetworkSpeedWithMonthRotate(t *testing.T) {
 }
 
 func TestNetworkSpeedWithNicFilters(t *testing.T) {
-	// 保存原始值
+	// Save original values.
 	originalMonthRotate := flags.MonthRotate
 	originalRuntimeMonthRotate := runtimeconfig.MonthRotateDay()
 	originalIncludeNics := flags.IncludeNics
 	originalExcludeNics := flags.ExcludeNics
 
-	// 恢复原始值
+	// Restore original values.
 	defer func() {
 		flags.MonthRotate = originalMonthRotate
 		runtimeconfig.SetMonthRotateDay(originalRuntimeMonthRotate)
@@ -335,7 +335,7 @@ func TestNetworkSpeedWithNicFilters(t *testing.T) {
 		flags.ExcludeNics = originalExcludeNics
 	}()
 
-	// 测试排除回环接口
+	// Test exclusion of loopback interfaces.
 	flags.MonthRotate = 0
 	runtimeconfig.SetMonthRotateDay(0)
 	flags.IncludeNics = ""

@@ -17,8 +17,8 @@ import (
 // which lies OUTSIDE the window. Full containment excludes the straddling
 // bucket entirely, so the out-of-window sample can no longer leak in.
 //
-// TestAggregateRollupExcludesPartialBucket 验证 rollup 查询不再通过部分重叠的桶
-// 把窗口外的样本带进来。
+// TestAggregateRollupExcludesPartialBucket Verifies that rollup queries no longer pass partially overlapping buckets
+// Bring in samples from outside the window.
 func TestAggregateRollupExcludesPartialBucket(t *testing.T) {
 	ctx := context.Background()
 	policy := RollupPolicy{Tiers: []RollupTier{{Interval: time.Minute, Retention: 24 * time.Hour}}}
@@ -66,8 +66,8 @@ func TestAggregateRollupExcludesPartialBucket(t *testing.T) {
 // < 00:02:00, so an inclusive end keeps it. The previous half-open (< end) rule
 // could drop a bucket sitting exactly on the end edge.
 //
-// TestAggregateRollupEndBoundaryInclusive 验证 rollup 查询 end 边界为闭区间
-// （与 raw 的 ts <= end 一致），且对齐到分辨率边界的窗口会返回它覆盖的每个完整桶。
+// TestAggregateRollupEndBoundaryInclusive verifies that the rollup query end boundary is a closed interval
+// (Consistent with raw's ts <= end), and a window aligned to the resolution boundary returns each full bucket it covers.
 func TestAggregateRollupEndBoundaryInclusive(t *testing.T) {
 	ctx := context.Background()
 	policy := RollupPolicy{Tiers: []RollupTier{{Interval: time.Minute, Retention: 24 * time.Hour}}}
@@ -114,8 +114,8 @@ func TestAggregateRollupEndBoundaryInclusive(t *testing.T) {
 // answer folds both: count=2, avg=(10+100)/2=55. The old merge-by-bucket-time
 // path kept only the raw half and reported count=1, avg=100.
 //
-// TestSeriesHybridMergesStraddlingBucket 验证跨越原始保留期边界的输出桶会同时
-// 聚合 rollup 半边和 raw 半边，而不是让 raw 覆盖 rollup 半边。
+// TestSeriesHybridMergesStraddlingBucket verifies that output buckets that cross the original retention boundary are
+// Aggregate the rollup half and the raw half, rather than having the raw cover the rollup half.
 func TestSeriesHybridMergesStraddlingBucket(t *testing.T) {
 	ctx := context.Background()
 	policy := RollupPolicy{
@@ -183,8 +183,8 @@ func TestSeriesHybridMergesStraddlingBucket(t *testing.T) {
 // bucket must sum both halves (10 + 100 = 110), proving the merge is at the
 // summary level rather than a bucket-time replacement.
 //
-// TestSeriesHybridSumAcrossBoundary 是 AggSum 版本：跨边界的 1h 桶必须把两半求和
-// （10 + 100 = 110），证明合并发生在摘要层面，而不是按桶时间替换。
+// TestSeriesHybridSumAcrossBoundary is the AggSum version: 1h buckets across the boundary must sum both halves
+// (10 + 100 = 110), proving that merging occurs at the summary level rather than by bucket time replacement.
 func TestSeriesHybridSumAcrossBoundary(t *testing.T) {
 	ctx := context.Background()
 	policy := RollupPolicy{

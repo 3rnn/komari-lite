@@ -20,14 +20,14 @@ func init() {
 	// Bind locally by default. Public deployments should use a reverse proxy and
 	// pass an explicit --listen only when they have a deliberate exposure plan.
 	listenAddr := GetEnv("KOMARI_LISTEN", "127.0.0.1:25774")
-	ServerCmd.PersistentFlags().StringVarP(&flags.Listen, "listen", "l", listenAddr, "监听地址 [env: KOMARI_LISTEN]")
+	ServerCmd.PersistentFlags().StringVarP(&flags.Listen, "listen", "l", listenAddr, "Listen address [env: KOMARI_LISTEN]")
 	RootCmd.AddCommand(ServerCmd)
 }
 
-// RunServer 按显式的生命周期阶段启动服务端。
+// RunServer starts the server through explicit lifecycle stages.
 //
-// 具体各阶段的职责与顺序见 App（cmd/app.go）。这里只负责串联：
-// 任一初始化阶段失败即中止启动，避免在半初始化状态下对外提供服务。
+// See App (cmd/app.go) for each stage's responsibility and order. This function only coordinates them:
+// an initialization failure aborts startup rather than serving requests from a partially initialized process.
 func RunServer() {
 	app := NewApp()
 	if err := app.Bootstrap(); err != nil {
@@ -83,7 +83,7 @@ func RunServer() {
 		}
 	}
 
-	// 初始化阶段：任一步失败都不应继续对外服务。
+	// Initialization: do not serve requests after any stage fails.
 	type stage struct {
 		name string
 		fn   func() error
@@ -95,7 +95,7 @@ func RunServer() {
 	}
 	for _, s := range stages {
 		if err := s.fn(); err != nil {
-			// 已登记的资源尽力回收，再退出。
+			// Release registered resources where possible before exiting.
 			_ = app.Shutdown()
 			logger.Fatalf("server", "server startup failed at %q: %v", s.name, err)
 		}

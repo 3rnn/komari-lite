@@ -14,8 +14,8 @@ import (
 )
 
 // update.go
-// 文件/二进制/敏感操作类的更新接口，保留为 REST handler（不走 RPC 桥）。
-// 由原 web/api/admin/update/ 子包合并而来。
+// The update interface for the file/binary/sensitive operation class, left as rest handler (does not take the RPC bridge).
+// Merged from the original web/api/admin/update/sub-package.
 
 func UpdateUser(c *gin.Context) {
 	var req struct {

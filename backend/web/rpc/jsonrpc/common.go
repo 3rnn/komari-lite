@@ -31,17 +31,17 @@ type pingStat struct {
 	Latest int     `json:"latest"`
 	Avg    int     `json:"avg"`
 	Tail   float64 `json:"tail"` // (P99-P50)/P50
-	Loss   float64 `json:"loss"` // 丢包率 %
+	Loss   float64 `json:"loss"` // Packet loss rate
 	Min    int     `json:"min"`
 	Max    int     `json:"max"`
 }
 
-// getPingStatsForNode 计算并缓存节点最近 1 小时 ping 统计
+// getPingStatsForNode computes and caches the last 1 hour ping statistics for the node
 func getPingStatsForNode(uuid string, pingTasks []models.PingTask) map[string]pingStat {
 	if uuid == "" {
 		return map[string]pingStat{}
 	}
-	// 筛选属于该节点的任务
+	// Filter tasks belonging to this node
 	assigned := make([]models.PingTask, 0, 4)
 	for _, t := range pingTasks {
 		if t.AppliesToClient(uuid) {
@@ -97,7 +97,7 @@ func getPingStatsForNode(uuid string, pingTasks []models.PingTask) map[string]pi
 		maxLat := 0
 		for _, r := range records {
 			total++
-			if r.Value < 0 { // 丢包
+			if r.Value < 0 { // Packet Loss
 				lossCount++
 				continue
 			}
@@ -233,10 +233,10 @@ func getNodes(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpcEr
 
 	SendIpAddrToGuest, _ := config.GetAs[bool](config.SendIpAddrToGuestKey)
 	if meta.Principal == nil || !meta.Principal.HasRole(rpc.RoleAdmin) {
-		// 过滤 Hidden 节点并隐藏敏感字段
+		// Filter Hidden nodes and hide sensitive fields
 		filtered := make([]models.Client, 0, len(cinfo))
 		for _, node := range cinfo {
-			if node.Hidden { // 非 admin 不显示隐藏节点
+			if node.Hidden { // Non-admin does not show hidden nodes
 				continue
 			}
 			if SendIpAddrToGuest {
@@ -267,7 +267,7 @@ func getNodes(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpcEr
 		return nil, rpc.MakeError(rpc.InvalidParams, "Node not found", params.UUID)
 	}
 
-	// 返回以 uuid 为键的字典（每个 value 自身也包含 uuid 字段）
+	// Returns a dictionary with a uuid key (each value itself contains a uuid field)
 	nodeMap := make(map[string]models.Client, len(cinfo))
 	for _, node := range cinfo {
 		nodeMap[node.UUID] = node
@@ -302,7 +302,7 @@ func getNodesLatestStatus(ctx context.Context, req *rpc.JsonRpcRequest) (any, *r
 		onlineSet[uuid] = true
 	}
 
-	// Hidden 过滤
+	// Hidden filter
 	if meta.Principal == nil || !meta.Principal.HasRole(rpc.RoleAdmin) {
 		cinfo, err := clients.GetAllClientBasicInfo()
 		if err != nil {
@@ -321,7 +321,7 @@ func getNodesLatestStatus(ctx context.Context, req *rpc.JsonRpcRequest) (any, *r
 		}
 	}
 
-	// 如果指定 uuid 但找不到，直接返回 not found
+	// If the requested UUID is missing, return not found.
 	if params.UUID != "" {
 		if _, ok := latest[params.UUID]; !ok {
 			return nil, rpc.MakeError(rpc.InvalidParams, "Node not found", params.UUID)
@@ -357,7 +357,7 @@ func getNodesLatestStatus(ctx context.Context, req *rpc.JsonRpcRequest) (any, *r
 
 	respMap := make(map[string]recordLike, len(latest))
 
-	// 精简模式跳过 Ping 汇总；本周期流量使用已有的 15 秒校准缓存。
+	// Compact mode skips ping summaries; current-cycle traffic uses the existing 15-second calibration cache.
 	var pingTasks []models.PingTask
 	if !params.Compact {
 		pingTasks, _ = tasks.GetAllPingTasks()
@@ -404,8 +404,8 @@ func getNodesLatestStatus(ctx context.Context, req *rpc.JsonRpcRequest) (any, *r
 		respMap[uuid] = rl
 	}
 
-	// 选择逻辑
-	if params.UUID != "" { // 单个
+	// Select one node or all nodes.
+	if params.UUID != "" { // Single node
 		appendOne(params.UUID, latest[params.UUID])
 		return respMap[params.UUID], nil
 	}
@@ -498,13 +498,13 @@ func getNodeRecentStatus(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rp
 		return nil, rpc.MakeError(rpc.InvalidParams, "UUID is required", params)
 	}
 	meta := rpc.MetaFromContext(ctx)
-	// 登录状态检查
+	// Login status check
 	isLogin := false
 	if meta.Principal != nil && meta.Principal.HasRole(rpc.RoleAdmin) {
 		isLogin = true
 	}
 
-	// 仅在未登录时需要 Hidden 信息做过滤
+	// Hidden information only needs to be filtered when not logged in
 	hiddenMap := map[string]bool{}
 	if !isLogin {
 		var hiddenClients []models.Client
@@ -515,7 +515,7 @@ func getNodeRecentStatus(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rp
 		}
 
 		if hiddenMap[params.UUID] {
-			return nil, rpc.MakeError(rpc.InvalidParams, "UUID is required", params) //防止未登录用户获取隐藏客户端数据
+			return nil, rpc.MakeError(rpc.InvalidParams, "UUID is required", params) // Prevent unauthenticated access to hidden clients.
 		}
 	}
 
@@ -529,7 +529,7 @@ func getNodeRecentStatus(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rp
 		}
 	}
 
-	// 扁平化为 { count, records: [] }
+	// Flatten to {count, records: []}
 	type flatRecord struct {
 		Client         string    `json:"client"`
 		Time           time.Time `json:"time"`

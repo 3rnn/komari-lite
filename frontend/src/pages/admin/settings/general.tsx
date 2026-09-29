@@ -42,7 +42,7 @@ export default function GeneralSettings() {
       <AdminPageTitle
         description={t(
           "settings.general.page_description",
-          "配置自动发现、GeoIP 与其他全局行为。",
+          "Configure auto discovery, GeoIP, and other global behavior.",
         )}
       >
         {t("settings.general.title")}
@@ -193,7 +193,7 @@ const ApiCard = ({ settings }: { settings: SettingsResponse }) => {
     settings?.auto_discovery_key || ""
   );
 
-  // 生成32位随机字符串
+  // Generate a random 32-character string.
   const generateRandomString = () => {
     const chars =
       "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -204,13 +204,13 @@ const ApiCard = ({ settings }: { settings: SettingsResponse }) => {
     return result;
   };
 
-  // 处理生成按钮点击
+  // Handle the generate button.
   const handleGenerateApiKey = () => {
     const newApiKey = generateRandomString();
     setApiValues(newApiKey);
   };
 
-  // 初始化API值
+  // Initialize API values.
   React.useEffect(() => {
     if (settings?.auto_discovery_key) {
       setApiValues(settings.auto_discovery_key);

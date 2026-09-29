@@ -15,45 +15,45 @@ import (
 )
 
 /*
-统计每个网卡的流量情况，保存最近DataPreserveDay天的数据，每DetectInterval秒采集一次
+Track traffic for each interface. Keep DataPreserveDay days of samples, collected every DetectInterval seconds.
 
-默认保存到当前目录下的net_static.json文件中
-net_static.json 中有字段 config，表示当前的配置，如果没有则使用默认值
-unix时间戳，单位秒
+By default, save to net_static.json in the current directory.
+The config field in net_static.json stores current settings; use defaults if absent.
+Unix timestamps are in seconds.
 
-所有操作都尽可能在内存中完成，避免频繁的IO操作
+Keep operations in memory where possible to avoid frequent I/O.
 
-只有在启动、停止和保存时，才会进行文件的读写操作
+Read and write files only on startup, shutdown, or save.
 */
 var (
-	DefaultDataPreserveDay = 31.0      // in days，保存最近多少天的数据，过期数据会被删除
-	DefaultDetectInterval  = 2.0       // in seconds，采集间隔
-	DefaultSaveInterval    = 60.0 * 10 // in seconds，写入到磁盘的间隔，避免大量IO操作，保存到文件的间隔也是这个值，而不是DetectInterval
+	DefaultDataPreserveDay = 31.0      // Days of samples retained; older data is removed.
+	DefaultDetectInterval  = 2.0       // Collection interval in seconds.
+	DefaultSaveInterval    = 60.0 * 10 // Save interval in seconds; save at this interval rather than DetectInterval to limit disk I/O.
 	SaveFilePath           = "./net_static.json"
 )
 
 var (
-	staticCache map[string][]TrafficData // key: interface name，统计缓存，当前没有被保存到文件中的，间隔DetectInterval，触发保存时，合并所有的tx/rx数据，以SaveInterval，写入到文件中，随后清空缓存
+	staticCache map[string][]TrafficData // Unpersisted samples keyed by interface; collect at DetectInterval, merge tx/rx at SaveInterval, then clear cache.
 	config      NetStaticConfig
 )
 
-// NetStatic 网卡流量统计数据
+// NetStatic holds network interface traffic statistics.
 type NetStatic struct {
 	Interfaces map[string][]TrafficData `json:"interfaces"` // key: interface name
 	Config     NetStaticConfig          `json:"config"`
 }
 
 type NetStaticConfig struct {
-	DataPreserveDay float64  `json:"data_preserve_day"` // in days，保存最近多少天的数据，过期数据会被删除
-	DetectInterval  float64  `json:"detect_interval"`   // in seconds，采集间隔
-	SaveInterval    float64  `json:"save_interval"`     // in seconds，写入到磁盘的间隔，避免大量IO操作
-	Nics            []string `json:"nics"`              // 仅监控指定的网卡名称列表，空表示监控所有网卡
+	DataPreserveDay float64  `json:"data_preserve_day"` // Days of samples retained; older data is removed.
+	DetectInterval  float64  `json:"detect_interval"`   // Collection interval in seconds.
+	SaveInterval    float64  `json:"save_interval"`     // Save interval in seconds to limit disk I/O.
+	Nics            []string `json:"nics"`              // Only monitor named interfaces; empty means all interfaces.
 }
 
 type TrafficData struct {
 	Timestamp uint64 `json:"timestamp"`
-	Tx        uint64 `json:"tx"` // 第n与n-1次采集的差值
-	Rx        uint64 `json:"rx"` // 第n与n-1次采集的差值
+	Tx        uint64 `json:"tx"` // Difference between samples n and n-1.
+	Rx        uint64 `json:"rx"` // Difference between samples n and n-1.
 }
 
 var (
@@ -63,10 +63,10 @@ var (
 	saveTicker   *time.Ticker
 	stopCh       chan struct{}
 
-	// 内存持久区（与文件内容一致，但仅在启动、保存、停止时与磁盘交互）
+	// In-memory persisted state (mirrors the file; disk access only at startup, save, or stop).
 	store NetStatic
 
-	// 上次采集到的累计字节数（用于计算 delta）
+	// Previous cumulative byte counters (for delta calculation).
 	lastCounters = map[string]struct{ Tx, Rx uint64 }{}
 
 	resetClock atomic.Value // resetClockState
@@ -95,7 +95,7 @@ func currentResetClock() resetClockState {
 
 func nowUnix() uint64 { return uint64(time.Now().Unix()) }
 
-// isNicAllowed 判断网卡是否在监控白名单内；当未配置白名单（空切片或nil）时，允许所有网卡
+// isNicAllowed checks the interface allowlist; an empty or nil allowlist permits all interfaces.
 func isNicAllowed(name string) bool {
 	if len(config.Nics) == 0 {
 		return true
@@ -127,7 +127,7 @@ func ensureInitLocked() {
 }
 
 func loadFromFileLocked() error {
-	// 不存在则用默认配置
+	// Use defaults when no file exists.
 	f, err := os.Open(SaveFilePath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -150,7 +150,7 @@ func loadFromFileLocked() error {
 	}
 	var ns NetStatic
 	if err := json.Unmarshal(data, &ns); err != nil {
-		// 文件损坏则不阻塞使用，采用默认并备份坏文件
+		// If the file is corrupt, back it up and use defaults without blocking startup.
 		_ = os.Rename(SaveFilePath, SaveFilePath+".bak")
 		ensureInitLocked()
 		store.Config = configOrDefault(config)
@@ -159,19 +159,19 @@ func loadFromFileLocked() error {
 	store = ns
 	config = configOrDefault(ns.Config)
 	ensureInitLocked()
-	// 启动时清理过期数据
+	// Remove expired data on startup.
 	purgeExpiredLocked()
 	return nil
 }
 
 func saveToFileLocked() error {
-	// 确保目录存在
+	// Ensure the directory exists.
 	if err := os.MkdirAll(filepath.Dir(SaveFilePath), 0o755); err != nil {
 		return err
 	}
-	// 写入时带上当前 config
+	// Include the current config when writing.
 	store.Config = configOrDefault(config)
-	b, err := json.Marshal(store) // 紧凑格式（不缩进）
+	b, err := json.Marshal(store) // Compact JSON (no indentation).
 	if err != nil {
 		return err
 	}
@@ -196,11 +196,11 @@ func configOrDefault(c NetStaticConfig) NetStaticConfig {
 }
 
 func purgeExpiredLocked() {
-	// 根据 DataPreserveDay 删除过期数据
+	// Remove data older than DataPreserveDay.
 	ttl := time.Duration(config.DataPreserveDay * 24 * float64(time.Hour))
 	cutoff := uint64(time.Now().Add(-ttl).Unix())
 	for name, arr := range store.Interfaces {
-		// 仅保留 >= cutoff 的数据
+		// Keep samples at or after the cutoff.
 		kept := arr[:0]
 		for _, td := range arr {
 			if td.Timestamp >= cutoff {
@@ -219,7 +219,7 @@ func safeDelta(cur, prev uint64) uint64 {
 	if cur >= prev {
 		return cur - prev
 	}
-	// 处理计数器回绕或重置，视为 0 增量
+	// Treat counter rollover or reset as a zero increment.
 	return 0
 }
 
@@ -231,7 +231,7 @@ func sampleOnceLocked() {
 	ts := nowUnix()
 	for _, io := range ios {
 		name := io.Name
-		// 仅监控指定网卡（当配置了 Nics 时）
+		// Only monitor selected interfaces when Nics is configured.
 		if !isNicAllowed(name) {
 			continue
 		}
@@ -241,11 +241,11 @@ func sampleOnceLocked() {
 		if ok {
 			dtx := safeDelta(curTx, prev.Tx)
 			drx := safeDelta(curRx, prev.Rx)
-			// 首次采样不记录
+			// Do not record the first sample.
 			if dtx > 0 || drx > 0 {
 				staticCache[name] = append(staticCache[name], TrafficData{Timestamp: ts, Tx: dtx, Rx: drx})
 			} else {
-				// 即便为 0，也可以记录，但为了降低噪音与占用，这里忽略 0
+				// Ignore zero increments to reduce noise and storage.
 			}
 		}
 		lastCounters[name] = struct{ Tx, Rx uint64 }{Tx: curTx, Rx: curRx}
@@ -262,7 +262,7 @@ func flushCacheLocked(ts uint64) {
 			store.Interfaces[name] = append(store.Interfaces[name], rec)
 		}
 	}
-	// 清空缓存
+	// Clear the cache.
 	staticCache = make(map[string][]TrafficData)
 }
 
@@ -331,9 +331,9 @@ func sumTraffic(arr []TrafficData, ts uint64) []TrafficData {
 	return []TrafficData{{Timestamp: ts, Tx: sumTx, Rx: sumRx}}
 }
 
-// startGoroutinesLocked 启动采集和保存的 goroutines（调用前必须已持有锁）
+// startGoroutinesLocked starts collection and save goroutines (the lock must be held).
 func startGoroutinesLocked() {
-	// 采集 goroutine
+	// Collection goroutine.
 	go func() {
 		for {
 			select {
@@ -347,7 +347,7 @@ func startGoroutinesLocked() {
 		}
 	}()
 
-	// 保存 goroutine
+	// Save goroutine.
 	go func() {
 		for {
 			select {
@@ -364,12 +364,12 @@ func startGoroutinesLocked() {
 	}()
 }
 
-// GetNetStatic 获取当前的所有流量统计数据
+// GetNetStatic returns all current traffic statistics.
 func GetNetStatic() (*NetStatic, error) {
 	mu.RLock()
 	defer mu.RUnlock()
 	ensureInitLocked()
-	// 合并 store + cache（cache 不合并为单点，直接以原样返回临时视图）
+	// Combine store and cache without folding cache into a single point; return a temporary view.
 	merged := NetStatic{Interfaces: map[string][]TrafficData{}, Config: configOrDefault(config)}
 	for name, arr := range store.Interfaces {
 		cp := make([]TrafficData, len(arr))
@@ -382,7 +382,7 @@ func GetNetStatic() (*NetStatic, error) {
 	return &merged, nil
 }
 
-// StartOrContinue 开始或继续流量统计
+// StartOrContinue starts or resumes traffic collection.
 func StartOrContinue() error {
 	mu.Lock()
 	defer mu.Unlock()
@@ -390,22 +390,22 @@ func StartOrContinue() error {
 		return nil
 	}
 	ensureInitLocked()
-	// 读取历史
+	// Read history.
 	if err := loadFromFileLocked(); err != nil {
 		return err
 	}
-	// 启动 ticker
+	// Start tickers.
 	detectTicker = time.NewTicker(time.Duration(config.DetectInterval * float64(time.Second)))
 	saveTicker = time.NewTicker(time.Duration(config.SaveInterval * float64(time.Second)))
 	stopCh = make(chan struct{})
 	running = true
 
-	// 启动 goroutines
+	// Start goroutines.
 	startGoroutinesLocked()
 	return nil
 }
 
-// Clear 清除所有流量统计数据
+// Clear removes all traffic statistics.
 func Clear() error {
 	mu.Lock()
 	defer mu.Unlock()
@@ -413,11 +413,11 @@ func Clear() error {
 	store.Interfaces = make(map[string][]TrafficData)
 	staticCache = make(map[string][]TrafficData)
 	lastCounters = map[string]struct{ Tx, Rx uint64 }{}
-	// 不落盘，等下次保存或停止时写
+	// Do not save immediately; save at the next interval or on stop.
 	return nil
 }
 
-// Stop 停止流量统计
+// Stop stops traffic collection.
 func Stop() error {
 	mu.Lock()
 	if !running {
@@ -432,7 +432,7 @@ func Stop() error {
 		saveTicker.Stop()
 	}
 	close(stopCh)
-	// 最后一轮 flush + 保存
+	// Perform the final flush and save.
 	flushCacheLocked(nowUnix())
 	purgeExpiredLocked()
 	err := saveToFileLocked()
@@ -440,7 +440,7 @@ func Stop() error {
 	return err
 }
 
-// GetNetStaticBetween 获取指定时间段内的流量统计数据，start和end为unix时间戳
+// GetNetStaticBetween returns traffic samples in a time range (Unix timestamps).
 func GetNetStaticBetween(start, end uint64) (*NetStatic, error) {
 	mu.RLock()
 	defer mu.RUnlock()
@@ -458,7 +458,7 @@ func GetNetStaticBetween(start, end uint64) (*NetStatic, error) {
 			res.Interfaces[name] = filtered
 		}
 	}
-	// 合并缓存
+	// Combine the cache.
 	for name, arr := range staticCache {
 		for _, td := range arr {
 			if inRange(td.Timestamp) {
@@ -469,7 +469,7 @@ func GetNetStaticBetween(start, end uint64) (*NetStatic, error) {
 	return &res, nil
 }
 
-// GetTotalTraffic 获取总流量统计数据, key为网卡名称, value为对应的流量数据总和
+// GetTotalTraffic returns total traffic by interface (key: name, value: total traffic).
 func GetTotalTraffic() (map[string]TrafficData, error) {
 	mu.RLock()
 	defer mu.RUnlock()
@@ -500,7 +500,7 @@ func GetTotalTraffic() (map[string]TrafficData, error) {
 	return res, nil
 }
 
-// GetTotalTrafficBetween 获取指定时间段内的总流量统计数据，start和end为unix时间戳
+// GetTotalTrafficBetween returns traffic totals by interface in a time range (Unix timestamps).
 func GetTotalTrafficBetween(start, end uint64) (map[string]TrafficData, error) {
 	mu.RLock()
 	defer mu.RUnlock()
@@ -540,12 +540,12 @@ func GetTotalTrafficBetween(start, end uint64) (map[string]TrafficData, error) {
 	return res, nil
 }
 
-// SetNewConfig 设置新的配置，config中的值如果为0则表示不修改对应的配置项
+// SetNewConfig updates the config; zero-valued fields leave the current value unchanged.
 func SetNewConfig(newCfg NetStaticConfig) error {
 	mu.Lock()
 	defer mu.Unlock()
 	ensureInitLocked()
-	// 合并新配置
+	// Merge new settings.
 	if newCfg.DataPreserveDay != 0 {
 		store.Config.DataPreserveDay = newCfg.DataPreserveDay
 	}
@@ -555,20 +555,20 @@ func SetNewConfig(newCfg NetStaticConfig) error {
 	if newCfg.SaveInterval != 0 {
 		store.Config.SaveInterval = newCfg.SaveInterval
 	}
-	// Nics: nil 表示不修改；非 nil 则更新（空切片表示监控所有网卡）
+	// Nil Nics means unchanged; a non-nil empty slice means monitor every interface.
 	if newCfg.Nics != nil {
-		// 做一份拷贝以避免外部切片后续修改影响内部配置
+		// Copy the slice to prevent external modifications from affecting internal settings.
 		tmp := make([]string, len(newCfg.Nics))
 		copy(tmp, newCfg.Nics)
 		store.Config.Nics = tmp
 	}
-	// 更新生效配置
+	// Apply the effective config.
 	cfg := configOrDefault(store.Config)
 	store.Config = cfg
 	config = cfg
-	// 重新配置 ticker（若运行中）
+	// Reconfigure tickers if running.
 	if running {
-		// 先停止旧的 ticker 和 goroutines
+		// Stop old tickers and goroutines first.
 		if detectTicker != nil {
 			detectTicker.Stop()
 		}
@@ -577,15 +577,15 @@ func SetNewConfig(newCfg NetStaticConfig) error {
 		}
 		close(stopCh)
 
-		// 重新创建 ticker 和 channel
+		// Recreate tickers and channels.
 		detectTicker = time.NewTicker(time.Duration(cfg.DetectInterval * float64(time.Second)))
 		saveTicker = time.NewTicker(time.Duration(cfg.SaveInterval * float64(time.Second)))
 		stopCh = make(chan struct{})
 
-		// 重新启动 goroutines
+		// Restart goroutines.
 		startGoroutinesLocked()
 
-		// 当配置了指定网卡白名单时，清理不在白名单内的缓存与上次计数，避免无用数据积累
+		// With a configured allowlist, remove excluded interfaces from cache and previous counters.
 		if len(cfg.Nics) > 0 {
 			allowed := make(map[string]struct{}, len(cfg.Nics))
 			for _, n := range cfg.Nics {
@@ -603,9 +603,9 @@ func SetNewConfig(newCfg NetStaticConfig) error {
 			}
 		}
 	}
-	// 立即写盘
+	// Write to disk immediately.
 	_ = saveToFileLocked()
-	// 同时做一次过期清理
+	// Remove expired data as well.
 	purgeExpiredLocked()
 	return nil
 }
@@ -615,8 +615,8 @@ func ForceReplaceRecord(rec map[string][]TrafficData) error {
 	defer mu.Unlock()
 	ensureInitLocked()
 	store.Interfaces = rec
-	// 不立即写盘，等下一次周期性保存或停止时写
-	// 同时做一次过期清理
+	// Defer writing until the next periodic save or stop.
+	// Remove expired data as well.
 	purgeExpiredLocked()
 	return nil
 }

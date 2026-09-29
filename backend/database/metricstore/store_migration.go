@@ -14,37 +14,37 @@ import (
 
 // store_migration.go
 //
-// 面向 WebUI/API 的“存储后端迁移”支撑：把一个 metrics 源库（默认本地 SQLite
-// ./data/metrics.db）中的全部指标数据搬运到当前正在运行的 metrics 目标库
-// （通常是用户新配置并热重载后的 MySQL/PostgreSQL）。
+// "Storage backend migration" support for WebUI/API: put a metrics source database (default local SQLite
+// ./data/metrics.db) to the currently running metrics target database.
+// (Usually MySQL/PostgreSQL newly configured by the user and hot reloaded).
 //
-// 与启动迁移（RunStartupMigration）的区别：
-//   - 启动迁移在进程启动时自动、同步执行（komari.db → 当前 metrics 目标，或上一个
-//     metrics 目标 → 当前目标）。
-//   - 此处的 store 迁移由管理员在 WebUI 中「切换数据库后」手动触发，异步执行并可
-//     查询进度 / 取消。数据以 upsert 写入，可安全重复执行。
+// Differences from RunStartupMigration:
+//   - Start migrations are executed automatically and synchronously when the process starts (komari.db → current metrics target, or previous
+//     metrics target → current target).
+//   - The store migration here is manually triggered by the administrator "after switching databases" in the WebUI. It is executed asynchronously and can
+//     Query progress/cancel. Data is written as upsert and can be safely re-executed.
 //
-// 典型流程：
-//  1. 管理员在设置中把 metric_db_dsn 改为 MySQL/PostgreSQL，保存 → 后端连接测试
-//     通过后热重载，当前 store 切到远端（此时远端为空）。
-//  2. 管理员调用 startMetricMigration（不带 source 参数），系统以上一个 metrics
-//     目标（默认 SQLite metrics.db）为源，把历史数据搬运到远端。
-//  3. 完成后登记目标指纹，下次启动不再重复搬运。
+// Typical process:
+//  1. The administrator changes metric_db_dsn to MySQL/PostgreSQL in the settings, save → backend connection test
+//     After hot reloading, the current store is switched to the remote end (the remote end is empty at this time).
+//  2. The administrator calls startMetricMigration (without the source parameter), and the system displays the previous metrics
+//     The target (default SQLite metrics.db) is used as the source to transfer historical data to the remote end.
+//  3. After completion, register the target fingerprint and the transfer will not be repeated next time it is started.
 
-// StoreMigrationProgress 描述一次 store-to-store 迁移的实时进度。
+// StoreMigrationProgress describes the real-time progress of a store-to-store migration.
 type StoreMigrationProgress struct {
 	Status         string    `json:"status"`          // idle, running, completed, failed, canceled
-	SourceDriver   string    `json:"source_driver"`   // 源库驱动
-	SourceDSN      string    `json:"source_dsn"`      // 源库 DSN（脱敏后）
-	TargetDriver   string    `json:"target_driver"`   // 目标库驱动
-	TargetDSN      string    `json:"target_dsn"`      // 目标库 DSN（脱敏后）
-	TotalMetrics   int       `json:"total_metrics"`   // 指标定义总数
-	CurrentMetric  string    `json:"current_metric"`  // 当前正在搬运的指标名
-	MetricsDone    int       `json:"metrics_done"`    // 已完成的指标数
-	MigratedPoints int64     `json:"migrated_points"` // 已搬运的采样点数
-	StartTime      time.Time `json:"start_time"`      // 开始时间
-	EndTime        time.Time `json:"end_time"`        // 结束时间
-	Error          string    `json:"error,omitempty"` // 错误信息
+	SourceDriver   string    `json:"source_driver"`   // Source library driver
+	SourceDSN      string    `json:"source_dsn"`      // Source library DSN (after desensitization)
+	TargetDriver   string    `json:"target_driver"`   // Target library driver
+	TargetDSN      string    `json:"target_dsn"`      // Target library DSN (after desensitization)
+	TotalMetrics   int       `json:"total_metrics"`   // Total number of indicator definitions
+	CurrentMetric  string    `json:"current_metric"`  // The name of the indicator currently being moved
+	MetricsDone    int       `json:"metrics_done"`    // Number of indicators completed
+	MigratedPoints int64     `json:"migrated_points"` // Number of sample points transported
+	StartTime      time.Time `json:"start_time"`      // start time
+	EndTime        time.Time `json:"end_time"`        // end time
+	Error          string    `json:"error,omitempty"` // error message
 }
 
 var (
@@ -55,26 +55,26 @@ var (
 	storeClosing     bool
 )
 
-// IsStoreMigrationRunning 报告是否有 store-to-store 迁移正在运行。
+// IsStoreMigrationRunning reports whether a store-to-store migration is running.
 func IsStoreMigrationRunning() bool {
 	storeMigMu.Lock()
 	defer storeMigMu.Unlock()
 	return storeMigCancel != nil
 }
 
-// GetStoreMigrationProgress 返回当前 store-to-store 迁移进度快照。
+// GetStoreMigrationProgress returns a snapshot of the current store-to-store migration progress.
 func GetStoreMigrationProgress() StoreMigrationProgress {
 	storeMigMu.Lock()
 	defer storeMigMu.Unlock()
 	return storeMigProgress
 }
 
-// ResolveStoreMigrationSourceFingerprint 推断本次 store 迁移的源库指纹。
+// ResolveStoreMigrationSourceFingerprint infers the source database fingerprint of this store migration.
 //
-// 优先级：
-//  1. 显式传入的 driver+dsn（driver 可留空，交由 DSN 推断）。
-//  2. 已保存的上一个 metrics 目标指纹（MigrationTargetKey）。
-//  3. 默认 SQLite（./data/metrics.db）。
+// Priority:
+//  1. Explicitly passed in driver+dsn (driver can be left blank and left to DSN inference).
+//  2. The last saved metrics target fingerprint (MigrationTargetKey).
+//  3. Default SQLite (./data/metrics.db).
 func ResolveStoreMigrationSourceFingerprint(driver, dsn string) string {
 	dsn = strings.TrimSpace(dsn)
 	if dsn != "" {
@@ -87,11 +87,11 @@ func ResolveStoreMigrationSourceFingerprint(driver, dsn string) string {
 	return defaultSQLiteFingerprint()
 }
 
-// StartStoreMigration 异步启动一次 store-to-store 迁移：把源库（由 sourceDriver +
-// sourceDSN 指定，留空则自动推断）的全部指标数据搬运到当前运行中的 metrics 目标库。
+// StartStoreMigration starts a store-to-store migration asynchronously: put the source database (by sourceDriver +
+// sourceDSN (if left blank, it will be automatically inferred) and all metric data will be transferred to the currently running metrics target database.
 //
-// 返回错误表示“未能启动”（例如已有迁移在跑、源与目标相同、目标未初始化等）；
-// 迁移过程中的错误通过 GetStoreMigrationProgress().Status == "failed" 与 Error 暴露。
+// Returning an error means "failed to start" (for example, there is already a migration running, the source and target are the same, the target is not initialized, etc.);
+// Errors during migration are exposed via GetStoreMigrationProgress().Status == "failed" and Error .
 func StartStoreMigration(sourceDriver, sourceDSN string) error {
 	cfg, err := config.GetManyAs[MetricStoreConfig]()
 	if err != nil {
@@ -158,7 +158,7 @@ func StartStoreMigration(sourceDriver, sourceDSN string) error {
 	return nil
 }
 
-// runStoreMigration 执行实际的搬运逻辑（在独立 goroutine 中）。
+// runStoreMigration performs the actual migration logic (in a separate goroutine).
 func runStoreMigration(ctx context.Context, cancel context.CancelFunc, done chan struct{}, srcCfg *MetricStoreConfig, cfg *MetricStoreConfig, dst *metric.Store, targetFP string) {
 	defer func() {
 		cancel()
@@ -198,7 +198,7 @@ func runStoreMigration(ctx context.Context, cancel context.CancelFunc, done chan
 		return
 	}
 
-	// 搬运成功：登记当前目标指纹，避免下次启动重复搬运。
+	// Transfer successful: Register the current target fingerprint to avoid repeated transfer next time.
 	if err := config.Set(MigrationTargetKey, targetFP); err != nil {
 		logger.Errorf("metricstore", "[store-migration] failed to persist migration target fingerprint: %v", err)
 	}
@@ -206,7 +206,7 @@ func runStoreMigration(ctx context.Context, cancel context.CancelFunc, done chan
 	logger.Infof("metricstore", "[store-migration] completed via API (%d points) target_driver=%s", total, ResolveDriverFromConfig(cfg.Driver, cfg.DSN))
 }
 
-// finishStoreMigration 统一收尾：设置终态状态、结束时间与错误信息。
+// finishStoreMigration unified finishing: set the final status, end time and error message.
 func finishStoreMigration(status string, err error) {
 	storeMigMu.Lock()
 	defer storeMigMu.Unlock()
@@ -215,14 +215,14 @@ func finishStoreMigration(status string, err error) {
 	if err != nil {
 		storeMigProgress.Error = err.Error()
 	}
-	// 完成/取消时把当前指标标记为已全部处理，便于前端进度条归位。
+	// When completed/cancelled, mark the current metric as fully processed to facilitate the return of the front-end progress bar.
 	if status == "completed" && storeMigProgress.TotalMetrics > 0 {
 		storeMigProgress.MetricsDone = storeMigProgress.TotalMetrics
 	}
 }
 
-// CancelStoreMigration 请求取消正在运行的 store-to-store 迁移，并等待其退出。
-// 由于写入是幂等 upsert，取消后可安全重新发起，不会产生重复数据。
+// CancelStoreMigration Requests to cancel a running store-to-store migration and wait for it to exit.
+// Since writing is an idempotent upsert, it can be safely reinitiated after cancellation without generating duplicate data.
 func CancelStoreMigration() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -282,14 +282,14 @@ func isStoreClosing() bool {
 	return storeClosing
 }
 
-// maskDSN 对 DSN 做粗粒度脱敏，避免在 API 响应/日志中泄露密码。
-// 处理两类常见格式：URL（scheme://user:pass@host/...）与 key=value（password=...）。
+// maskDSN performs coarse-grained desensitization on DSN to avoid leaking passwords in API responses/logs.
+// Two common formats are processed: URL (scheme://user:pass@host/...) and key=value (password=...).
 func maskDSN(dsn string) string {
 	dsn = strings.TrimSpace(dsn)
 	if dsn == "" {
 		return ""
 	}
-	// key=value 形式：屏蔽 password=... 段。
+	// key=value form: shield the password=... segment.
 	if strings.Contains(dsn, "password=") {
 		parts := strings.Fields(dsn)
 		for i, p := range parts {
@@ -299,12 +299,12 @@ func maskDSN(dsn string) string {
 		}
 		return strings.Join(parts, " ")
 	}
-	// URL / user:pass@host 形式：屏蔽 user:pass@ 中的密码。
+	// URL / user:pass@host Form: Mask the password in user:pass@.
 	if at := strings.LastIndex(dsn, "@"); at > 0 {
 		head := dsn[:at]
 		tail := dsn[at:]
 		if colon := strings.LastIndex(head, ":"); colon >= 0 {
-			// 保留 scheme://user，屏蔽密码。
+			// Keep scheme://user and block the password.
 			return head[:colon] + ":***" + tail
 		}
 	}

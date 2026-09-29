@@ -272,7 +272,7 @@ func TestSendLoadRecoveryRetriesUntilSuccessfulDelivery(t *testing.T) {
 		require.Len(t, event.Clients, 1)
 		assert.Equal(t, client.UUID, event.Clients[0].UUID)
 		assert.Equal(t, "✅", event.Emoji)
-		assert.Contains(t, event.Message, "已恢复")
+		assert.Contains(t, event.Message, "recovered")
 		return nil
 	})
 	require.NoError(t, err)

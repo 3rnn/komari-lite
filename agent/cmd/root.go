@@ -59,7 +59,7 @@ var RootCmd = &cobra.Command{
 			MemoryIncludeCache:  flags.MemoryIncludeCache,
 			EnableGPU:           flags.EnableGPU,
 		})
-		// 捕获中止信号，优雅退出
+		// Catch termination signals for a graceful shutdown.
 		stopCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
 		_, stopRecover := context.WithCancel(context.Background())
@@ -89,14 +89,14 @@ var RootCmd = &cobra.Command{
 			}
 		}
 
-		log.Println("Lite Agent", utils.AgentVersion, "（精简构建：无远程控制/远程终端/自动更新）")
+		log.Println("Lite Agent", utils.AgentVersion, "(lite build: no remote control, remote terminal, or auto-update)")
 
-		// 设置 DNS 解析行为
+		// Configure DNS resolution.
 		if flags.CustomDNS != "" {
 			dnsresolver.SetCustomDNSServer(flags.CustomDNS)
 			log.Printf("Using custom DNS server: %s", flags.CustomDNS)
 		} else {
-			// 未设置则使用系统默认 DNS（不使用内置列表）
+			// Without a custom server, use system DNS (not the built-in fallback list).
 			log.Printf("Using system default DNS resolver")
 		}
 
@@ -111,11 +111,11 @@ var RootCmd = &cobra.Command{
 		}
 		log.Println("Monitoring Interfaces:", interfaceList)
 
-		// 忽略不安全的证书
+		// Ignore invalid certificates.
 		if flags.IgnoreUnsafeCert {
 			http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 		}
-		// 自动更新能力已随 update 包一并删除：始终不自更新（--disable-auto-update 仍被接受，仅为兼容旧安装命令）。
+		// The update package and auto-update were removed. --disable-auto-update is still accepted for old installers, but no updates occur.
 		go server.DoUploadBasicInfoWorks()
 		go server.DoRuntimeConfigStateUploadWorks()
 		for {
@@ -234,7 +234,7 @@ func Execute() {
 	for i, arg := range os.Args {
 		if arg == "-autoUpdate" || arg == "--autoUpdate" {
 			log.Println("WARNING: The -autoUpdate flag is deprecated in version 0.0.9 and later. Use --disable-auto-update to configure auto-update behavior.")
-			// 从参数列表中移除该参数，防止cobra解析错误
+			// Remove the flag from the arguments so Cobra does not reject it.
 			os.Args = append(os.Args[:i], os.Args[i+1:]...)
 			break
 		}

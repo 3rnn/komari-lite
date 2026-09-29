@@ -10,8 +10,8 @@ import (
 	"time"
 )
 
-// Func 是 corn 调度器执行的任务函数。
-// 调度器会为每次执行传入可取消的 context，便于任务在重载或关闭时尽快退出。
+// Func is the task function executed by the corn scheduler.
+// The scheduler will pass in a cancelable context for each execution so that the task can exit as soon as possible when reloading or shutting down.
 type Func func(ctx context.Context)
 
 type job struct {
@@ -78,13 +78,13 @@ func NewManager() *Manager {
 	return &Manager{jobs: make(map[string]job)}
 }
 
-// AddFunc 按 cron 表达式注册一个任务，fn 会在独立 goroutine 中执行。
-// 支持 5 字段、6 字段 cron 表达式，以及 @every 1m 这类固定间隔表达式。
+// AddFunc registers a task according to the cron expression, and fn will be executed in a separate goroutine.
+// Supports 5-field, 6-field cron expressions, and fixed interval expressions such as @every 1m.
 func AddFunc(name string, spec string, fn func()) error {
 	return AddContextFunc(name, spec, false, func(context.Context) { fn() })
 }
 
-// AddContextFunc 按 cron 表达式注册一个任务，支持传递带 context 的 func。
+// AddContextFunc registers a task according to cron expression and supports passing func with context.
 func AddContextFunc(name string, spec string, runImmediately bool, fn Func) error {
 	return defaultManager.AddContextFunc(name, spec, runImmediately, fn)
 }
@@ -229,13 +229,13 @@ func safeRun(ctx context.Context, name string, fn Func) {
 	}
 }
 
-// Parse 解析 corn 表达式。
-// 支持：
-//   - 5 字段：minute hour day-of-month month day-of-week
-//   - 6 字段：second minute hour day-of-month month day-of-week
+// Parse parses the corn expression.
+// Support:
+//   - 5 fields: minute hour day-of-month month day-of-week
+//   - 6 fields: second minute hour day-of-month month day-of-week
 //   - @every 1m / @every 30s
 //
-// 字段支持 *、*/n、a-b、a-b/n、逗号列表和具体数字。
+// Fields support *, */n, a-b, a-b/n, comma lists, and specific numbers.
 func Parse(spec string) (schedule, error) {
 	return ParseInLocation(spec, time.Local)
 }

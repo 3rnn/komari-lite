@@ -12,7 +12,7 @@ func getHandler(name string) Handler {
 	return handlers[name]
 }
 
-// 重复注册
+// Duplicate registration
 func TestRegisterDuplicateAndReserved(t *testing.T) {
 	name := "sample.method"
 	// first register should succeed
@@ -29,7 +29,7 @@ func TestRegisterDuplicateAndReserved(t *testing.T) {
 	}
 }
 
-// 内部函数
+// internal function
 func TestInternalMethods(t *testing.T) {
 	res, err := Invoke("rpc.ping", nil)
 	if err != nil {

@@ -10,14 +10,14 @@ func DataMasking(str string, private []string) string {
 	}
 	mask := "********"
 
-	// 相似度阈值，可根据需要调节（0~1，越大越严格）
+	// Similarity threshold, which can be adjusted as needed (0~1, the larger the value, the stricter it is)
 	const threshold = 0.8
 
 	runes := []rune(str)
 	n := len(runes)
 	toMask := make([]bool, n)
 
-	// 预处理 private 中的词，去掉空、重复
+	// Preprocess the words in private to remove empty spaces and duplicates
 	uniq := make(map[string]struct{})
 	var words []string
 	for _, w := range private {
@@ -35,7 +35,7 @@ func DataMasking(str string, private []string) string {
 		return str
 	}
 
-	// 逐词进行滑动窗口匹配 + 模糊匹配（Levenshtein 相似度）
+	// Sliding window matching + fuzzy matching word by word (Levenshtein similarity)
 	for _, w := range words {
 		wRunes := []rune(w)
 		wl := len(wRunes)
@@ -43,9 +43,9 @@ func DataMasking(str string, private []string) string {
 			continue
 		}
 
-		// 滑动窗口大小采用敏感词长度
+		// The sliding window size uses the length of the sensitive word
 		for i := 0; i <= n-wl; i++ {
-			if allMasked(toMask[i : i+wl]) { // 已全被标记则跳过
+			if allMasked(toMask[i : i+wl]) { // If all are marked, skip
 				continue
 			}
 			sub := string(runes[i : i+wl])
@@ -58,7 +58,7 @@ func DataMasking(str string, private []string) string {
 		}
 	}
 
-	// 构造输出：连续的掩码段只输出一次；如果原始被遮蔽长度>5，展示首尾字符
+	// Construct output: continuous mask segments are output only once; if the original masked length is >5, the first and last characters are displayed
 	var b strings.Builder
 	i := 0
 	for i < n {
@@ -67,7 +67,7 @@ func DataMasking(str string, private []string) string {
 			for i < n && toMask[i] {
 				i++
 			}
-			end := i // 不包含
+			end := i // Not included
 			segLen := end - start
 			if segLen > 5 {
 				b.WriteRune(runes[start])
@@ -84,7 +84,7 @@ func DataMasking(str string, private []string) string {
 	return b.String()
 }
 
-// allMasked 判断一个区间是否全部已经被标记
+// allMasked determines whether all an interval has been marked
 func allMasked(bools []bool) bool {
 	for _, v := range bools {
 		if !v {
@@ -94,7 +94,7 @@ func allMasked(bools []bool) bool {
 	return true
 }
 
-// similarity 返回两个字符串的相似度 (0~1)，基于 Levenshtein 距离
+// similarity returns the similarity (0~1) of two strings, based on Levenshtein distance
 func similarity(a, b string) float64 {
 	if a == b {
 		return 1
@@ -112,7 +112,7 @@ func similarity(a, b string) float64 {
 	return 1 - float64(dist)/float64(maxLen)
 }
 
-// levenshtein 计算两个 rune slice 的编辑距离
+// levenshtein calculates the edit distance of two rune slices
 func levenshtein(a, b []rune) int {
 	la, lb := len(a), len(b)
 	if la == 0 {
@@ -121,7 +121,7 @@ func levenshtein(a, b []rune) int {
 	if lb == 0 {
 		return la
 	}
-	// 使用滚动数组降低空间复杂度
+	// Reduce space complexity using rolling arrays
 	prev := make([]int, lb+1)
 	curr := make([]int, lb+1)
 	for j := 0; j <= lb; j++ {

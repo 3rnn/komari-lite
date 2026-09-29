@@ -16,21 +16,21 @@ import (
 // so storage shrinks with age — the "data gets sparser as it gets older"
 // behavior of a downsampling TSDB.
 //
-// RollupTier 描述一个降采样分辨率：原始点（或下一层更细的层级）会被聚合进
-// Interval 宽的桶，而这些桶会保留 Retention。策略会按从细到粗排列层级，例如：
+// RollupTier describes a downsampling resolution: the original points (or the next finer level) will be aggregated into
+// Interval wide buckets that retain Retention. Strategies are arranged in hierarchical order from fine to coarse, for example:
 //
-//	1m 保留 7d  ->  5m 保留 30d  ->  1h 保留 1y
+//	1m reserved 7d -> 5m reserved 30d -> 1h reserved 1y
 //
-// 随着数据变旧，它会从更细层级中过期，只在更粗层级中保留下来，因此存储量会随
-// 数据年龄下降，也就是降采样 TSDB 中“数据越旧越稀疏”的行为。
+// As data gets older, it expires from the finer levels and is only retained in the coarser levels, so the amount of storage increases.
+// Data age decrease, which is the behavior of "older data becomes sparser" in downsampling TSDB.
 type RollupTier struct {
 	// Interval is the bucket width for this rollup tier.
 	//
-	// Interval 是该 rollup 层的桶宽。
+	// Interval is the barrel width of this rollup layer.
 	Interval time.Duration `json:"interval"`
 	// Retention is how long buckets in this tier are kept.
 	//
-	// Retention 是该层桶的保留时间。
+	// Retention is the retention time of the bucket in this layer.
 	Retention time.Duration `json:"retention"`
 }
 
@@ -38,41 +38,41 @@ type RollupTier struct {
 // live, then a chain of progressively coarser tiers. Compact materializes the
 // tiers and enforces every retention window.
 //
-// RollupPolicy 描述完整保留阶梯：原始点保留多久，以及后续逐级变粗的
-// rollup 层；Compact 会物化这些层并执行保留窗口。
+// RollupPolicy describes the complete retention ladder: how long the original point is retained, and how it becomes progressively thicker in the future.
+// rollup layers; Compact materializes these layers and enforces retention windows.
 type RollupPolicy struct {
 	// RawRetention is how long raw points are kept before Compact deletes them
 	// (after they have been rolled into the finest tier). Zero means "never
 	// delete raw" — rollups are still built, but raw is retained.
 	//
-	// RawRetention 是 Compact 删除原始点之前保留它们的时间（在它们已进入最细
-	// rollup 层之后）。零值表示“永不删除原始点”；rollup 仍会构建，但原始点保留。
+	// RawRetention is how long Compact retains raw points before deleting them (after they have entered the smallest
+	// after the rollup layer). A value of zero means "never remove the original point"; the rollup will still build, but the original point will remain.
 	RawRetention time.Duration `json:"raw_retention"`
 	// Tiers are ordered finest-first. Each Interval must be a positive integer
 	// multiple of the previous tier's Interval (so a coarse bucket is composed
 	// of whole finer buckets), and each Retention must be >= the previous
 	// tier's Retention (coarse data outlives fine data).
 	//
-	// Tiers 按从细到粗排序。每个 Interval 必须是前一层 Interval 的正整数倍
-	// （这样粗桶由完整细桶组成），每个 Retention 必须 >= 前一层 Retention
-	// （粗数据比细数据活得更久）。
+	// Tiers are sorted from fine to coarse. Each Interval must be a positive integer multiple of the previous Interval
+	// (In this way, the thick bucket is composed of a complete thin bucket), each Retention must >= the previous layer of Retention
+	// (Coarse data lives longer than fine data).
 	Tiers []RollupTier `json:"tiers"`
 	// Compression tunes the per-bucket t-digest (size vs. percentile accuracy).
 	// <=1 uses the default (100).
 	//
-	// Compression 调整每个桶的 t-digest（大小与百分位精度之间的取舍）。
-	// <=1 时使用默认值（100）。
+	// Compression adjusts the t-digest (trade-off between size and percentile precision) of each bucket.
+	// <=1 uses the default value (100).
 	Compression float64 `json:"compression"`
 }
 
 // Enabled reports whether the policy actually defines any rollup tiers.
 //
-// Enabled 表示策略是否实际定义了 rollup 层级。
+// Enabled indicates whether the policy actually defines a rollup hierarchy.
 func (p RollupPolicy) Enabled() bool { return len(p.Tiers) > 0 }
 
 // compression returns the effective t-digest compression for a rollup policy.
 //
-// compression 返回 rollup 策略实际使用的 t-digest 压缩参数。
+// compression returns the actual t-digest compression parameters used by the rollup policy.
 func (p RollupPolicy) compression() float64 {
 	if p.Compression <= 1 {
 		return defaultTDigestCompression
@@ -116,7 +116,7 @@ func (p RollupPolicy) withMetricRetention(retention time.Duration) RollupPolicy 
 // Validate enforces the structural rules that make cascading composition and
 // retention well-defined.
 //
-// Validate 检查策略结构是否满足级联合成和保留语义所需的约束。
+// Validate checks whether the policy structure satisfies the constraints required for cascade synthesis and preservation semantics.
 func (p RollupPolicy) Validate() error {
 	if len(p.Tiers) == 0 {
 		return nil // a store with no tiers simply does no rollup work
@@ -162,14 +162,14 @@ func (p RollupPolicy) Validate() error {
 // avg & population stddev, min/max, first/last by timestamp — plus a t-digest
 // so arbitrary percentiles survive downsampling with bounded error.
 //
-// rollupBucket 是单个（指标、实体、分辨率、桶）单元的内存累加器。它只携带在
-// 合成更粗层级时可无损重新聚合的摘要：用于平均值和总体标准差的 count/sum/sumSq，
-// min/max，按时间记录的 first/last，外加一个 t-digest，让任意百分位能以
-// 有界误差在降采样后保留下来。
+// rollupBucket is an in-memory accumulator of a single (metric, entity, resolution, bucket) unit. it is only carried in
+// Summaries that can be losslessly reaggregated when synthesizing coarser levels: count/sum/sumSq for mean and population standard deviation,
+// min/max, first/last recorded by time, plus a t-digest, so that any percentile can be
+// Bounded errors are preserved after downsampling.
 type rollupBucket struct {
 	// count is the total number of raw points represented.
 	//
-	// count 是该桶代表的原始点总数。
+	// count is the total number of raw points represented by this bucket.
 	count int64
 	// lossCount is populated only for the merged SQLite ping latency series.
 	// The total sample count remains in count, so packet-loss ratios and latency
@@ -177,53 +177,53 @@ type rollupBucket struct {
 	lossCount int64
 	// sum is the sum of represented values.
 	//
-	// sum 是该桶代表值的总和。
+	// sum is the sum of the values represented by this bucket.
 	sum float64
 	// sumSq is the sum of squared values for population stddev.
 	//
-	// sumSq 是用于总体标准差的平方和。
+	// sumSq is the sum of squares used for the population standard deviation.
 	sumSq float64
 	// min is the minimum represented value.
 	//
-	// min 是该桶代表的最小值。
+	// min is the minimum value represented by this bucket.
 	min float64
 	// max is the maximum represented value.
 	//
-	// max 是该桶代表的最大值。
+	// max is the maximum value represented by this bucket.
 	max float64
 	// firstVal is the value with the earliest timestamp.
 	//
-	// firstVal 是时间戳最早的值。
+	// firstVal is the earliest value of the timestamp.
 	firstVal float64
 	// firstTS is the earliest timestamp in nanoseconds.
 	//
-	// firstTS 是最早时间戳的纳秒值。
+	// firstTS is the nanosecond value of the earliest timestamp.
 	firstTS int64
 	// lastVal is the value with the latest timestamp.
 	//
-	// lastVal 是时间戳最晚的值。
+	// lastVal is the latest value of the timestamp.
 	lastVal float64
 	// lastTS is the latest timestamp in nanoseconds.
 	//
-	// lastTS 是最晚时间戳的纳秒值。
+	// lastTS is the nanosecond value of the latest timestamp.
 	lastTS int64
 	// digest estimates percentiles for represented values.
 	//
-	// digest 用于估算该桶代表值的百分位。
+	// digest is used to estimate the percentile of values represented by this bucket.
 	digest *TDigest
 	// tagsHash carries the stable tag-set fingerprint for this rollup cell.
 	//
-	// tagsHash 携带该 rollup 单元的稳定标签集合指纹。
+	// tagsHash carries the fingerprint of the stable tag set for this rollup unit.
 	tagsHash string
 	// tagsJSON carries the canonical tag map written back to the tags column.
 	//
-	// tagsJSON 携带写回 tags 列的规范标签 map。
+	// tagsJSON carries the canonical tag map written back to the tags column.
 	tagsJSON string
 }
 
 // newRollupBucket creates an empty rollup accumulator.
 //
-// newRollupBucket 创建一个空的 rollup 累加器。
+// newRollupBucket creates an empty rollup accumulator.
 func newRollupBucket(compression float64) *rollupBucket {
 	return newRollupBucketWithDigest(compression, true)
 }
@@ -255,7 +255,7 @@ func rollupDigestOptional(metricName string, bucket *rollupBucket) bool {
 
 // addPoint folds a raw observation into the bucket.
 //
-// addPoint 将一个原始观测值合入当前桶。
+// addPoint adds a raw observation into the current bucket.
 func (b *rollupBucket) addPoint(value float64, tsNano int64) {
 	if b.count == 0 {
 		b.min, b.max = value, value
@@ -324,8 +324,8 @@ func (b *rollupBucket) addMetricPoint(metricName string, value float64, tsNano i
 // bucket. This is the cascade step: tier i+1 buckets are built by merging the
 // tier i rows they span.
 //
-// mergeStored 将一个已汇总的细层 rollup 行合入当前更粗桶。这是级联步骤：
-// tier i+1 的桶通过合并其覆盖的 tier i 行构建。
+// mergeStored merges a summarized finer rollup row into the current coarser bucket. Here are the cascading steps:
+// Buckets for tier i+1 are constructed by merging the tier i rows they cover.
 func (b *rollupBucket) mergeStored(o *rollupBucket) {
 	if o.count == 0 {
 		return
@@ -369,8 +369,8 @@ func (b *rollupBucket) mergeStored(o *rollupBucket) {
 // means the aggregation is not derivable from a rollup (only AggRate, which
 // needs the ordered raw series).
 //
-// value 从桶摘要中计算请求的聚合值；ok=false 表示该聚合无法由 rollup 推导
-// （目前主要是需要有序原始序列的 AggRate）。
+// value Computes the requested aggregate value from the bucket digest; ok=false means that the aggregate cannot be derived by rollup
+// (Currently it is mainly AggRate that requires an ordered primitive sequence).
 func (b *rollupBucket) value(agg Aggregation) (float64, bool) {
 	validCount := b.count - b.lossCount
 	switch agg {

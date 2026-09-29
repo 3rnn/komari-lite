@@ -20,7 +20,6 @@ const adminPanelSource = readFileSync(
 const routesSource = readFileSync(new URL("../src/routes.ts", import.meta.url), "utf8");
 const mainSource = readFileSync(new URL("../src/main.tsx", import.meta.url), "utf8");
 const adminLayoutSource = readFileSync(new URL("../src/pages/admin/_layout.tsx", import.meta.url), "utf8");
-const settingsAPISource = readFileSync(new URL("../src/lib/api.ts", import.meta.url), "utf8");
 const pingTaskContextSource = readFileSync(new URL("../src/contexts/PingTaskContext.tsx", import.meta.url), "utf8");
 const pingTaskPageSource = readFileSync(new URL("../src/pages/admin/pingTask.tsx", import.meta.url), "utf8");
 const globalCssSource = readFileSync(new URL("../src/global.css", import.meta.url), "utf8");
@@ -78,13 +77,13 @@ test("keeps the admin navigation in the intended groups", () => {
     ),
   );
 
-  // 精简版已删除「远程管理」分组（远程管理 / 远程执行 / 远程终端 / 终端设置）
+  // The lite build removes remote management and its execution, terminal, and terminal settings entries.
   assert.equal(
     menuConfig.menu.some((item) => item.path === "/admin/remote-management"),
     false,
   );
   for (const removed of ["/admin/exec", "/admin/terminal", "/admin/settings/xtermjs"]) {
-    assert.equal(paths.includes(removed), false, `${removed} 不应再出现在侧栏菜单`);
+    assert.equal(paths.includes(removed), false, `${removed} should not appear in the sidebar`);
   }
 
   assert.deepEqual(
@@ -196,7 +195,7 @@ test("system UI routes do not embed the legacy public dashboard", () => {
   assert.doesNotMatch(routesSource, /path:\s*["']\/["']/);
   assert.match(routesSource, /path:\s*["']\/admin["']/);
   assert.match(routesSource, /path:\s*["']\/install["']/);
-  // 远程终端路由已在精简版中删除
+  // The lite build also removes the remote terminal route.
   assert.doesNotMatch(routesSource, /path:\s*["']\/terminal["']/);
   assert.doesNotMatch(routesSource, /pages\/admin\/exec|pages\/admin\/terminal|pages\/admin\/settings\/xtermjs/);
   assert.match(routesSource, /path:\s*["']\/manage\/\*["']/);
@@ -222,7 +221,7 @@ test("admin route changes keep the main content out of a composited animation la
 });
 
 test("admin layout never prompts for legal notice acceptance", () => {
-  assert.doesNotMatch(adminLayoutSource, /法律声明与合规指引/);
+  assert.doesNotMatch(adminLayoutSource, /Legal Notice and Compliance Guidelines/);
   assert.doesNotMatch(adminLayoutSource, /eula_accepted|acceptEula|\bEula\b/);
   assert.doesNotMatch(adminLayoutSource, /<Dialog\.Root open=\{open\}>/);
   assert.match(adminLayoutSource, /<AdminPanelBar/);

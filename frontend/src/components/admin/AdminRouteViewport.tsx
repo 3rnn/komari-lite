@@ -124,7 +124,7 @@ const AdminRouteViewport = ({
     <div className="admin-route-viewport">
       {progressState !== "hidden" ? (
         <div
-          aria-label="页面载入中"
+          aria-label="Page loading"
           className="admin-route-progress-track"
           data-progress-state={progressState}
           role="status"

@@ -130,7 +130,7 @@ func GetMemGopsutil() RamInfo {
 	return raminfo
 }
 
-// 这我还能干嘛，大伙天天说和free显示不一样，我也没办法
+// The reported memory usage intentionally differs from free(1).
 func CallFree() RamInfo {
 	raminfo := RamInfo{Mode: "callFree"}
 

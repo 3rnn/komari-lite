@@ -53,10 +53,10 @@ func TestNewClientDefaultsTrafficLimitTypeToSum(t *testing.T) {
 	assert.Equal(t, now, client.UpdatedAt)
 }
 
-// Agent 上报里可能出现「面板这张表已经没有的字段」（例如旧版 Agent 仍会上报
-// remote_control_enabled / remote_protocol）。这些字段直接进 GORM 会拼出
-// "no such column"，导致整条基础信息保存失败、面板永远看不到这台机器的 CPU/内存/系统。
-// 面板必须自己忽略不认识的字段。
+// "Fields that no longer exist in this table in the panel" may appear in Agent reports (for example, old versions of Agents will still report
+// remote_control_enabled/remote_protocol). Entering these fields directly into GORM will spell out
+// "no such column" will cause the entire basic information to fail to be saved, and the panel will never be able to see the CPU/memory/system of this machine.
+// The panel must ignore unknown fields itself.
 func TestSaveClientInfoIgnoresFieldsUnknownToThePanel(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open("file:unknown-agent-fields?mode=memory&cache=shared"), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
@@ -415,7 +415,7 @@ func TestRotateClientTokenKeepsOldTokenUntilNewTokenConnects(t *testing.T) {
 	assert.Equal(t, "client-a", uuid)
 	_, _, err = rotateClientToken(db, "client-a", time.Hour)
 	require.Error(t, err)
-	assert.Equal(t, "Token 重置仍在过渡期内，请先使用新 Token 重新部署 Agent；新 Token 首次成功连接后才能再次重置", err.Error())
+	assert.Equal(t, "Token reset is still in transition. Redeploy the Agent with the new Token first; you can reset it again after the new Token connects successfully for the first time.", err.Error())
 
 	uuid, err = getClientUUIDByToken(db, newToken, expiresAt.Add(-time.Minute))
 	require.NoError(t, err)

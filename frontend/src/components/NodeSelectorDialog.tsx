@@ -14,7 +14,7 @@ interface NodeSelectorDialogProps {
   className?: string;
   hiddenDescription?: boolean;
   hiddenUuidOnlyClient?: boolean;
-  children?: React.ReactNode; // 新增 children 属性
+  children?: React.ReactNode; // Optional children.
 }
 
 const NodeSelectorDialog: React.FC<NodeSelectorDialogProps> = ({
@@ -26,15 +26,15 @@ const NodeSelectorDialog: React.FC<NodeSelectorDialogProps> = ({
   className,
   hiddenDescription,
   hiddenUuidOnlyClient,
-  children, // 解构 children
+  children, // Destructure children.
 }) => {
   const { t } = useTranslation();
   const { nodeDetail } = useNodeDetails();
-  // 自动/受控弹窗开关
+  // Dialog can manage its own open state or be controlled externally.
   const [autoOpen, setAutoOpen] = React.useState(false);
   const open = openProp !== undefined ? openProp : autoOpen;
   const onOpenChange = onOpenChangeProp || setAutoOpen;
-  // 临时选中，只有点击确定才提交
+  // Selection is provisional until the user confirms.
   const [temp, setTemp] = React.useState<string[]>(value ?? []);
   React.useEffect(() => {
     if (open) setTemp(value ?? []);

@@ -35,7 +35,7 @@ type Client struct {
 	Weight                 int        `json:"weight" gorm:"type:int"`
 	Price                  float64    `json:"price"`
 	BillingCycle           int        `json:"billing_cycle"`
-	AutoRenewal            bool       `json:"auto_renewal" gorm:"default:false"` // 是否自动续费
+	AutoRenewal            bool       `json:"auto_renewal" gorm:"default:false"` // Whether to renew automatically
 	Currency               string     `json:"currency" gorm:"type:varchar(20);default:'$'"`
 	ExpiredAt              *time.Time `json:"expired_at" gorm:"type:timestamp"`
 	Group                  string     `json:"group" gorm:"type:varchar(100)"`
@@ -43,7 +43,7 @@ type Client struct {
 	Hidden                 bool       `json:"hidden" gorm:"default:false"`
 	RemoteControlProtected bool       `json:"remote_control_protected" gorm:"default:false"`
 	TrafficLimit           int64      `json:"traffic_limit" gorm:"type:bigint"`
-	TrafficLimitType       string     `json:"traffic_limit_type" gorm:"type:varchar(10);default:'max'"` // 流量阈值类型：sum max min up down
+	TrafficLimitType       string     `json:"traffic_limit_type" gorm:"type:varchar(10);default:'max'"` // Traffic threshold type: sum max min up down
 	TrafficResetDay        *int       `json:"traffic_reset_day,omitempty" gorm:"type:int"`              // nil: follow agent; 0: disabled; 1-31: monthly reset day
 	TrafficResetAllowance  int64      `json:"traffic_reset_allowance" gorm:"type:bigint;not null;default:0"`
 	TrafficResetCycle      string     `json:"traffic_reset_cycle,omitempty" gorm:"type:varchar(10);not null;default:''"`
@@ -129,18 +129,18 @@ type Record struct {
 
 // GPURecord logs individual GPU metrics over time
 type GPURecord struct {
-	Client      string    `json:"client" gorm:"type:varchar(36);index"` // 客户端UUID
-	Time        time.Time `json:"time" gorm:"index"`                    // 记录时间
-	DeviceIndex int       `json:"device_index" gorm:"index"`            // GPU设备索引 (0,1,2...)
-	DeviceName  string    `json:"device_name" gorm:"type:varchar(100)"` // GPU型号
-	MemTotal    int64     `json:"mem_total" gorm:"type:bigint"`         // 显存总量(字节)
-	MemUsed     int64     `json:"mem_used" gorm:"type:bigint"`          // 显存使用(字节)
-	Utilization float32   `json:"utilization" gorm:"type:decimal(5,2)"` // GPU使用率(%)
-	Temperature int       `json:"temperature"`                          // GPU温度(°C)
+	Client      string    `json:"client" gorm:"type:varchar(36);index"` // Client UUID
+	Time        time.Time `json:"time" gorm:"index"`                    // Record time
+	DeviceIndex int       `json:"device_index" gorm:"index"`            // GPU device index (0,1,2...)
+	DeviceName  string    `json:"device_name" gorm:"type:varchar(100)"` // GPU model
+	MemTotal    int64     `json:"mem_total" gorm:"type:bigint"`         // Total amount of video memory (bytes)
+	MemUsed     int64     `json:"mem_used" gorm:"type:bigint"`          // Video memory usage (bytes)
+	Utilization float32   `json:"utilization" gorm:"type:decimal(5,2)"` // GPU usage (%)
+	Temperature int       `json:"temperature"`                          // GPU temperature (°C)
 }
 
 // StringArray represents a slice of strings stored as JSON in the database
-// StringArray 存储为 JSON 的字符串切片类型
+// StringArray String slice type stored as JSON
 type StringArray []string
 
 func (sa *StringArray) Scan(value interface{}) error {

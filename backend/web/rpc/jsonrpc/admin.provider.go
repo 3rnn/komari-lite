@@ -14,7 +14,7 @@ import (
 )
 
 // admin.provider.go
-// 消息发送器与 OIDC 提供者配置 RPC2 方法（admin 命名空间）。
+// RPC2 methods for configuring message senders and OIDC providers (admin namespace).
 
 func init() {
 	reg("getMessageSenderProvider", adminGetMessageSender, "Get message sender provider config or templates")
@@ -57,7 +57,7 @@ func adminSetMessageSender(_ context.Context, req *rpc.JsonRpcRequest) (any, *rp
 		return nil, rpc.MakeError(rpc.InternalError, "Failed to save message sender provider configuration: "+err.Error(), nil)
 	}
 	method, _ := config.GetAs[string](config.NotificationMethodKey, "none")
-	if method == senderConfig.Name { // 正在使用，重载
+	if method == senderConfig.Name { // in use, reloading
 		if err := messageSender.LoadProvider(senderConfig.Name, senderConfig.Addition); err != nil {
 			return nil, rpc.MakeError(rpc.InternalError, "Failed to load message sender provider: "+err.Error(), nil)
 		}
@@ -99,7 +99,7 @@ func adminSetOidc(_ context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpc
 		return nil, rpc.MakeError(rpc.InternalError, "Failed to save OIDC provider configuration: "+err.Error(), nil)
 	}
 	provider, _ := config.GetAs[string](config.OAuthProviderKey, "github")
-	if provider == oidcConfig.Name { // 正在使用，重载
+	if provider == oidcConfig.Name { // in use, reloading
 		if err := oauth.LoadProvider(oidcConfig.Name, oidcConfig.Addition); err != nil {
 			return nil, rpc.MakeError(rpc.InternalError, "Failed to load OIDC provider: "+err.Error(), nil)
 		}

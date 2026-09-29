@@ -12,7 +12,7 @@ import (
 
 // exactQuantile computes an exact quantile for a sample slice.
 //
-// exactQuantile 为样本切片计算精确分位数。
+// exactQuantile computes the exact quantile for a sample slice.
 func exactQuantile(xs []float64, q float64) float64 {
 	s := append([]float64(nil), xs...)
 	sort.Float64s(s)
@@ -21,7 +21,7 @@ func exactQuantile(xs []float64, q float64) float64 {
 
 // TestTDigestAccuracySmoke checks basic t-digest accuracy.
 //
-// TestTDigestAccuracySmoke 检查 t-digest 的基本精度。
+// TestTDigestAccuracySmoke checks the base accuracy of t-digest.
 func TestTDigestAccuracySmoke(t *testing.T) {
 	rng := rand.New(rand.NewSource(42))
 	var xs []float64
@@ -47,8 +47,8 @@ func TestTDigestAccuracySmoke(t *testing.T) {
 // the SAME distribution, merged into one coarse digest. Its quantiles must
 // track the quantiles of all the raw points combined.
 //
-// 该测试模拟 rollup 合成：多个细桶的 digest 合并成一个粗桶 digest，合并后
-// 的分位数应接近所有原始点合在一起计算出的精确分位数。
+// This test simulates rollup synthesis: multiple thin bucket digests are merged into a coarse bucket digest.
+// The quantile of should be close to the exact quantile calculated from all original points taken together.
 func TestTDigestMergeMatchesCombined(t *testing.T) {
 	rng := rand.New(rand.NewSource(7))
 	var all []float64
@@ -78,7 +78,7 @@ func TestTDigestMergeMatchesCombined(t *testing.T) {
 
 // TestTDigestEncodeRoundTrip verifies t-digest serialization.
 //
-// TestTDigestEncodeRoundTrip 验证 t-digest 编码和解码往返。
+// TestTDigestEncodeRoundTrip Verifies a t-digest encoding and decoding round trip.
 func TestTDigestEncodeRoundTrip(t *testing.T) {
 	td := NewTDigest(50)
 	for i := 0; i < 2000; i++ {

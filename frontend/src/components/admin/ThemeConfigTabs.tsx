@@ -22,6 +22,7 @@ import PingTaskSelectorDialog from "@/components/PingTaskSelectorDialog";
 import type { I18nText } from "@/utils/i18nText";
 import {
   groupThemeConfigFields,
+  resolveThemeOptionLabel,
   type ThemeConfigTabField,
 } from "@/utils/themeConfigTabs";
 import { useSettings } from "@/lib/api";
@@ -192,7 +193,7 @@ const ThemeConfigTabs = ({
           .filter(Boolean)
           .map((option) => ({
             value: option,
-            label: resolveText(field.optionLabels?.[option]),
+            label: resolveThemeOptionLabel(option, resolveText(field.optionLabels?.[option])),
           }));
         const selectedValue = value === undefined ? "" : String(value);
         const selectedLabel =
@@ -298,8 +299,8 @@ const ThemeConfigTabs = ({
                 <button
                   type="button"
                   className="km-theme-config-scroll-button is-left"
-                  title={t("common.previous", "向左滚动")}
-                  aria-label={t("common.previous", "向左滚动")}
+                  title={t("common.previous", "Scroll left")}
+                  aria-label={t("common.previous", "Scroll left")}
                   onClick={() => scrollTabs(-1)}
                 >
                   <ChevronLeft size={16} aria-hidden="true" />
@@ -309,8 +310,8 @@ const ThemeConfigTabs = ({
                 <button
                   type="button"
                   className="km-theme-config-scroll-button is-right"
-                  title={t("common.next", "向右滚动")}
-                  aria-label={t("common.next", "向右滚动")}
+                  title={t("common.next", "Scroll right")}
+                  aria-label={t("common.next", "Scroll right")}
                   onClick={() => scrollTabs(1)}
                 >
                   <ChevronRight size={16} aria-hidden="true" />

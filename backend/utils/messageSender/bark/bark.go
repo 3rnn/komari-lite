@@ -24,7 +24,7 @@ func (b *BarkSender) GetConfiguration() factory.Configuration {
 }
 
 func (b *BarkSender) Init() error {
-	// 验证 ServerURL 格式
+	// Verify ServerURL format
 	if b.Addition.ServerURL != "" {
 		if _, err := url.Parse(b.Addition.ServerURL); err != nil {
 			return fmt.Errorf("invalid server URL: %v", err)
@@ -46,18 +46,18 @@ func (b *BarkSender) SendTextMessage(message, title string) error {
 		return fmt.Errorf("message is empty")
 	}
 
-	// 准备请求数据
+	// Prepare request data
 	payload := map[string]interface{}{
 		"body":       message,
 		"device_key": b.Addition.DeviceKey,
 	}
 
-	// 如果有标题，添加标题
+	// If there is a title, add the title
 	if title != "" {
 		payload["title"] = title
 	}
 
-	// 添加可选参数
+	// Add optional parameters
 	if b.Addition.Icon != "" {
 		payload["icon"] = b.Addition.Icon
 	}
@@ -66,35 +66,35 @@ func (b *BarkSender) SendTextMessage(message, title string) error {
 		payload["level"] = b.Addition.Level
 	}
 
-	// 序列化 JSON
+	// Serialize JSON
 	jsonData, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("failed to marshal payload: %v", err)
 	}
 
-	// 构建请求 URL
+	// Build request URL
 	serverURL := b.Addition.ServerURL
 	if serverURL == "" {
 		serverURL = "https://api.day.app"
 	}
 
-	// 确保 URL 以正确的格式结尾
+	// Ensure the URL has the correct suffix
 	serverURL = strings.TrimRight(serverURL, "/")
 	requestURL := fmt.Sprintf("%s/push", serverURL)
 
-	// 发送 HTTP POST 请求
+	// Send an HTTP POST request
 	resp, err := http.Post(requestURL, "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
 		return fmt.Errorf("failed to send request: %v", err)
 	}
 	defer resp.Body.Close()
 
-	// 检查响应状态
+	// Check response status
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("bark API returned non-OK status: %d", resp.StatusCode)
 	}
 
-	// 解析响应
+	// Parse the response
 	var result struct {
 		Code    int         `json:"code"`
 		Message string      `json:"message"`
@@ -102,11 +102,11 @@ func (b *BarkSender) SendTextMessage(message, title string) error {
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		// 如果解析失败，认为发送成功（某些 Bark 服务器可能返回纯文本）
+		// If parsing fails, the transmission is considered successful (some Bark servers may return plain text)
 		return nil
 	}
 
-	// 检查 Bark API 响应
+	// Check the Bark API response
 	if result.Code != 200 {
 		return fmt.Errorf("bark API error (code: %d): %s", result.Code, result.Message)
 	}
@@ -114,5 +114,5 @@ func (b *BarkSender) SendTextMessage(message, title string) error {
 	return nil
 }
 
-// 确保实现了 IMessageSender 接口
+// Make sure you implement the IMessageSender interface
 var _ factory.IMessageSender = (*BarkSender)(nil)

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build the monitoring-only Agent for the panel's local Agent distribution.
+# Build monitoring-only Agent artifacts for the panel's matching GitHub Release.
 set -euo pipefail
 
 root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"

@@ -39,11 +39,16 @@ export const writeLanguageCookie = (language?: string | null) => {
   const normalized = normalizeLanguage(language);
   if (!normalized) return;
 
-  document.documentElement.lang = normalized;
+  // Preserve legacy preferences while exposing the rendered English text
+  // to assistive technology and server-side language selection.
+  const english = /^en(?:-|$)/i.test(normalized);
+  const documentLanguage = english ? normalized : "en";
+  const cookieLanguage = english ? normalized : "en-US";
+  document.documentElement.lang = documentLanguage;
   if (typeof window !== "undefined") {
     window.localStorage.setItem(LANGUAGE_STORAGE_KEY, normalized);
   }
   document.cookie = `${LANGUAGE_COOKIE_KEY}=${encodeURIComponent(
-    normalized,
+    cookieLanguage,
   )}; path=/; max-age=${LANGUAGE_COOKIE_MAX_AGE_SECONDS}; SameSite=Lax`;
 };

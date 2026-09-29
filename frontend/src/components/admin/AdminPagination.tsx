@@ -144,13 +144,13 @@ export const AdminPagination = ({
   const previousProps: PageButtonProps = {
     direction: "previous",
     disabled: currentPage <= 1,
-    label: t("admin.nodeTable.previousPage", "上一页"),
+    label: t("admin.nodeTable.previousPage", "Previous page"),
     onClick: () => onPageChange(Math.max(1, currentPage - 1)),
   };
   const nextProps: PageButtonProps = {
     direction: "next",
     disabled: currentPage >= totalPages,
-    label: t("admin.nodeTable.nextPage", "下一页"),
+    label: t("admin.nodeTable.nextPage", "Next page"),
     onClick: () => onPageChange(Math.min(totalPages, currentPage + 1)),
   };
 
@@ -163,7 +163,7 @@ export const AdminPagination = ({
               start: pageStart + 1,
               end: Math.min(pageStart + pageSize, total),
               total,
-              defaultValue: "显示 {{start}}-{{end}}，共 {{total}} 台",
+              defaultValue: "Showing {{start}}-{{end}} of {{total}}",
             })}
         </Text>
       ) : null}
@@ -173,7 +173,7 @@ export const AdminPagination = ({
             value={String(pageSize)}
             onValueChange={(value) => onPageSizeChange(Number(value))}
           >
-            <Select.Trigger aria-label={t("admin.nodeTable.pageSize", "每页条数")} />
+            <Select.Trigger aria-label={t("admin.nodeTable.pageSize", "Items per page")} />
             <Select.Content>
               {usesCustomPageSize ? (
                 <Select.Item
@@ -181,12 +181,12 @@ export const AdminPagination = ({
                   className="hidden"
                   aria-hidden="true"
                 >
-                  {pageSize} {t("admin.nodeTable.itemsPerPage", "条/页")}
+                  {pageSize} {t("admin.nodeTable.itemsPerPage", "items/page")}
                 </Select.Item>
               ) : null}
               {pageSizeOptions.map((option) => (
                 <Select.Item key={option} value={String(option)}>
-                  {option} {t("admin.nodeTable.itemsPerPage", "条/页")}
+                  {option} {t("admin.nodeTable.itemsPerPage", "items/page")}
                 </Select.Item>
               ))}
             </Select.Content>

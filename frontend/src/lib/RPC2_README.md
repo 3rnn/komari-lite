@@ -1,46 +1,46 @@
-# RPC2 客户端使用指南
+# RPC2 Client Guide
 
-这个 RPC2 客户端实现了 JSON-RPC 2.0 标准，支持通过 WebSocket 和 HTTP POST 调用 Komari 的 `/api/rpc2` 接口。
+This RPC2 client implements JSON-RPC 2.0 and calls Komari's `/api/rpc2` over WebSocket or HTTP POST.
 
-## 特性
+## Features
 
-- ✅ 支持 JSON-RPC 2.0 标准
-- ✅ WebSocket 和 HTTP POST 双重支持
-- ✅ **自动连接和维护 WebSocket**
-- ✅ **自动心跳包维护连接（每5秒）**
-- ✅ 自动重连机制
-- ✅ 请求超时处理
-- ✅ 批量请求支持
-- ✅ 通知请求支持
-- ✅ TypeScript 类型支持
-- ✅ React Context 集成
+- ✅ JSON-RPC 2.0 support
+- ✅ WebSocket and HTTP POST transports
+- ✅ **Automatic WebSocket connection management**
+- ✅ **Automatic heartbeat every 5 seconds**
+- ✅ Automatic reconnection
+- ✅ Request timeouts
+- ✅ Batch requests
+- ✅ Notification requests
+- ✅ TypeScript types
+- ✅ React Context integration
 
-## 快速开始
+## Quick start
 
-### 1. 基本用法
+### 1. Basic usage
 
 ```typescript
 import { RPC2Client } from './lib/rpc2';
 
-// 创建客户端实例（默认启用自动连接）
+// Create a client (automatic connection is enabled by default).
 const client = new RPC2Client('/api/rpc2');
 
-// 直接调用，无需手动连接 - 会自动选择最佳方式
+// Call directly without connecting manually; the client picks a transport.
 const result = await client.call('getStatus');
 
-// 强制使用 HTTP 调用
+// Force an HTTP call.
 const httpResult = await client.callViaHTTP('getNodes', { active: true });
 
-// 强制使用 WebSocket 调用（会自动连接）
+// Force a WebSocket call (connects automatically).
 const wsResult = await client.callViaWebSocket('getNodes', { active: true });
 ```
 
-### 2. React 应用集成
+### 2. React integration
 
 ```tsx
 import { RPC2Provider, useRPC2Call } from './contexts/RPC2Context';
 
-// 在应用根组件包装 Provider
+// Wrap the app root in the provider.
 function App() {
   return (
     <RPC2Provider>
@@ -49,7 +49,7 @@ function App() {
   );
 }
 
-// 在组件中使用
+// Use the hook from a component.
 function MyComponent() {
   const { call } = useRPC2Call();
   
@@ -58,76 +58,75 @@ function MyComponent() {
       const result = await call('getStatus');
       console.log(result);
     } catch (error) {
-      console.error('调用失败:', error);
+      console.error('Call failed:', error);
     }
   };
   
   return (
     <button onClick={handleCall} disabled={!isConnected}>
-      调用 RPC
+      Call RPC
     </button>
   );
 }
 ```
 
-## API 参考
+## API reference
 
-### RPC2Client 类
+### RPC2Client class
 
-#### 构造函数
+#### Constructor
 ```typescript
 new RPC2Client(baseUrl?: string, options?: RPC2ConnectionOptions)
 ```
 
-#### 主要方法
+#### Main methods
 
-- `call(method, params?, options?)`: **推荐使用** - 自动选择最佳调用方式
-- `callViaWebSocket(method, params?, options?)`: 强制使用 WebSocket 调用
-- `callViaHTTP(method, params?, options?)`: 强制使用 HTTP 调用
-- `batchCall(requests)`: 批量调用（仅 HTTP）
-- `connect()`: 手动建立 WebSocket 连接（通常不需要）
-- `disconnect()`: 断开 WebSocket 连接
+- `call(method, params?, options?)`: **Recommended**; automatically picks a transport.
+- `callViaWebSocket(method, params?, options?)`: Force WebSocket.
+- `callViaHTTP(method, params?, options?)`: Force HTTP.
+- `batchCall(requests)`: Batch calls (HTTP only).
+- `connect()`: Connect the WebSocket manually (usually unnecessary).
+- `disconnect()`: Disconnect the WebSocket.
 
-#### 配置选项
+#### Configuration
 
 ```typescript
 interface RPC2ConnectionOptions {
-```typescript
 interface RPC2ConnectionOptions {
-  autoConnect?: boolean;          // 自动建立连接，默认 true
-  autoReconnect?: boolean;        // 自动重连，默认 true
-  reconnectInterval?: number;     // 重连间隔，默认 3000ms
-  maxReconnectAttempts?: number;  // 最大重连次数，默认 5
-  requestTimeout?: number;        // 请求超时，默认 30000ms
-  enableHeartbeat?: boolean;      // 启用心跳包，默认 true
-  heartbeatInterval?: number;     // 心跳包间隔，默认 5000ms（5秒）
-  headers?: Record<string, string>; // 自定义请求头
+    autoConnect?: boolean;          // Connect automatically (default: true).
+    autoReconnect?: boolean;        // Reconnect automatically (default: true).
+    reconnectInterval?: number;     // Reconnect interval (default: 3000 ms).
+    maxReconnectAttempts?: number;  // Retry limit (default: 5).
+    requestTimeout?: number;        // Request timeout (default: 30000 ms).
+    enableHeartbeat?: boolean;      // Enable heartbeats (default: true).
+    heartbeatInterval?: number;     // Heartbeat interval (default: 5000 ms).
+    headers?: Record<string, string>; // Custom request headers.
 }
 ```
 
-**注意**: 
-- 默认配置下，WebSocket 连接会自动建立和维护，无需手动管理
-- 心跳包会每5秒自动发送，保持连接活跃
+**Note**:
+- WebSocket connects and stays connected automatically by default.
+- The heartbeat runs every 5 seconds to keep the connection alive.
 
 ### React Hooks
 
 #### useRPC2()
-返回 RPC2 连接状态和控制方法。
+Returns RPC2 connection state and controls.
 
 #### useRPC2Call()
-返回 RPC 调用方法。
+Returns the RPC call method.
 
-## 使用示例
+## Examples
 
-### 基本调用
+### Basic calls
 ```typescript
-// 获取系统状态
+// Get system status.
 const status = await client.call('getStatus');
 
-// 获取节点列表
+// Get nodes.
 const nodes = await client.call('getNodes', { active: true });
 
-// 更新节点
+// Update a node.
 const result = await client.call('updateNode', {
   id: 1,
   name: 'new-name',
@@ -135,7 +134,7 @@ const result = await client.call('updateNode', {
 });
 ```
 
-### 批量调用
+### Batch calls
 ```typescript
 const results = await client.batchCall([
   { method: 'getStatus' },
@@ -144,57 +143,57 @@ const results = await client.batchCall([
 ]);
 ```
 
-### 通知请求
+### Notification requests
 ```typescript
-// 发送通知（不期望响应）
+// Send a notification (no response expected).
 await client.call('notifyUpdate', {
   timestamp: Date.now()
 }, { notification: true });
 ```
 
-### WebSocket 连接管理
+### WebSocket connection management
 
-**自动模式（推荐）:**
+**Automatic mode (recommended):**
 ```typescript
-// 创建客户端，自动连接和管理
+// Create a client with automatic connection management.
 const client = new RPC2Client('/api/rpc2');
 
-// 直接调用，无需手动管理连接
+// Call directly without managing the connection.
 const result = await client.call('getStatus');
 
-// 设置事件监听
+// Add event listeners.
 client.setEventListeners({
-  onConnect: () => console.log('WebSocket 已连接'),
-  onDisconnect: () => console.log('WebSocket 连接断开'),
-  onError: (error) => console.error('连接错误:', error),
-  onReconnecting: (attempt) => console.log(`重连尝试 ${attempt}`)
+    onConnect: () => console.log('WebSocket connected'),
+    onDisconnect: () => console.log('WebSocket disconnected'),
+    onError: (error) => console.error('Connection error:', error),
+    onReconnecting: (attempt) => console.log(`Retry ${attempt}`)
 });
 ```
 
-**手动模式:**
+**Manual mode:**
 ```typescript
-// 禁用自动连接
+// Disable automatic connection.
 const client = new RPC2Client('/api/rpc2', { autoConnect: false });
 
-// 手动建立连接
+// Connect manually.
 await client.connect();
 
-// 手动断开连接
+// Disconnect manually.
 client.disconnect();
 ```
 
-## 错误处理
+## Error handling
 
-客户端会自动处理以下错误情况：
+The client handles these error cases automatically:
 
-1. **网络错误**: 自动重连机制
-2. **请求超时**: 可配置超时时间
-3. **JSON-RPC 错误**: 标准错误码处理
-4. **连接断开**: 自动重连和状态通知
+1. **Network errors**: Automatic reconnection.
+2. **Request timeouts**: Configurable timeout.
+3. **JSON-RPC errors**: Standard error codes.
+4. **Disconnections**: Automatic reconnection and status notifications.
 
-## 注意事项
+## Notes
 
-1. **默认启用自动连接**: WebSocket 连接会自动建立和维护
-2. 批量调用仅支持 HTTP 方式
-3. 通知请求不会返回响应
-4. 请确保服务器端支持 JSON-RPC 2.0 标准
+1. **Automatic connection is enabled by default**: WebSocket connects and stays connected.
+2. Batch calls only work over HTTP.
+3. Notifications do not return responses.
+4. Ensure the server supports JSON-RPC 2.0.

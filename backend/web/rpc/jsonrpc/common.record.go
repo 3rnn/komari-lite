@@ -291,7 +291,7 @@ func getRecords(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpc
 			valid := 0
 			latestVal := -1
 			var latestTs time.Time
-			// 收集该任务的所有有效(非丢包)延迟值以计算百分位
+			// Collect all valid (non-dropout) latency values for the task to calculate the percentile
 			latencies := make([]int, 0, 64)
 			for _, r := range recs {
 				if r.TaskId != t.Id {
@@ -301,7 +301,7 @@ func getRecords(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpc
 					continue
 				}
 				total++
-				if r.Value < 0 { // 丢包
+				if r.Value < 0 { // Packet Loss
 					lossCount++
 					continue
 				}
@@ -322,7 +322,7 @@ func getRecords(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpc
 				}
 			}
 
-			// 计算 P50 / P99
+			// Calculate P50/P99
 			p50 := 0
 			p99 := 0
 			if len(latencies) > 0 {
@@ -444,7 +444,7 @@ func getLoadRecordsCombined(uuid string, start, end time.Time, loadType string, 
 	if uuid != "" {
 		return recordsdb.GetRecordsByClientAndTimeForLoadTypeMaxPoints(uuid, start, end, loadType, maxCount)
 	}
-	// 所有客户端：统一通过 records 包查询，启用 metric store 时自动走 metric store
+	// All clients: unified query through the records package, automatically go to the metric store when the metric store is enabled
 	return recordsdb.GetRecordsByTimeForLoadTypeMaxPoints(start, end, loadType, maxCount)
 }
 

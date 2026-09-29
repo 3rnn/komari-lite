@@ -4,20 +4,20 @@ import (
 	"github.com/komari-monitor/komari/utils/messageSender/factory"
 )
 
-// Addition 为 Server酱 Turbo 推送通道的配置项
-// 仅允许配置接口地址及可选的通道/隐藏IP/openid，固定以 JSON 发送
+// Addition is the configuration item of Server Turbo push channel
+// Only the interface address and optional channel/hidden IP/openid are allowed to be configured, fixedly sent in JSON
 type Addition struct {
-	// APIURL 为接口完整地址，例如：https://sctapi.ftqq.com/<sendkey>.send
-	APIURL string `json:"api_url" required:"true" help:"接口完整地址，例如 https://sctapi.ftqq.com/<sendkey>.send；参考：https://sct.ftqq.com/"`
-	// Channel 为本次推送使用的消息通道，最多两个，多个用 | 隔开，例如：9|66
-	Channel string `json:"channel" help:"消息通道，可选，多个用 | 隔开，例如 9|66"`
-	// NoIP 是否隐藏调用 IP，填 1 则隐藏
-	NoIP string `json:"noip" help:"是否隐藏调用IP，填 1 隐藏；为空则不隐藏"`
-	// OpenID 消息抄送 openid，测试号用 , 分隔；企业微信应用用 | 分隔
-	OpenID string `json:"openid" help:"抄送 openid，测试号用 , 分隔；企业微信应用用 | 分隔"`
+	// APIURL is the complete address of the interface, for example: https://sctapi.ftqq.com/<sendkey>.send
+	APIURL string `json:"api_url" required:"true" help:"Full API URL, for example https://sctapi.ftqq.com/<sendkey>.send; see https://sct.ftqq.com/"`
+	// Channel is the message channel used for this push, up to two, multiple separated by |, for example: 9|66
+	Channel string `json:"channel" help:"Optional message channels separated by |, for example 9|66"`
+	// NoIP Whether to hide the calling IP, fill in 1 to hide it
+	NoIP string `json:"noip" help:"Hide the caller IP when set to 1; leave empty to show it"`
+	// OpenID message carbon copy openid, the test account is separated by ,; the enterprise WeChat application is separated by |
+	OpenID string `json:"openid" help:"CC openid; separate test accounts with , and WeCom applications with |"`
 }
 
-// 注册 Server酱 Turbo 推送通道到工厂
+// Register ServerChan Turbo push channel to the factory
 func init() {
 	factory.RegisterMessageSender(func() factory.IMessageSender {
 		return &ServerChanTurboSender{}

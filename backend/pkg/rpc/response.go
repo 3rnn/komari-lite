@@ -1,8 +1,8 @@
 package rpc
 
-// JsonRpcResponse JSON-RPC 2.0 响应
-// 成功时包含 result，失败时包含 error；二者互斥。
-// 在 Notification 情况下服务器不会发送任何响应。
+// JsonRpcResponse JSON-RPC 2.0 response
+// Contains result when successful and error when failed; they are mutually exclusive.
+// In case of Notification the server will not send any response.
 type JsonRpcResponse struct {
 	Version string        `json:"jsonrpc"`
 	ID      any           `json:"id,omitempty"`
@@ -10,17 +10,17 @@ type JsonRpcResponse struct {
 	Error   *JsonRpcError `json:"error,omitempty"`
 }
 
-// SuccessResponse 构造成功响应
+// SuccessResponse constructs a successful response
 func SuccessResponse(id any, result any) *JsonRpcResponse {
 	return &JsonRpcResponse{Version: RPC_VERSION, ID: id, Result: result}
 }
 
-// ErrorResponse 构造失败响应
+// ErrorResponse constructs failure response
 func ErrorResponse(id any, code int, msg string, data any) *JsonRpcResponse {
 	return &JsonRpcResponse{Version: RPC_VERSION, ID: id, Error: &JsonRpcError{Code: code, Message: msg, Data: data}}
 }
 
-// InternalErrorResponse 统一内部错误
+// InternalErrorResponse unified internal error
 func InternalErrorResponse(id any, err error) *JsonRpcResponse {
 	msg := "internal error"
 	if err != nil {

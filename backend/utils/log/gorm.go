@@ -11,14 +11,14 @@ import (
 	"gorm.io/gorm/utils"
 )
 
-// GormLogger 实现 gorm.io/gorm/logger.Interface
+// GormLogger implements gorm.io/gorm/logger.Interface
 type GormLogger struct {
 	SlowThreshold             time.Duration
 	IgnoreRecordNotFoundError bool
 	LogLevel                  gormlogger.LogLevel
 }
 
-// NewGormLogger 创建 GORM logger
+// NewGormLogger creates GORM logger
 func NewGormLogger() *GormLogger {
 	return &GormLogger{
 		SlowThreshold:             200 * time.Millisecond,

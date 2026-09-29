@@ -144,7 +144,7 @@ const InnerLayout = () => {
       <AdminPageTitle
         description={t(
           "notification.load.description",
-          "配置 CPU、内存、负载等资源告警规则，并指定适用节点。",
+          "Configure CPU, memory, load, and other resource alert rules for selected nodes.",
         )}
       >
         {t("notification.load.title")}
@@ -520,13 +520,13 @@ const Row = ({ alert }: { alert: LoadAlert }) => {
       .finally(() => setEditSaving(false));
   };
 
-  // 编辑提交
+  // Submit edits.
   const handleEdit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     submitEdit(form);
   };
 
-  // 删除
+  // Delete an entry.
   const handleDelete = () => {
     setDeleteLoading(true);
     fetch("/api/admin/notification/load/delete", {
@@ -596,7 +596,7 @@ const Row = ({ alert }: { alert: LoadAlert }) => {
       </TableCell>
       <TableCell data-label={t("common.action")}>
         <div className="admin-card-actions admin-dual-actions flex items-center gap-3">
-        {/* 编辑按钮 */}
+        {/* Edit button. */}
         <Dialog.Root open={editOpen} onOpenChange={setEditOpen}>
           <Dialog.Trigger>
             <IconButton variant="soft">
@@ -700,7 +700,7 @@ const Row = ({ alert }: { alert: LoadAlert }) => {
             </form>
           </AppDialogContent>
         </Dialog.Root>
-        {/* 删除按钮 */}
+        {/* Delete button. */}
         <Dialog.Root open={deleteOpen} onOpenChange={setDeleteOpen}>
           <Dialog.Trigger>
             <IconButton variant="soft" color="red">

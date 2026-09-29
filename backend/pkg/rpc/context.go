@@ -1,8 +1,8 @@
 package rpc
 
 // context.go
-// 定义 RPC 执行时可附带的上下文元信息。用于在 handler 中获取当前请求的鉴权/主体信息。
-// 注意：避免出现循环依赖，这里仅引用 models.User（database/models 未引用本包）。
+// Defines contextual metainformation that can be appended to an RPC execution. Used to obtain the authentication/subject information of the current request in the handler.
+// Note: To avoid circular dependencies, only models.User is referenced here (database/models does not reference this package).
 
 import (
 	"context"
@@ -10,38 +10,38 @@ import (
 	"github.com/komari-monitor/komari/database/models"
 )
 
-// ContextMeta 保存一次 RPC 调用可用的鉴权/身份元数据。
-// 为了便于扩展，字段保持冗余：既保存结构体，也保存对应 UUID / Token。
-// 未来如需添加字段（如 IP、UserAgent、TraceID 等）直接在此结构体上扩展即可。
+// ContextMeta holds authentication/identity metadata available for an RPC call.
+// In order to facilitate expansion, the fields remain redundant: both the structure and the corresponding UUID/Token are saved.
+// If you need to add fields (such as IP, UserAgent, TraceID, etc.) in the future, you can directly extend this structure.
 type ContextMeta struct {
-	// Principal 调用主体(身份 + 能力)。新身份模型的权威来源,由身份识别层统一构建。
-	// Permission 字段保留用于向后兼容,等价于 Principal.PrimaryRole()。
+	// Principal calls the principal (identity + ability). The authoritative source of the new identity model, unified by the identity recognition layer.
+	// The Permission field is reserved for backward compatibility and is equivalent to Principal.PrimaryRole().
 	Principal *Principal
 
-	// Permission 当前权限分组 guest/client/admin
+	// Permission current permission group guest/client/admin
 	Permission string
-	// User 登录的管理员用户（仅 admin 会话存在）
+	// User logged in administrator user (only admin session exists)
 	User *models.User
-	// UserUUID 方便无需解引用就能快速判断
+	// UserUUID facilitates quick judgment without dereferencing
 	UserUUID string
-	// ClientToken 来自客户端的私钥 / 鉴权 token（仅 client 链接可能存在）
+	// ClientToken Private key/authentication token from the client (only client links may exist)
 	ClientToken string
-	// ClientUUID 解析出的客户端 UUID（若 token 合法）
+	// ClientUUID The client UUID parsed (if the token is legal)
 	ClientUUID string
-	// SessionToken 当前管理员会话的 session token（仅 admin 会话存在，用于区分当前会话等场景）
+	// SessionToken The session token of the current administrator session (only exists for the admin session and is used to distinguish the current session and other scenarios)
 	SessionToken string
-	// RemoteIP 请求来源 IP（可选）
+	// RemoteIP request source IP (optional)
 	RemoteIP string
-	// UserAgent 请求 UA（可选）
+	// UserAgent requests UA (optional)
 	UserAgent string
-	// TempShareValid 临时分享访问许可是否有效（基于 temp_key cookie 校验，由传输层填充）
+	// TempShareValid Whether the temporary share access permission is valid (based on temp_key cookie verification, filled by the transport layer)
 	TempShareValid bool
 }
 
-// 私有类型做 key，避免外部冲突
+// Use private types as keys to avoid external conflicts
 type ctxMetaKey struct{}
 
-// NewContextWithMeta 将 meta 写入 context
+// NewContextWithMeta writes meta to context
 func NewContextWithMeta(parent context.Context, meta *ContextMeta) context.Context {
 	if parent == nil {
 		parent = context.Background()
@@ -52,7 +52,7 @@ func NewContextWithMeta(parent context.Context, meta *ContextMeta) context.Conte
 	return context.WithValue(parent, ctxMetaKey{}, meta)
 }
 
-// MetaFromContext 读取 meta；不存在返回 nil
+// MetaFromContext reads meta; returns nil if it does not exist
 func MetaFromContext(ctx context.Context) *ContextMeta {
 	if ctx == nil {
 		return nil

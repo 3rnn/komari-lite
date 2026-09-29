@@ -6,35 +6,35 @@ import (
 	"github.com/komari-monitor/komari/pkg/config"
 )
 
-// reloadHandler 是单个配置热重载处理器。
+// reloadHandler handles one configuration hot-reload event.
 //
-// name 仅用于日志定位，handler 接收配置变更事件，自行判断关心的 key 是否变化。
-// 每个 handler 相互独立：一个 panic 不应影响其它 handler。
+// name is used only for logging; each handler decides which changed keys matter.
+// Handlers are isolated so a panic in one does not affect the others.
 type reloadHandler struct {
 	name    string
 	handler func(config.ConfigEvent)
 }
 
-// ReloadManager 统一收敛所有配置热重载逻辑。
+// ReloadManager centralizes configuration hot-reload handlers.
 //
-// 过去 config.Subscribe 分散在 cmd/server.go、cors.go 等多处，导致：
-//   - 谁监听哪些 key 不清晰；
-//   - 某个 handler panic 会连带影响同一订阅回调里的其它逻辑；
-//   - 关闭时无法统一停止。
+// Previously, config.Subscribe calls were scattered across cmd/server.go, cors.go, and elsewhere:
+//   - it was unclear which components listened for which keys;
+//   - one handler's panic could interrupt other handlers in the same callback;
+//   - subscriptions could not be stopped together during shutdown.
 //
-// ReloadManager 把这些 handler 注册在一处，用单个 config.Subscribe 分发，
-// 并对每个 handler 做 panic 隔离。
+// ReloadManager registers handlers in one place and dispatches events via one config.Subscribe call,
+// isolating panics in each handler.
 type ReloadManager struct {
 	handlers []reloadHandler
 	started  bool
 }
 
-// NewReloadManager 创建一个空的热重载管理器。
+// NewReloadManager creates an empty hot-reload manager.
 func NewReloadManager() *ReloadManager {
 	return &ReloadManager{}
 }
 
-// Register 注册一个命名的热重载处理器。必须在 Start 之前调用。
+// Register adds a named hot-reload handler. Call it before Start.
 func (m *ReloadManager) Register(name string, handler func(config.ConfigEvent)) {
 	if handler == nil {
 		return
@@ -42,8 +42,8 @@ func (m *ReloadManager) Register(name string, handler func(config.ConfigEvent)) 
 	m.handlers = append(m.handlers, reloadHandler{name: name, handler: handler})
 }
 
-// Start 向 config 订阅一次，之后每个事件会分发给全部已注册 handler。
-// 重复调用无副作用。
+// Start subscribes to config once, after which each event is distributed to all registered handlers.
+// Repeated calls have no side effects.
 func (m *ReloadManager) Start() {
 	if m.started {
 		return
@@ -56,7 +56,7 @@ func (m *ReloadManager) Start() {
 	})
 }
 
-// dispatch 执行单个 handler，并隔离 panic，避免一个 handler 影响其它。
+// dispatch runs a handler with panic isolation.
 func (m *ReloadManager) dispatch(h reloadHandler, event config.ConfigEvent) {
 	defer func() {
 		if r := recover(); r != nil {

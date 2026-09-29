@@ -87,17 +87,17 @@ const InnerLayout = () => {
       </div>
       <div className="grid grid-cols-3 gap-2 sm:gap-3">
         <PingSummary
-          label={t("ping.task_count", "监测任务")}
+          label={t("ping.task_count", "Monitor tasks")}
           value={taskList.length}
           icon={<Radar size={20} />}
         />
         <PingSummary
-          label={t("ping.linked_server_count", "关联服务器")}
+          label={t("ping.linked_server_count", "Linked servers")}
           value={Math.min(linkedServers, nodeDetail.length)}
           icon={<Server size={20} />}
         />
         <PingSummary
-          label={t("ping.default_task_count", "默认开启任务")}
+          label={t("ping.default_task_count", "Default-on tasks")}
           value={defaultTasks}
           tone="green"
           icon={<CheckCircle2 size={20} />}

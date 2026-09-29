@@ -11,272 +11,272 @@
         "type": "managed",
         "data": [
             {
-                "name": "外观设置",
+                "name": "Appearance",
                 "type": "title"
             },
             {
                 "key": "CustomBackgroundImage",
-                "name": "背景图片",
+                "name": "Background Image",
                 "type": "input",
                 "default": "",
-                "help": "桌面端背景图片URL，留空则不显示背景图。支持图片直链或随机图API。"
+                "help": "Desktop background image URL. Leave empty to show no image. Supports direct image URLs and random-image APIs."
             },
             {
                 "key": "CustomMobileBackgroundImage",
-                "name": "移动端背景图片",
+                "name": "Mobile Background Image",
                 "type": "input",
                 "default": "",
-                "help": "移动端单独的背景图片URL，留空则跟随桌面端设置。"
+                "help": "Separate mobile background image URL. Leave empty to use the desktop setting."
             },
             {
                 "key": "CustomLogo",
-                "name": "站点Logo",
+                "name": "Site Logo",
                 "type": "input",
                 "default": "/favicon.ico",
-                "help": "站点Logo图片URL，留空时左上角跟随 Komari 后台设置的站点图标；填写其他图片地址可单独设置。加载失败时回退到 Komari 站点图标。"
+                "help": "Logo image URL. Leave empty to use the site icon configured in Komari. Custom images fall back to the site icon if they fail to load."
             },
             {
                 "key": "CustomIllustration",
-                "name": "自定义插图",
+                "name": "Custom Illustration",
                 "type": "input",
                 "default": "",
-                "help": "首页右侧的自定义插图URL，留空使用默认插图。"
+                "help": "Illustration URL for the right side of the overview. Leave empty to use the default."
             },
             {
                 "key": "ForceTheme",
-                "name": "强制主题",
+                "name": "Theme Mode",
                 "type": "select",
-                "options": "跟随系统,dark,light",
-                "default": "跟随系统",
-                "help": "强制使用指定主题模式，选择'跟随系统'则由用户自行切换。"
+                "options": "\u8ddf\u968f\u7cfb\u7edf,dark,light",
+                "default": "\u8ddf\u968f\u7cfb\u7edf",
+                "help": "Force a theme mode. Choose the system setting to allow visitors to switch modes."
             },
             {
-                "name": "功能设置",
+                "name": "Features",
                 "type": "title"
             },
             {
                 "key": "CustomLinks",
-                "name": "自定义链接",
+                "name": "Custom Links",
                 "type": "input",
                 "default": "",
-                "help": "JSON格式的自定义链接数组，显示在顶部导航栏。格式: [{\"link\":\"https://example.com\",\"name\":\"示例\"}]"
+                "help": "JSON array of links shown in the top navigation, for example: [{\"link\":\"https://example.com\",\"name\":\"Example\"}]."
             },
             {
                 "key": "ForceShowServices",
-                "name": "显示服务监控",
+                "name": "Show Service Monitoring",
                 "type": "switch",
                 "default": false,
-                "help": "开启后在首页显示ServiceTracker服务监控面板（30天可用性监控）。"
+                "help": "Show the ServiceTracker panel with 30-day availability on the overview."
             },
             {
                 "key": "ForceShowMap",
-                "name": "显示全球地图",
+                "name": "Show World Map",
                 "type": "switch",
                 "default": false,
-                "help": "开启后在首页显示服务器全球分布地图。"
+                "help": "Show a map of server locations on the overview."
             },
             {
                 "key": "ForceCardInline",
-                "name": "行内卡片模式",
+                "name": "Compact Server Cards",
                 "type": "switch",
                 "default": false,
-                "help": "开启后服务器卡片使用紧凑的行内布局模式。"
+                "help": "Show server cards in a compact inline layout."
             },
             {
                 "key": "GroupOrder",
-                "name": "分组显示顺序",
+                "name": "Group Display Order",
                 "type": "input",
                 "default": "",
-                "help": "自定义首页分组顺序，All 固定最前。支持逗号/换行分隔或 JSON 数组，例如 香港,日本,美国。未列出的分组会按名称排在后面。"
+                "help": "Set group order. All stays first. Use comma- or newline-separated names or a JSON array, for example Hong Kong,Japan,United States. Other groups follow in name order."
             },
             {
                 "key": "DisableAnimatedMan",
-                "name": "禁用动画插图",
+                "name": "Hide Animated Illustration",
                 "type": "switch",
                 "default": true,
-                "help": "开启后隐藏首页的动画人物插图。默认已开启（隐藏）。"
+                "help": "Hide the animated illustration on the overview. Enabled by default."
             },
             {
                 "key": "DisableOverviewWave",
-                "name": "禁用概览手掌",
+                "name": "Hide Overview Illustration",
                 "type": "switch",
                 "default": true,
-                "help": "开启后隐藏首页概览标题左侧的手掌图标。默认已开启（隐藏）。"
+                "help": "Hide the decorative hand icon beside the overview title. Enabled by default."
             },
             {
                 "key": "ForceUseSvgFlag",
-                "name": "使用SVG国旗",
+                "name": "Use SVG Flags",
                 "type": "switch",
                 "default": true,
-                "help": "开启后使用SVG国旗图标替代Emoji国旗，在部分系统上显示效果更好。"
+                "help": "Use SVG flags instead of emoji flags for more consistent rendering."
             },
             {
                 "key": "ShowTrafficBar",
-                "name": "显示流量进度条",
+                "name": "Show Traffic Progress Bar",
                 "type": "switch",
                 "default": true,
-                "help": "开启后在服务器卡片上显示流量使用进度条（需后台配置流量限额）。"
+                "help": "Show traffic usage on server cards when a traffic quota is configured."
             },
             {
                 "key": "ShowVisitorCapsule",
-                "name": "显示访客胶囊",
+                "name": "Show Visitor Badge",
                 "type": "switch",
                 "default": false,
-                "help": "开启后在页面底部短暂显示访客 IP、地区和运营商信息。"
+                "help": "Briefly display visitor IP, region, and carrier at the bottom of the page."
             },
             {
                 "key": "VisitorCapsuleColor",
-                "name": "访客胶囊颜色",
+                "name": "Visitor Badge Color",
                 "type": "select",
                 "options": "blue,green,purple,pink,orange,red,cyan,amber",
                 "default": "blue",
-                "help": "访客胶囊的主色调，亮/暗模式自动配套。"
+                "help": "Accent color for the visitor badge, adapted to light and dark modes."
             },
             {
                 "key": "ShowAssetCard",
-                "name": "显示资产卡片",
+                "name": "Show Assets Card",
                 "type": "switch",
                 "default": false,
-                "help": "开启后显示右上角资产统计浮窗，账单金额会使用默认货币和服务器货币覆盖配置。"
+                "help": "Show the assets summary in the upper right. Amounts use the configured default and per-server currencies."
             },
             {
                 "key": "AssetCardColor",
-                "name": "资产卡片颜色",
+                "name": "Assets Card Color",
                 "type": "select",
                 "options": "blue,green,purple,pink,orange,red,cyan,amber",
                 "default": "blue",
-                "help": "资产卡片浮窗的主色调，亮/暗模式自动配套。"
+                "help": "Accent color for the assets card, adapted to light and dark modes."
             },
             {
                 "key": "AssetCardDefaultCurrency",
-                "name": "资产卡片默认币种",
+                "name": "Assets Card Currency",
                 "type": "select",
                 "options": "CNY,USD,HKD,EUR,GBP,JPY",
                 "default": "CNY",
-                "help": "资产卡片汇总金额的默认显示币种，访客仍可在资产卡片内临时切换。"
+                "help": "Default display currency for the assets summary. Visitors can temporarily change it on the card."
             },
             {
                 "key": "ForcePeakCutEnabled",
-                "name": "网络图表削峰",
+                "name": "Clip Network Chart Spikes",
                 "type": "switch",
                 "default": false,
-                "help": "开启后网络流量图表会自动裁剪异常峰值，使图表更易读。"
+                "help": "Clip anomalous peaks in network traffic charts to improve readability."
             },
             {
-                "name": "卡片显示设置",
+                "name": "Server Card Display",
                 "type": "title"
             },
             {
                 "key": "FixedLeftServerName",
-                "name": "固定左侧服务器名称",
+                "name": "Pin Server Name on Left",
                 "type": "switch",
                 "default": false,
-                "help": "开启后服务器名称固定在卡片左侧，资源信息显示在右侧；该模式优先于固定顶部服务器名称。"
+                "help": "Pin server names to the left of cards and show resources on the right. Takes precedence over pinning names at the top."
             },
             {
                 "key": "FixedTopServerName",
-                "name": "固定顶部服务器名称",
+                "name": "Pin Server Name at Top",
                 "type": "switch",
                 "default": false,
-                "help": "开启后服务器名称固定在卡片顶部，资源信息显示在下方。"
+                "help": "Pin server names to the top of cards and show resources below."
             },
             {
                 "key": "DisableRemainingDaysBar",
-                "name": "禁用剩余天数时间条",
+                "name": "Hide Remaining-Time Bar",
                 "type": "switch",
                 "default": true,
-                "help": "开启后隐藏服务器卡片中剩余天数下方的时间条。默认已开启（隐藏）。"
+                "help": "Hide the time bar below remaining days on server cards. Enabled by default."
             },
             {
                 "key": "ShowNetTransfer",
-                "name": "显示上下行流量",
+                "name": "Show Upload and Download Totals",
                 "type": "switch",
                 "default": true,
-                "help": "开启后在服务器卡片底部显示上传和下载总流量。"
+                "help": "Show total uploaded and downloaded traffic at the bottom of server cards."
             },
             {
                 "key": "HideIPv4IPv6Tag",
-                "name": "隐藏IPv4/IPv6标签",
+                "name": "Hide IPv4/IPv6 Labels",
                 "type": "switch",
                 "default": false,
-                "help": "开启后隐藏服务器卡片上默认显示的IPv4和IPv6标签。"
+                "help": "Hide the IPv4 and IPv6 labels normally shown on server cards."
             },
             {
                 "key": "HideTrafficVolTag",
-                "name": "隐藏流量标签",
+                "name": "Hide Traffic Label",
                 "type": "switch",
                 "default": false,
-                "help": "开启后隐藏服务器卡片上显示的流量标签。"
+                "help": "Hide the traffic label on server cards."
             },
             {
-                "name": "账单货币设置",
+                "name": "Billing Currency",
                 "type": "title"
             },
             {
                 "key": "DefaultBillingCurrency",
-                "name": "默认账单货币",
+                "name": "Default Billing Currency",
                 "type": "select",
-                "options": "跟随后端,CNY,JPY,USD,EUR,HKD,TWD,KRW,SGD,CAD,AUD",
-                "default": "跟随后端",
-                "help": "没有单独覆盖时使用的货币。选择跟随后端时使用 Komari 节点的 currency 字段；后端填裸 ¥/￥ 时按 CNY 识别，日元建议填 JPY、JP¥ 或单独覆盖。"
+                "options": "\u8ddf\u968f\u540e\u7aef,CNY,JPY,USD,EUR,HKD,TWD,KRW,SGD,CAD,AUD",
+                "default": "\u8ddf\u968f\u540e\u7aef",
+                "help": "Currency used when no override applies. The backend setting reads the node currency field; bare yen symbols are interpreted as CNY. Use JPY or JP\u00a5 for Japanese yen."
             },
             {
                 "key": "CnySymbolStyle",
-                "name": "人民币显示风格",
+                "name": "CNY Symbol Style",
                 "type": "select",
-                "options": "¥,CNY",
-                "default": "¥",
-                "help": "人民币金额前缀。¥ 视觉简洁，适合部署里大部分是人民币、少数是日元的场景（日元会自动加 JPY 文字消歧义）。日元为主的部署可切到 CNY 文字。"
+                "options": "\u00a5,CNY",
+                "default": "\u00a5",
+                "help": "Prefix for CNY amounts. The yen symbol is compact when most nodes use CNY; Japanese yen then gains a JPY label. Use CNY text when most nodes use JPY."
             },
             {
                 "key": "ServerBillingCurrencyOverrides",
-                "name": "服务器货币覆盖",
+                "name": "Server Currency Overrides",
                 "type": "input",
                 "default": "",
-                "help": "JSON对象，按服务器UUID、卡片ID或名称指定货币，例如 {\"Tokyo\":\"JPY\",\"spartanhost\":\"USD\"}。【更推荐】直接在 Komari 后端服务器的 tags 字段里加 <JPY>/<USD>/<CNY> 等元标签，例如把 KDDI 的 tags 改成 \"Tokyonline; KDDI; <JPY>\"，主题会自动识别且不在前端显示该标签。优先级：本JSON > tags元标签 > 默认账单货币 > 后端currency字段。"
+                "help": "JSON object mapping server UUID, card ID, or name to a currency, such as {\"Tokyo\":\"JPY\",\"spartanhost\":\"USD\"}. Prefer currency tags such as <JPY>, <USD>, or <CNY> on Komari nodes; they are hidden in the public UI. Precedence: this JSON, tags, default currency, then backend currency."
             },
             {
-                "name": "延迟监测设置",
+                "name": "Latency Monitoring",
                 "type": "title"
             },
             {
                 "key": "ShowHomeLatency",
-                "name": "显示首页延迟监测",
+                "name": "Show Latency on Overview",
                 "type": "switch",
                 "default": true,
-                "help": "开启后在首页服务器卡片中显示最近一小时的延迟、丢包率和趋势；没有数据时显示 --，需先在后台延迟监测中创建任务；关闭后同时停止相关数据查询。"
+                "help": "Show recent one-hour latency, packet loss, and trends on overview cards. Create a latency task in the admin UI first. Disabling this also stops related queries."
             },
             {
-                "name": "流量进度条设置",
+                "name": "Traffic Progress Bar",
                 "type": "title"
             },
             {
                 "key": "TrafficBarShowPercent",
-                "name": "显示百分比",
+                "name": "Show Percentage",
                 "type": "switch",
                 "default": true,
-                "help": "在流量进度条右上角显示已用百分比。"
+                "help": "Show used percentage at the upper right of the traffic progress bar."
             },
             {
                 "key": "TrafficBarShowResetDay",
-                "name": "显示流量重置日",
+                "name": "Show Traffic Reset Day",
                 "type": "switch",
                 "default": true,
-                "help": "在流量进度条右上角显示距离下次流量重置的自然日数。新版 Komari 会自动同步节点配置。"
+                "help": "Show calendar days until the next traffic reset. Recent Komari versions sync node settings automatically."
             },
             {
                 "key": "TrafficBarShowBillingMode",
-                "name": "显示计费模式",
+                "name": "Show Billing Mode",
                 "type": "switch",
                 "default": true,
-                "help": "在流量进度条右上角显示计费模式（双向/单向等）。"
+                "help": "Show the billing mode, such as bidirectional or one-way, on the progress bar."
             },
             {
                 "key": "TrafficResetDayOverrides",
-                "name": "流量重置日覆盖",
+                "name": "Traffic Reset Day Overrides",
                 "type": "input",
                 "default": "",
-                "help": "服务器返回重置日时会自动同步。旧版 Komari 可在节点 tags 里加 <TRD:1>，或用 JSON 按服务器UUID、卡片ID或名称覆盖，例如 {\"Tokyo\":1,\"server-uuid\":15}。优先级：服务器字段 > tags > 本配置；都没有时显示 N/A。"
+                "help": "The server reset day syncs automatically when available. For older versions, use a <TRD:1> node tag or a JSON override by UUID, card ID, or name. Precedence: server field, tags, this setting; otherwise N/A."
             }
         ]
     }

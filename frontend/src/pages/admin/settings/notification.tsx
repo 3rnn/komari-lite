@@ -26,7 +26,7 @@ const NotificationSettings = () => {
   const [messageLoading, setMessageLoading] = React.useState(false);
   const [messageError, setMessageError] = React.useState("");
 
-  // 拉取所有 message sender 及字段定义
+  // Fetch all message senders and their field definitions.
   React.useEffect(() => {
     if (loading) return;
     setMessageLoading(true);
@@ -50,7 +50,7 @@ const NotificationSettings = () => {
       .finally(() => setMessageLoading(false));
   }, [loading, settings.notification_method, t]);
 
-  // 拉取当前 message sender 的设置
+  // Fetch settings for the selected sender.
   React.useEffect(() => {
     if (!currentMessageSender) return;
     setMessageLoading(true);
@@ -71,7 +71,7 @@ const NotificationSettings = () => {
       .finally(() => setMessageLoading(false));
   }, [currentMessageSender, t]);
 
-  // 处理保存
+  // Save the settings.
   const handleMessageSave = async (values: any) => {
     setMessageLoading(true);
     setMessageError("");
@@ -112,7 +112,7 @@ const NotificationSettings = () => {
       <AdminPageTitle
         description={t(
           "settings.notification.page_description",
-          "配置通知渠道、连接参数与消息模板。",
+          "Configure notification channels, connection parameters, and message templates.",
         )}
       >
         {t("settings.notification.title")}

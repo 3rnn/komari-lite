@@ -10,20 +10,20 @@ import (
 	"unsafe"
 )
 
-// GPUInfo 存储获取到的 DXGI 图形适配器详细信息。
+// GPUInfo stores details obtained for DXGI graphics adapters.
 type GPUInfo struct {
-	Index                 int    // DXGI 适配器的顺序索引
-	Name                  string // 适配器名称
-	VendorId              uint32 // 厂商 ID，如 0x10DE NVIDIA, 0x1002 AMD, 0x8086 Intel
-	DeviceId              uint32 // 设备 ID
-	SubSysId              uint32 // 子系统标识符，通常包含 OEM 信息
-	Revision              uint32 // 硬件修订版本号
-	DedicatedVideoMemory  uint64 // 专用显存，单位：字节
-	DedicatedSystemMemory uint64 // 专用于 GPU 的系统内存，单位：字节
-	SharedSystemMemory    uint64 // 共享的系统内存，单位：字节
-	LUIDHighPart          int32  // 局部唯一标识符高位
-	LUIDLowPart           uint32 // 局部唯一标识符低位
-	Flags                 uint32 // 适配器标志特征位
+	Index                 int    // DXGI adapter index.
+	Name                  string // Adapter name.
+	VendorId              uint32 // Vendor ID, e.g. 0x10DE NVIDIA, 0x1002 AMD, 0x8086 Intel.
+	DeviceId              uint32 // Device ID.
+	SubSysId              uint32 // Subsystem ID, usually including OEM information.
+	Revision              uint32 // Hardware revision.
+	DedicatedVideoMemory  uint64 // Dedicated VRAM (bytes).
+	DedicatedSystemMemory uint64 // Dedicated system memory for the GPU (bytes).
+	SharedSystemMemory    uint64 // Shared system memory (bytes).
+	LUIDHighPart          int32  // High part of the locally unique identifier.
+	LUIDLowPart           uint32 // Low part of the locally unique identifier.
+	Flags                 uint32 // Adapter flags.
 }
 
 func (g *GPUInfo) DedicatedVideoMemoryMB() uint64 {
@@ -67,7 +67,7 @@ type luid struct {
 	HighPart int32
 }
 
-// 对应 DXGI_ADAPTER_DESC1
+// Corresponds to DXGI_ADAPTER_DESC1.
 type dxgiAdapterDesc1 struct {
 	Description           [128]uint16
 	VendorId              uint32
@@ -182,7 +182,7 @@ func (a *idxgiAdapter1) Release() uint32 {
 	return uint32(ret)
 }
 
-// GetGPUs 枚举并获取系统中所有 DXGI 图形适配器信息。
+// GetGPUs enumerates and returns all DXGI graphics adapters in the system.
 func GetGPUs() ([]GPUInfo, error) {
 	dxgiDLL, err := syscall.LoadDLL("dxgi.dll")
 	if err != nil {

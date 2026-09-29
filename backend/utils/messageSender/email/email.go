@@ -19,8 +19,8 @@ type EmailSender struct {
 	Addition
 }
 
-// loginAuth 是一个更宽松的 SMTP 认证实现,支持更多 SMTP 服务器
-// 它不会严格验证服务器主机名,从而兼容微软邮箱、网易邮箱等服务
+// loginAuth is a looser SMTP authentication implementation that supports more SMTP servers
+// It does not strictly verify the server host name, making it compatible with services such as Microsoft Mailbox and NetEase Mailbox.
 type loginAuth struct {
 	username string
 	password string
@@ -39,8 +39,8 @@ func (a *loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 		case "Password:", "password:":
 			return []byte(a.password), nil
 		default:
-			// 某些服务器可能发送 base64 编码的提示
-			// 尝试返回用户名或密码
+			// Some servers may send base64 encoded hints
+			// Try returning username or password
 			prompt := strings.ToLower(strings.TrimSpace(string(fromServer)))
 			if strings.Contains(prompt, "user") {
 				return []byte(a.username), nil
@@ -51,8 +51,8 @@ func (a *loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 	return nil, nil
 }
 
-// plainAuthWithoutCheck 是一个不检查主机名的 PlainAuth 实现
-// 用于解决某些 SMTP 服务器主机名与配置不匹配的问题
+// plainAuthWithoutCheck is a PlainAuth implementation that does not check hostnames
+// Used to solve the problem of mismatch between some SMTP server host names and configurations
 type plainAuthWithoutCheck struct {
 	identity string
 	username string
@@ -94,18 +94,18 @@ func (e *EmailSender) SendTextMessage(message, title string) error {
 		return fmt.Errorf("email sending is not fully configured")
 	}
 
-	// 使用更宽松的认证方式,优先尝试 PLAIN,如果失败则尝试 LOGIN
-	// 这样可以兼容更多的 SMTP 服务器,包括微软邮箱、网易邮箱等
+	// Use a more relaxed authentication method, try PLAIN first, if it fails, try LOGIN
+	// This can be compatible with more SMTP servers, including Microsoft Mailbox, NetEase Mailbox, etc.
 	var auth smtp.Auth
 	if e.Addition.UseLoginAuth {
-		// 使用 LOGIN 认证(适用于某些旧的或特殊的 SMTP 服务器)
+		// Use LOGIN authentication (for some old or special SMTP servers)
 		auth = &loginAuth{
 			username: e.Addition.Username,
 			password: e.Addition.Password,
 			host:     e.Addition.Host,
 		}
 	} else {
-		// 使用不检查主机名的 PLAIN 认证(适用于大多数现代 SMTP 服务器)
+		// Use PLAIN authentication without checking hostname (works with most modern SMTP servers)
 		auth = &plainAuthWithoutCheck{
 			identity: "",
 			username: e.Addition.Username,
@@ -169,7 +169,7 @@ func (e *EmailSender) SendTextMessage(message, title string) error {
 	}
 
 	contentType := "text/plain; charset=UTF-8"
-	// 检测模板是否包含HTML
+	// Check if template contains HTML
 	trimmedMsg := strings.TrimSpace(message)
 	if strings.Contains(strings.ToLower(trimmedMsg), "<html") ||
 		strings.Contains(strings.ToLower(trimmedMsg), "<!doctype") ||
@@ -285,5 +285,5 @@ func (e *EmailSender) SendTextMessage(message, title string) error {
 	}
 }
 
-// 确保实现了 IMessageSender 接口
+// Make sure you implement the IMessageSender interface
 var _ factory.IMessageSender = (*EmailSender)(nil)

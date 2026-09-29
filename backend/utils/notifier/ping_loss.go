@@ -167,18 +167,18 @@ func formatPingLossMessage(notification models.PingLossNotification, stats pingL
 	}
 	taskName := strings.TrimSpace(notification.Task.Name)
 	if taskName == "" {
-		taskName = "未命名任务"
+		taskName = "Unnamed task"
 	}
 	target := strings.TrimSpace(notification.Task.Target)
 	if target == "" {
 		target = "-"
 	}
-	heading := "延迟监测异常"
+	heading := "Ping monitoring alert"
 	if action == pingLossNotificationRecovery {
-		heading = "延迟监测恢复"
+		heading = "Ping monitoring recovered"
 	}
 	return fmt.Sprintf(
-		"%s\n服务器：%s\n检测任务：%s\n检测目标：%s\n统计窗口：最近 %s\n丢包：%.2f%%（%d/%d）\n告警阈值：%.2f%%",
+		"%s\nServer: %s\nPing task: %s\nTarget: %s\nWindow: last %s\nPacket loss: %.2f%% (%d/%d)\nAlert threshold: %.2f%%",
 		heading,
 		clientName,
 		taskName,
@@ -211,10 +211,19 @@ func sendPingLossNotification(notification models.PingLossNotification, stats pi
 
 func formatPingLossWindow(seconds int) string {
 	if seconds%3600 == 0 {
-		return fmt.Sprintf("%d 小时", seconds/3600)
+		if seconds/3600 == 1 {
+			return "1 hour"
+		}
+		return fmt.Sprintf("%d hours", seconds/3600)
 	}
 	if seconds%60 == 0 {
-		return fmt.Sprintf("%d 分钟", seconds/60)
+		if seconds/60 == 1 {
+			return "1 minute"
+		}
+		return fmt.Sprintf("%d minutes", seconds/60)
 	}
-	return fmt.Sprintf("%d 秒", seconds)
+	if seconds == 1 {
+		return "1 second"
+	}
+	return fmt.Sprintf("%d seconds", seconds)
 }

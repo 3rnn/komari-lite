@@ -15,18 +15,18 @@ import (
 	"github.com/komari-monitor/komari/utils/renewal"
 )
 
-// notificationState 保存单个客户端的通知状态。
-// 通过在结构体中嵌入互斥锁，实现每个客户端细粒度的锁定，比全局锁更高效。
+// notificationState saves the notification status of a single client.
+// By embedding a mutex lock in the structure, fine-grained locking of each client is achieved, which is more efficient than global locks.
 type notificationState struct {
-	mu                  sync.Mutex // 互斥锁，保护该客户端状态
-	pendingOfflineSince time.Time  // 客户端离线的时间。为零值表示客户端在线或已发送离线通知。
-	isFirstConnection   bool       // 标记是否为首次上线连接。
-	isConnExist         bool       // 标记是否存在连接
-	connectionID        int64      // 连接ID，用于区分不同的连接会话，防止竞态条件
+	mu                  sync.Mutex // Mutex lock to protect the client state
+	pendingOfflineSince time.Time  // The time the client was offline. A value of zero indicates that the client is online or has sent an offline notification.
+	isFirstConnection   bool       // Mark whether it is the first online connection.
+	isConnExist         bool       // Mark whether there is a connection
+	connectionID        int64      // Connection ID, used to distinguish different connection sessions and prevent race conditions
 }
 
-// clientStates 使用 sync.Map 实现对客户端状态的并发访问。
-// 映射关系：clientID (string) -> *notificationState
+// clientStates uses sync.Map to implement concurrent access to client state.
+// Mapping relationship: clientID (string) -> *notificationState
 var clientStates sync.Map
 
 func ForgetClient(clientID string) {
@@ -42,8 +42,8 @@ func ForgetClient(clientID string) {
 	state.mu.Unlock()
 }
 
-// getNotificationConfig 获取指定客户端的通知配置。
-// 返回配置对象和一个布尔值，指示全局和该客户端是否启用通知。
+// getNotificationConfig Gets the notification configuration of the specified client.
+// Returns the configuration object and a boolean indicating whether notifications are enabled globally and for this client.
 func getNotificationConfig(clientID string) (*models.OfflineNotification, bool) {
 	conf, err := config.GetAs[bool](config.NotificationEnabledKey, false)
 	if err != nil || !conf {
@@ -60,9 +60,9 @@ func getNotificationConfig(clientID string) (*models.OfflineNotification, bool) 
 	return &notiConf, notiConf.Enable
 }
 
-// getOrInitState 从 sync.Map 获取客户端状态，不存在则新建并存储。
+// getOrInitState gets the client state from sync.Map. If it does not exist, create it and store it.
 func getOrInitState(clientID string) *notificationState {
-	// 原子性地加载或存储该客户端的状态。
+	// Atomicly load or store this client's state.
 	val, _ := clientStates.LoadOrStore(clientID, &notificationState{isFirstConnection: true})
 	return val.(*notificationState)
 }
@@ -71,7 +71,7 @@ func beginOfflineGrace(state *notificationState, endedConnectionID int64, now ti
 	state.mu.Lock()
 	defer state.mu.Unlock()
 
-	// 只接受当前连接的首次离线事件。旧连接的延迟事件必须被忽略。
+	// Only the first offline event for the current connection is accepted. Delay events for old connections must be ignored.
 	if !state.pendingOfflineSince.IsZero() || state.connectionID != endedConnectionID {
 		return false
 	}
@@ -104,7 +104,7 @@ func recordOnlineConnection(state *notificationState, connectionID int64) (notif
 	return true, false
 }
 
-// OfflineNotification 在启用通知且未在宽限期内发送的情况下，发送客户端离线通知。
+// OfflineNotification Sends a client offline notification when notifications are enabled and not sent within the grace period.
 func OfflineNotification(clientID string, endedConnectionID int64) {
 	client, err := clients.GetClientByUUID(clientID)
 	if err != nil {
@@ -118,7 +118,7 @@ func OfflineNotification(clientID string, endedConnectionID int64) {
 
 	gracePeriod := time.Duration(notiConf.GracePeriod) * time.Second
 	if gracePeriod <= 0 {
-		gracePeriod = 5 * time.Minute // 默认宽限期
+		gracePeriod = 5 * time.Minute // Default grace period
 	}
 
 	now := time.Now().UTC()
@@ -127,23 +127,23 @@ func OfflineNotification(clientID string, endedConnectionID int64) {
 		return
 	}
 
-	// 新建协程，等待宽限期后判断是否需要发送通知。
+	// Create a new coroutine and wait for the grace period to determine whether notification needs to be sent.
 	go func(startTime time.Time, expectedConnectionID int64) {
 		time.Sleep(gracePeriod)
 
 		state.mu.Lock()
 		defer state.mu.Unlock()
 
-		// 检查离线状态是否仍为本次协程启动时的状态。
-		// 若为零值，说明客户端已重连。
-		// 当前的 connectionID 是否还是我们触发离线时的那个ID。如果不是，说明客户端重连过，本次离线通知已失效。
+		// Check whether the offline status is still the status when this coroutine was started.
+		// If it is zero, it means the client has reconnected.
+		// Is the current connectionID still the same ID when we triggered offline. If not, it means that the client has reconnected and this offline notification has expired.
 		if state.pendingOfflineSince.IsZero() || state.connectionID != expectedConnectionID {
 			logger.Infof("notifier", "%s is reconnected new connID: %d, old connID: %d", clientID, state.connectionID, expectedConnectionID)
 			return
 		}
 
-		// 即将发送通知，重置待通知状态。
-		// 需要多一个boolean 是因为pendingOfflineSince在offline睡眠后才修改，可能导致online判断不对
+		// Notification is about to be sent, reset pending notification status.
+		// One more boolean is needed because pendingOfflineSince is modified after offline sleep, which may lead to incorrect online judgment.
 		state.pendingOfflineSince = time.Time{}
 		state.isConnExist = false
 
@@ -161,7 +161,7 @@ func OfflineNotification(clientID string, endedConnectionID int64) {
 			}
 		}(message)
 
-		// 更新数据库中的最后通知时间
+		// Update the last notification time in the database
 		db := dbcore.GetDBInstance()
 		if err := db.Model(&models.OfflineNotification{}).Where("client = ?", clientID).Update("last_notified", now.UTC()).Error; err != nil {
 			logger.Errorf("notifier", "Failed to update last_notified for client %s: %v", clientID, err)
@@ -169,17 +169,17 @@ func OfflineNotification(clientID string, endedConnectionID int64) {
 	}(now, endedConnectionID)
 }
 
-// OnlineNotification 在启用通知的情况下，发送客户端上线通知。
+// OnlineNotification Sends client online notification when notifications are enabled.
 func OnlineNotification(clientID string, connectionID int64) {
 	client, err := clients.GetClientByUUID(clientID)
 	if err != nil {
 		return
 	}
-	// 上线时检测续费
+	// Detect renewal when going online
 	renewal.CheckAndAutoRenewal(client)
 
-	// 连接状态必须始终维护。通知开关只控制消息发送，不能让当前连接 ID
-	// 缺失，否则节点在线时启用通知后的首次断线会被误判为旧连接事件。
+	// The connection state must be maintained at all times. The notification switch only controls message sending, not the current connection ID.
+	// Missing, otherwise the first disconnection after enabling notification when the node is online will be misjudged as an old connection event.
 	state := getOrInitState(clientID)
 	notifyOnline, duplicate := recordOnlineConnection(state, connectionID)
 
@@ -195,7 +195,7 @@ func OnlineNotification(clientID string, connectionID int64) {
 		return
 	}
 
-	// 规则4：客户端离线足够久已通知（或未待离线），现在重新上线，发送上线通知。
+	// Rule 4: The client has been offline for long enough and has been notified (or has not yet been offline). Now it comes back online and an online notification is sent.
 	message := fmt.Sprintf("🟢%s is online", client.Name)
 	go func(msg string) {
 		if err := messageSender.SendEvent(models.EventMessage{

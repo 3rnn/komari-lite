@@ -39,13 +39,13 @@ export const renderProviderInputs = ({
 
     const fields = providerDefs[currentProvider];
 
-    // 统一保存所有字段
+    // Save every field together.
     const handleSaveAll = async () => {
         try {
-            // 直接使用 providerValues
+            // Start with providerValues.
             const finalValues = { ...providerValues };
 
-            // 验证必填字段
+            // Validate required fields.
             const requiredFields = fields.filter((f: any) => f.required);
             const missingFields = requiredFields.filter((f: any) => {
                 const value = finalValues[f.name];
@@ -60,12 +60,12 @@ export const renderProviderInputs = ({
                 return;
             }
 
-            // 转换数字类型字段
+            // Convert numeric fields.
             const processedValues = { ...finalValues };
             fields.forEach((f: any) => {
                 const value = processedValues[f.name];
 
-                // 跳过未定义或null的值
+                // Skip undefined or null values.
                 if (value === undefined || value === null) {
                     return;
                 }
@@ -98,18 +98,18 @@ export const renderProviderInputs = ({
         }
     };
 
-    // 更新本地值
+    // Update local values.
     const updateLocalValue = (fieldName: string, value: any) => {
         setProviderValues((v: any) => ({ ...v, [fieldName]: value }));
     };
 
-    // 渲染单个字段
+    // Render one field.
     const renderField = (f: any) => {
         const fieldTitle = String(t(`${translationPrefix}.${f.name}`, f.name)) + (f.required ? " *" : "");
         const fieldDescription = f.help ? String(t(`${translationPrefix}.${f.name}_help`, f.help)) : undefined;
         const fieldValue = providerValues[f.name] !== undefined ? providerValues[f.name] : (f.default || "");
 
-        // 选择框类型
+        // Select fields.
         if (f.type === "option" && f.options) {
             return (
                 <SettingCardSelect
@@ -126,7 +126,7 @@ export const renderProviderInputs = ({
             );
         }
 
-        // 开关类型
+        // Switch fields.
         if (f.type === "bool") {
             return (
                 <SettingCardSwitch
@@ -142,7 +142,7 @@ export const renderProviderInputs = ({
             );
         }
 
-        // 长文本类型 (richtext)
+        // Long text (rich text) fields.
         if (f.type === "richtext" || f.type === "text") {
             return (
                 <SettingCardLongTextInput
@@ -162,7 +162,7 @@ export const renderProviderInputs = ({
             );
         }
 
-        // 短文本和数字类型
+        // Short text and numeric fields.
         const isNumber = ["int", "int64", "float32", "float64"].includes(f.type);
         return (
             <SettingCardShortTextInput
@@ -178,7 +178,7 @@ export const renderProviderInputs = ({
                     updateLocalValue(f.name, value);
                 }}
                 OnSave={() => {
-                    // 这里不做任何操作，只是为了满足接口要求
+                    // Intentionally no-op to satisfy the interface; onChange already updates the value.
                 }}
             />
         );
@@ -192,17 +192,17 @@ export const renderProviderInputs = ({
                 defaultOpen={true}
             >
                 <div className="flex gap-4 flex-col">
-                    {/* 按照服务器传来的顺序渲染所有字段 */}
+                    {/* Render fields in server order. */}
                     {fields.map((f: any) => renderField(f))}
 
-                    {/* 底部说明 */}
+                    {/* Footer help text. */}
                     {footer && (
                         <label className="text-sm text-muted-foreground mt-2 block">
                             {footer}
                         </label>
                     )}
 
-                    {/* 统一的保存按钮 */}
+                    {/* Shared save button. */}
                     <SettingCardButton
                         bordless
                         onClick={handleSaveAll}

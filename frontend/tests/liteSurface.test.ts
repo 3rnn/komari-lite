@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
 
-// 精简版界面守卫：已删除的子系统不能在界面层留下任何入口，
-// 否则会出现「页面在、接口 404」的死功能。
+// Guard the lite UI: removed subsystems must have no remaining entry points.
+// Otherwise a page may render while its API responds with 404.
 const read = (path: string) => readFileSync(path, "utf8");
 
 test("external SSO surfaces are gone from the admin UI", () => {

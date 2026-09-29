@@ -14,7 +14,7 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
     return JSON.parse(item);
   };
 
-  // 获取初始值
+  // Read the initial value.
   const getStoredValue = () => {
     try {
       const item = localStorage.getItem(key);
@@ -27,7 +27,7 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
 
   const [storedValue, setStoredValue] = useState<T>(getStoredValue);
 
-  // 更新存储的值
+  // Update the stored value.
   const setValue = useCallback((value: T | ((val: T) => T)) => {
     try {
       setStoredValue((currentValue) => {

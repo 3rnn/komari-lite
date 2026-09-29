@@ -90,8 +90,8 @@ func parseThemeNavigation(data []byte) (ThemeNavigation, bool) {
 }
 
 func bundledThemeNavigation(themeID string) ThemeNavigation {
-	// 内置主题 Komari Glass 与历史主题一致，使用 /instance/:uuid 作为节点详情路由；
-	// 自带路由的主题可在 komari-theme.json 的 navigation 中自行声明（优先于此处）。
+	// The built-in Glass theme uses /instance/:uuid for node details, as do
+	// legacy themes. A theme can override this through komari-theme.json.
 	switch strings.TrimSpace(themeID) {
 	case DefaultTheme:
 		return ThemeNavigation{serverDetailTemplate: "/instance/{uuid}"}

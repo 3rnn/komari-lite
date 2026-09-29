@@ -12,7 +12,7 @@ import (
 	agent_runtime "github.com/komari-monitor/komari/web/agent"
 )
 
-// PingTaskManager 管理定时器和任务
+// PingTaskManager manages timers and tasks
 type PingTaskManager struct {
 	mu    sync.RWMutex
 	tasks map[int][]models.PingTask
@@ -38,7 +38,7 @@ var manager = &PingTaskManager{
 	tasks: make(map[int][]models.PingTask),
 }
 
-// Reload 重载时间表
+// Reload reload schedule
 func (m *PingTaskManager) Reload(pingTasks []models.PingTask) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -46,7 +46,7 @@ func (m *PingTaskManager) Reload(pingTasks []models.PingTask) error {
 	corn.RemovePrefix("ping:")
 	m.tasks = make(map[int][]models.PingTask)
 
-	// 按Interval分组任务
+	// Group tasks by Interval
 	taskGroups := make(map[int][]models.PingTask)
 	for _, task := range pingTasks {
 		if task.Interval <= 0 {
@@ -55,7 +55,7 @@ func (m *PingTaskManager) Reload(pingTasks []models.PingTask) error {
 		taskGroups[task.Interval] = append(taskGroups[task.Interval], task)
 	}
 
-	// 为每个唯一的Interval创建协程
+	// Create coroutine for each unique Interval
 	for interval, tasks := range taskGroups {
 		interval := interval
 		tasks := append([]models.PingTask(nil), tasks...)
@@ -71,7 +71,7 @@ func (m *PingTaskManager) Reload(pingTasks []models.PingTask) error {
 	return nil
 }
 
-// executePingTask 执行单个PingTask
+// executePingTask executes a single PingTask
 func executePingTask(ctx context.Context, task models.PingTask) {
 	var message struct {
 		TaskID  uint   `json:"ping_task_id"`
@@ -98,12 +98,12 @@ func executePingTask(ctx context.Context, task models.PingTask) {
 	}
 }
 
-// targetPingClientUUIDs 根据任务配置计算本次调度需要下发的在线服务器列表。
+// targetPingClientUUIDs calculates the list of online servers that need to be delivered for this schedule based on the task configuration.
 func targetPingClientUUIDs(task models.PingTask) []string {
 	return task.Clients
 }
 
-// ReloadPingSchedule 加载或重载时间表
+// ReloadPingSchedule loads or reloads the schedule
 func ReloadPingSchedule(pingTasks []models.PingTask) error {
 	return manager.Reload(pingTasks)
 }

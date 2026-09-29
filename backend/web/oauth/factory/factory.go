@@ -23,7 +23,7 @@ func RegisterOidcProvider(constructor OidcConstructor) {
 	}
 	providers[provider.GetName()] = provider
 
-	// 使用反射来提取提供程序的配置字段
+	// Use reflection to extract the provider's configuration fields.
 	config := provider.GetConfiguration()
 	items := item.Parse(config)
 	providersAdditionalItems[provider.GetName()] = items

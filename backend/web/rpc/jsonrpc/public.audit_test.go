@@ -23,7 +23,7 @@ func TestNormalizeVisitorAuditEvent(t *testing.T) {
 		}
 	}
 
-	got := normalizeVisitorAuditEvent(strings.Repeat("访", visitorAuditMaxEventLen+10))
+	got := normalizeVisitorAuditEvent(strings.Repeat("é", visitorAuditMaxEventLen+10))
 	if utf8.RuneCountInString(got) != visitorAuditMaxEventLen || !utf8.ValidString(got) {
 		t.Fatalf("expected a valid %d-rune event, got %q", visitorAuditMaxEventLen, got)
 	}
@@ -45,11 +45,11 @@ func TestTrimVisitorAuditDetail(t *testing.T) {
 func TestBuildVisitorAuditMessage(t *testing.T) {
 	message, err := buildVisitorAuditMessage(visitorAuditMessage{
 		Event:     "page_view",
-		Path:      strings.Repeat("\x01中文", visitorAuditMaxPathLen),
-		Route:     strings.Repeat("路由", visitorAuditMaxRouteLen),
-		Target:    strings.Repeat("目标", visitorAuditMaxTargetLen),
-		UserAgent: strings.Repeat("浏览器", visitorAuditMaxUserAgentLen),
-		Detail:    map[string]any{"data": strings.Repeat("详情", visitorAuditMaxDetailLen)},
+		Path:      strings.Repeat("\x01éø", visitorAuditMaxPathLen),
+		Route:     strings.Repeat("route", visitorAuditMaxRouteLen),
+		Target:    strings.Repeat("target", visitorAuditMaxTargetLen),
+		UserAgent: strings.Repeat("browser", visitorAuditMaxUserAgentLen),
+		Detail:    map[string]any{"data": strings.Repeat("details", visitorAuditMaxDetailLen)},
 	})
 	if err != nil {
 		t.Fatalf("buildVisitorAuditMessage returned error: %v", err)
@@ -73,7 +73,7 @@ func TestBuildVisitorAuditMessage(t *testing.T) {
 func TestBuildVisitorAuditMessageBoundsUserAgentByRunes(t *testing.T) {
 	message, err := buildVisitorAuditMessage(visitorAuditMessage{
 		Event:     "page_view",
-		UserAgent: strings.Repeat("访", visitorAuditMaxUserAgentLen+20),
+		UserAgent: strings.Repeat("é", visitorAuditMaxUserAgentLen+20),
 	})
 	if err != nil {
 		t.Fatalf("buildVisitorAuditMessage returned error: %v", err)
@@ -89,8 +89,8 @@ func TestBuildVisitorAuditMessageBoundsUserAgentByRunes(t *testing.T) {
 }
 
 func TestTruncateStringPreservesUTF8(t *testing.T) {
-	got := truncateString("中文路径测试", 4)
-	if got != "中..." || !utf8.ValidString(got) {
+	got := truncateString("éø path test", 4)
+	if got != "é..." || !utf8.ValidString(got) {
 		t.Fatalf("truncateString returned %q", got)
 	}
 }

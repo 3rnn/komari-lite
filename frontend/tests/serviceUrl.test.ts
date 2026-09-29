@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { normalizeOptionalServiceUrl } from "../src/utils/serviceUrl.ts";
 
-test("无协议服务地址跟随当前页面的安全协议", () => {
+test("service URLs without a scheme inherit the current page's secure scheme", () => {
   assert.equal(
     normalizeOptionalServiceUrl("panel.example.com/", "https:"),
     "https://panel.example.com",
@@ -14,7 +14,7 @@ test("无协议服务地址跟随当前页面的安全协议", () => {
   );
 });
 
-test("显式协议保持用户配置", () => {
+test("explicit schemes preserve the configured URL", () => {
   assert.equal(
     normalizeOptionalServiceUrl("http://proxy.example.com/", "https:"),
     "http://proxy.example.com",

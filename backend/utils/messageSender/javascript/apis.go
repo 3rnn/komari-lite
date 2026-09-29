@@ -13,7 +13,7 @@ import (
 	"github.com/komari-monitor/komari/utils/messageSender/outboundhttp"
 )
 
-// createFetchFunction 创建一个 fetch API 实现
+// createFetchFunction creates a fetch API implementation
 func (j *JavaScriptSender) createFetchFunction() func(goja.FunctionCall) goja.Value {
 	return func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) < 1 {
@@ -22,7 +22,7 @@ func (j *JavaScriptSender) createFetchFunction() func(goja.FunctionCall) goja.Va
 
 		url := call.Argument(0).String()
 
-		// 解析选项
+		// parsing options
 		options := map[string]interface{}{
 			"method":  "GET",
 			"headers": make(map[string]string),
@@ -51,7 +51,7 @@ func (j *JavaScriptSender) createFetchFunction() func(goja.FunctionCall) goja.Va
 			}
 		}
 
-		// 创建 Promise
+		// Create a Promise
 		promise, resolve, reject := j.vm.NewPromise()
 
 		go func() {
@@ -61,7 +61,7 @@ func (j *JavaScriptSender) createFetchFunction() func(goja.FunctionCall) goja.Va
 				}
 			}()
 
-			// 创建 HTTP 请求
+			// Create HTTP request
 			method := options["method"].(string)
 			var body io.Reader
 			if options["body"].(string) != "" {
@@ -74,13 +74,13 @@ func (j *JavaScriptSender) createFetchFunction() func(goja.FunctionCall) goja.Va
 				return
 			}
 
-			// 设置请求头
+			// Set request header
 			headers := options["headers"].(map[string]string)
 			for key, value := range headers {
 				req.Header.Set(key, value)
 			}
 
-			// 发送请求
+			// Send request
 			client := outboundhttp.NewClient(30 * time.Second)
 			resp, err := client.Do(req)
 			if err != nil {
@@ -89,20 +89,20 @@ func (j *JavaScriptSender) createFetchFunction() func(goja.FunctionCall) goja.Va
 			}
 			defer resp.Body.Close()
 
-			// 读取响应体
+			// Read response body
 			bodyBytes, err := io.ReadAll(resp.Body)
 			if err != nil {
 				reject(j.vm.ToValue(fmt.Sprintf("Failed to read response: %v", err)))
 				return
 			}
 
-			// 创建响应对象
+			// Create the response object
 			responseObj := j.vm.NewObject()
 			responseObj.Set("status", resp.StatusCode)
 			responseObj.Set("statusText", resp.Status)
 			responseObj.Set("ok", resp.StatusCode >= 200 && resp.StatusCode < 300)
 
-			// 响应头
+			// response header
 			headersObj := j.vm.NewObject()
 			for key, values := range resp.Header {
 				if len(values) > 0 {
@@ -111,14 +111,14 @@ func (j *JavaScriptSender) createFetchFunction() func(goja.FunctionCall) goja.Va
 			}
 			responseObj.Set("headers", headersObj)
 
-			// text() 方法
+			// text() method
 			responseObj.Set("text", func(goja.FunctionCall) goja.Value {
 				textPromise, textResolve, _ := j.vm.NewPromise()
 				textResolve(j.vm.ToValue(string(bodyBytes)))
 				return j.vm.ToValue(textPromise)
 			})
 
-			// json() 方法
+			// json() method
 			responseObj.Set("json", func(goja.FunctionCall) goja.Value {
 				jsonPromise, jsonResolve, jsonReject := j.vm.NewPromise()
 				var result interface{}
@@ -137,12 +137,12 @@ func (j *JavaScriptSender) createFetchFunction() func(goja.FunctionCall) goja.Va
 	}
 }
 
-// createXHRConstructor 创建一个 XMLHttpRequest 构造函数
+// createXHRConstructor creates an XMLHttpRequest constructor
 func (j *JavaScriptSender) createXHRConstructor() func(goja.ConstructorCall) *goja.Object {
 	return func(call goja.ConstructorCall) *goja.Object {
 		xhr := call.This
 
-		// 内部状态
+		// Internal state
 		var method, url string
 		var headers = make(map[string]string)
 		var requestBody string
@@ -155,12 +155,12 @@ func (j *JavaScriptSender) createXHRConstructor() func(goja.ConstructorCall) *go
 		xhr.Set("responseText", "")
 		xhr.Set("response", "")
 
-		// 事件处理器
+		// event handler
 		xhr.Set("onreadystatechange", goja.Null())
 		xhr.Set("onload", goja.Null())
 		xhr.Set("onerror", goja.Null())
 
-		// open 方法
+		// open method
 		xhr.Set("open", func(call goja.FunctionCall) goja.Value {
 			if len(call.Arguments) < 2 {
 				panic(j.vm.NewTypeError("open requires at least 2 arguments"))
@@ -175,7 +175,7 @@ func (j *JavaScriptSender) createXHRConstructor() func(goja.ConstructorCall) *go
 			return goja.Undefined()
 		})
 
-		// setRequestHeader 方法
+		// setRequestHeader method
 		xhr.Set("setRequestHeader", func(call goja.FunctionCall) goja.Value {
 			if len(call.Arguments) < 2 {
 				panic(j.vm.NewTypeError("setRequestHeader requires 2 arguments"))
@@ -186,7 +186,7 @@ func (j *JavaScriptSender) createXHRConstructor() func(goja.ConstructorCall) *go
 			return goja.Undefined()
 		})
 
-		// send 方法
+		// send method
 		xhr.Set("send", func(call goja.FunctionCall) goja.Value {
 			if len(call.Arguments) > 0 && !goja.IsUndefined(call.Argument(0)) && !goja.IsNull(call.Argument(0)) {
 				requestBody = call.Argument(0).String()
@@ -203,7 +203,7 @@ func (j *JavaScriptSender) createXHRConstructor() func(goja.ConstructorCall) *go
 					}
 				}()
 
-				// 创建请求
+				// Create request
 				var body io.Reader
 				if requestBody != "" {
 					body = bytes.NewReader([]byte(requestBody))
@@ -219,12 +219,12 @@ func (j *JavaScriptSender) createXHRConstructor() func(goja.ConstructorCall) *go
 					return
 				}
 
-				// 设置请求头
+				// Set request header
 				for key, value := range headers {
 					req.Header.Set(key, value)
 				}
 
-				// 发送请求
+				// Send request
 				xhr.Set("readyState", 2)
 				j.callHandler(xhr, "onreadystatechange")
 
@@ -240,7 +240,7 @@ func (j *JavaScriptSender) createXHRConstructor() func(goja.ConstructorCall) *go
 				}
 				defer resp.Body.Close()
 
-				// 读取响应
+				// Read response
 				xhr.Set("readyState", 3)
 				j.callHandler(xhr, "onreadystatechange")
 
@@ -254,7 +254,7 @@ func (j *JavaScriptSender) createXHRConstructor() func(goja.ConstructorCall) *go
 					return
 				}
 
-				// 完成
+				// Complete
 				xhr.Set("readyState", 4)
 				xhr.Set("status", resp.StatusCode)
 				xhr.Set("statusText", resp.Status)
@@ -273,12 +273,12 @@ func (j *JavaScriptSender) createXHRConstructor() func(goja.ConstructorCall) *go
 			return goja.Undefined()
 		})
 
-		// getAllResponseHeaders 方法
+		// getAllResponseHeaders method
 		xhr.Set("getAllResponseHeaders", func(call goja.FunctionCall) goja.Value {
 			return j.vm.ToValue("")
 		})
 
-		// getResponseHeader 方法
+		// getResponseHeader method
 		xhr.Set("getResponseHeader", func(call goja.FunctionCall) goja.Value {
 			return goja.Null()
 		})
@@ -287,7 +287,7 @@ func (j *JavaScriptSender) createXHRConstructor() func(goja.ConstructorCall) *go
 	}
 }
 
-// callHandler 调用事件处理器
+// callHandler invokes the event handler
 func (j *JavaScriptSender) callHandler(obj *goja.Object, handlerName string) {
 	handler := obj.Get(handlerName)
 	if handler != nil && !goja.IsUndefined(handler) && !goja.IsNull(handler) {

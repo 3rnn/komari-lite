@@ -243,7 +243,7 @@ const InnerLayout = () => {
       .finally(() => setDefaultSaving(false));
   };
 
-  // 批量修改
+  // Update multiple entries.
   const handleBatchEdit = (values: {
     enable: boolean;
     cooldown: number;
@@ -294,10 +294,10 @@ const InnerLayout = () => {
       <AdminPageTitle
         description={t(
           "notification.offline.description",
-          "按节点设置离线宽限期与冷却时间，减少短暂断连造成的重复通知。",
+          "Set offline grace periods and notification cooldowns per node to reduce alerts caused by brief disconnects.",
         )}
       >
-        {t("notification.offline.full_title", "离线通知设置")}
+        {t("notification.offline.full_title", "Offline Alerts Configuration")}
       </AdminPageTitle>
       <div className="flex flex-col gap-3">
         <OfflineNotificationTable
@@ -551,12 +551,12 @@ const ActionButtons = ({
           <Button
             variant="ghost"
             className="admin-single-action-button"
-            aria-label={t("common.modify", "修改")}
-            title={t("common.modify", "修改")}
+            aria-label={t("common.modify", "Modify")}
+            title={t("common.modify", "Modify")}
           >
             <Pencil size={16} />
             <span className="admin-single-action-label">
-              {t("common.modify", "修改")}
+              {t("common.modify", "Modify")}
             </span>
           </Button>
         </Dialog.Trigger>

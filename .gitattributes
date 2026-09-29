@@ -1,0 +1,2 @@
+# Generated dependency templates can contain intentional blank space inside JS strings.
+backend/web/public/systemUI/dist/assets/*.js whitespace=-blank-at-eol

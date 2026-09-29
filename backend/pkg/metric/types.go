@@ -9,162 +9,162 @@ import (
 
 // Driver names a supported database backend.
 //
-// Driver 表示 metric store 使用的数据库后端类型。
+// Driver represents the database backend type used by the metric store.
 type Driver string
 
 const (
 	// DriverSQLite selects the SQLite backend.
 	//
-	// DriverSQLite 选择 SQLite 后端。
+	// DriverSQLite selects the SQLite backend.
 	DriverSQLite Driver = "sqlite"
 	// DriverMySQL selects the MySQL backend.
 	//
-	// DriverMySQL 选择 MySQL 后端。
+	// DriverMySQL selects the MySQL backend.
 	DriverMySQL Driver = "mysql"
 	// DriverPostgreSQL selects the PostgreSQL backend.
 	//
-	// DriverPostgreSQL 选择 PostgreSQL 后端。
+	// DriverPostgreSQL selects the PostgreSQL backend.
 	DriverPostgreSQL Driver = "postgresql"
 )
 
 // MetricType describes the semantic type of a metric.
 //
-// MetricType 表示指标的语义类型。
+// MetricType represents the semantic type of the metric.
 type MetricType string
 
 const (
 	// TypeGauge represents a point-in-time value.
 	//
-	// TypeGauge 表示某一时刻的数值。
+	// TypeGauge represents the value at a certain moment.
 	TypeGauge MetricType = "gauge"
 	// TypeCounter represents a monotonically increasing counter.
 	//
-	// TypeCounter 表示单调递增计数器。
+	// TypeCounter represents a monotonically increasing counter.
 	TypeCounter MetricType = "counter"
 	// TypeHistogram represents histogram-style measurements.
 	//
-	// TypeHistogram 表示直方图类度量。
+	// TypeHistogram represents a histogram type metric.
 	TypeHistogram MetricType = "histogram"
 	// TypeSummary represents pre-summarized measurements.
 	//
-	// TypeSummary 表示预汇总类度量。
+	// TypeSummary represents a presummarized class measure.
 	TypeSummary MetricType = "summary"
 )
 
 // Aggregation names a supported aggregation operation.
 //
-// Aggregation 表示聚合方式，例如 avg、p95 或 rate。
+// Aggregation represents the aggregation method, such as avg, p95, or rate.
 type Aggregation string
 
 const (
 	// AggAvg computes the arithmetic mean.
 	//
-	// AggAvg 计算算术平均值。
+	// AggAvg calculates the arithmetic mean.
 	AggAvg Aggregation = "avg"
 	// AggMin computes the minimum value.
 	//
-	// AggMin 计算最小值。
+	// AggMin calculates the minimum value.
 	AggMin Aggregation = "min"
 	// AggMax computes the maximum value.
 	//
-	// AggMax 计算最大值。
+	// AggMax calculates the maximum value.
 	AggMax Aggregation = "max"
 	// AggSum computes the sum of values.
 	//
-	// AggSum 计算值的总和。
+	// AggSum calculates the sum of values.
 	AggSum Aggregation = "sum"
 	// AggCount counts the number of points.
 	//
-	// AggCount 计算点数量。
+	// AggCount counts the number of points.
 	AggCount Aggregation = "count"
 	// AggP50 computes the 50th percentile.
 	//
-	// AggP50 计算第 50 百分位。
+	// AggP50 calculates the 50th percentile.
 	AggP50 Aggregation = "p50"
 	// AggP95 computes the 95th percentile.
 	//
-	// AggP95 计算第 95 百分位。
+	// AggP95 calculates the 95th percentile.
 	AggP95 Aggregation = "p95"
 	// AggP99 computes the 99th percentile.
 	//
-	// AggP99 计算第 99 百分位。
+	// AggP99 calculates the 99th percentile.
 	AggP99 Aggregation = "p99"
 	// AggFirst returns the first value in time order.
 	//
-	// AggFirst 返回时间顺序上的第一个值。
+	// AggFirst returns the first value in chronological order.
 	AggFirst Aggregation = "first"
 	// AggLast returns the last value in time order.
 	//
-	// AggLast 返回时间顺序上的最后一个值。
+	// AggLast returns the chronologically last value.
 	AggLast Aggregation = "last"
 	// AggRate computes the reset-aware per-second rate.
 	//
-	// AggRate 计算可处理重置的每秒速率。
+	// AggRate calculates the rate per second at which resets can be processed.
 	AggRate Aggregation = "rate"
 	// AggStdDev computes the population standard deviation.
 	//
-	// AggStdDev 计算总体标准差。
+	// AggStdDev calculates the population standard deviation.
 	AggStdDev Aggregation = "stddev"
 )
 
 // Order controls chronological query ordering.
 //
-// Order 表示查询结果按时间升序或降序排列。
+// Order indicates that the query results are arranged in ascending or descending order by time.
 type Order string
 
 const (
 	// OrderAsc orders points from oldest to newest.
 	//
-	// OrderAsc 按从旧到新的顺序排列点。
+	// OrderAsc sorts the points in order from oldest to newest.
 	OrderAsc Order = "asc"
 	// OrderDesc orders points from newest to oldest.
 	//
-	// OrderDesc 按从新到旧的顺序排列点。
+	// OrderDesc Arranges points in order from newest to oldest.
 	OrderDesc Order = "desc"
 )
 
 // Definition describes a metric and its metadata.
 //
-// Definition 描述一个指标的元数据和保留策略。
+// Definition describes the metadata and retention policy of a metric.
 type Definition struct {
 	// Name is the unique metric name.
 	//
-	// Name 是唯一指标名称。
+	// Name is the unique metric name.
 	Name string `json:"name"`
 	// Description is optional human-readable metric text.
 	//
-	// Description 是可选的人类可读指标说明。
+	// Description is an optional human-readable metric description.
 	Description string `json:"description,omitempty"`
 	// Type describes the metric's semantic type.
 	//
-	// Type 描述指标的语义类型。
+	// Type describes the semantic type of the metric.
 	Type MetricType `json:"type"`
 	// Unit names the value unit, such as bytes or percent.
 	//
-	// Unit 表示数值单位，例如 bytes 或 percent。
+	// Unit represents a numeric unit, such as bytes or percent.
 	Unit string `json:"unit,omitempty"`
 	// RetentionDays controls historical data retention for this metric. A value
 	// of zero disables persistence and removes existing metric data.
 	//
-	// RetentionDays 控制该指标历史数据的保留天数；零表示禁用持久化并清除已有数据。
+	// RetentionDays controls the number of days to retain historical data for this metric; zero means to disable persistence and clear existing data.
 	RetentionDays int `json:"retention_days,omitempty"`
 	// Metadata stores caller-defined metric metadata.
 	//
-	// Metadata 保存调用方定义的指标元数据。
+	// Metadata saves metric metadata defined by the caller.
 	Metadata map[string]string `json:"metadata,omitempty"`
 	// CreatedAt records when the metric definition was created.
 	//
-	// CreatedAt 记录指标定义创建时间。
+	// CreatedAt records the time when the metric definition was created.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// UpdatedAt records when the metric definition was last updated.
 	//
-	// UpdatedAt 记录指标定义最后更新时间。
+	// UpdatedAt records the time when the metric definition was last updated.
 	UpdatedAt time.Time `json:"updated_at,omitempty"`
 }
 
 // withDefaults fills default values on a metric definition.
 //
-// withDefaults 为指标定义填充默认类型。
+// withDefaults populates the metric definition with default types.
 func (d Definition) withDefaults() Definition {
 	if d.Type == "" {
 		d.Type = TypeGauge
@@ -174,7 +174,7 @@ func (d Definition) withDefaults() Definition {
 
 // Validate checks whether the value is well formed.
 //
-// Validate 检查指标定义是否合法。
+// Validate checks whether the metric definition is legal.
 func (d Definition) Validate() error {
 	if strings.TrimSpace(d.Name) == "" {
 		return fmt.Errorf("%w: metric name is required", ErrInvalidArgument)
@@ -192,37 +192,37 @@ func (d Definition) Validate() error {
 
 // Point stores one metric sample.
 //
-// Point 表示某个实体在某一时刻的一条指标采样。
+// Point represents an metric sample of an entity at a certain moment.
 type Point struct {
 	// MetricName names the metric this sample belongs to.
 	//
-	// MetricName 表示该采样所属的指标名称。
+	// MetricName indicates the metric name to which the sample belongs.
 	MetricName string `json:"metric_name"`
 	// EntityID identifies the entity that emitted the sample.
 	//
-	// EntityID 标识产生该采样的实体。
+	// EntityID identifies the entity that generated the sample.
 	EntityID string `json:"entity_id"`
 	// Timestamp is the sample time.
 	//
-	// Timestamp 是采样时间。
+	// Timestamp is the sampling time.
 	Timestamp time.Time `json:"timestamp"`
 	// Value is the numeric sample value.
 	//
-	// Value 是采样的数值。
+	// Value is the sampled value.
 	Value float64 `json:"value"`
 	// Tags identify the logical series within a metric and entity.
 	//
-	// Tags 标识同一指标和实体下的逻辑序列。
+	// Tags identify logical sequences under the same metric and entity.
 	Tags map[string]string `json:"tags,omitempty"`
 	// Labels carry extra metadata that does not define series identity.
 	//
-	// Labels 携带不参与序列身份判定的额外元数据。
+	// Labels carry additional metadata that is not involved in sequence identity determination.
 	Labels map[string]string `json:"labels,omitempty"`
 }
 
 // Validate checks whether the value is well formed.
 //
-// Validate 检查采样点是否包含必要字段。
+// Validate checks whether the sample point contains necessary fields.
 func (p Point) Validate() error {
 	if strings.TrimSpace(p.MetricName) == "" {
 		return fmt.Errorf("%w: metric name is required", ErrInvalidArgument)
@@ -241,7 +241,7 @@ func (p Point) Validate() error {
 
 // normalized returns a canonical form of the value.
 //
-// normalized 将采样点时间规范化为 UTC，并补齐空标签和标签说明 map。
+// normalized normalizes the sample point time to UTC, and fills in empty labels and label description maps.
 func (p Point) normalized() Point {
 	p.Timestamp = p.Timestamp.UTC()
 	if p.Tags == nil {
@@ -255,45 +255,45 @@ func (p Point) normalized() Point {
 
 // Query loads raw metric points matching a query.
 //
-// Query 描述原始点查询条件，包括指标、实体、时间范围、标签和分页。
+// Query describes the original point query conditions, including metrics, entities, time ranges, labels and paging.
 type Query struct {
 	// MetricName restricts the query to one metric.
 	//
-	// MetricName 将查询限定到单个指标。
+	// MetricName limits the query to a single metric.
 	MetricName string `json:"metric_name"`
 	// EntityID optionally restricts the query to one entity.
 	//
-	// EntityID 可选地将查询限定到单个实体。
+	// EntityID optionally limits the query to a single entity.
 	EntityID string `json:"entity_id,omitempty"`
 	// Start is the inclusive query start time.
 	//
-	// Start 是包含边界的查询起始时间。
+	// Start is the query start time including bounds.
 	Start time.Time `json:"start"`
 	// End is the inclusive query end time.
 	//
-	// End 是包含边界的查询结束时间。
+	// End is the end time of the query including the bounds.
 	End time.Time `json:"end"`
 	// Tags filters points by exact tag key/value matches.
 	//
-	// Tags 按标签键值精确匹配过滤采样点。
+	// Tags filters sample points by exact matching of tag key values.
 	Tags map[string]string `json:"tags,omitempty"`
 	// Limit limits the number of raw points returned.
 	//
-	// Limit 限制返回的原始点数量。
+	// Limit limits the number of original points returned.
 	Limit int `json:"limit,omitempty"`
 	// Offset skips this many raw points before returning results.
 	//
-	// Offset 在返回结果前跳过指定数量的原始点。
+	// Offset skips the specified number of original points before returning the result.
 	Offset int `json:"offset,omitempty"`
 	// Order controls chronological result ordering.
 	//
-	// Order 控制结果的时间顺序。
+	// Order controls the chronological order of results.
 	Order Order `json:"order,omitempty"`
 }
 
 // Validate checks whether the value is well formed.
 //
-// Validate 检查原始查询条件是否合法。
+// Validate checks whether the original query conditions are legal.
 func (q Query) Validate() error {
 	if strings.TrimSpace(q.MetricName) == "" {
 		return fmt.Errorf("%w: metric name is required", ErrInvalidArgument)
@@ -317,7 +317,7 @@ func (q Query) Validate() error {
 
 // normalized returns a canonical form of the value.
 //
-// normalized 将查询时间规范化为 UTC，并设置默认排序。
+// normalized normalizes the query time to UTC and sets the default ordering.
 func (q Query) normalized() Query {
 	q.Start = q.Start.UTC()
 	q.End = q.End.UTC()
@@ -329,26 +329,26 @@ func (q Query) normalized() Query {
 
 // AggregateQuery describes a bucketed aggregate query.
 //
-// AggregateQuery 描述按固定时间间隔分桶后的聚合查询。
+// AggregateQuery describes an aggregate query that is bucketed by a fixed time interval.
 type AggregateQuery struct {
 	// Query supplies the raw series filter and time window.
 	//
-	// Query 提供原始序列过滤条件和时间窗口。
+	// Query provides raw sequence filter conditions and time windows.
 	Query
 	// Aggregation selects the bucket aggregation to compute.
 	//
-	// Aggregation 选择要计算的桶聚合方式。
+	// Aggregation Select the bucket aggregation method to be calculated.
 	Aggregation Aggregation `json:"aggregation"`
 	// Interval is the width of each aggregate bucket.
 	//
-	// Interval 是每个聚合桶的宽度。
+	// Interval is the width of each aggregate bucket.
 	Interval time.Duration `json:"interval"`
 	// PreserveSeries keeps entity/tag identities as separate aggregate series on
 	// rollup-backed reads. The default preserves the historical rollup behavior
 	// of merging all matched series into each output bucket.
 	//
-	// PreserveSeries 在基于 rollup 的读取中保留 entity/tag 维度为独立聚合序列。
-	// 默认值保留历史 rollup 行为：把匹配到的序列合并进同一个输出桶。
+	// PreserveSeries Preserves entity/tag dimensions as independent aggregate sequences in rollup-based reads.
+	// The default value retains the historical rollup behavior: merge matched sequences into the same output bucket.
 	PreserveSeries bool `json:"preserve_series,omitempty"`
 	// OmitTags is an internal read optimization for callers that only need the
 	// entity dimension. It is excluded from serialized query contracts.
@@ -360,20 +360,20 @@ type AggregateQuery struct {
 	// something different depending on whether the aggregation is pushed down to
 	// SQL or computed in memory).
 	//
-	// BucketLimit 和 BucketOffset 对生成的聚合桶分页，而不是对底层原始点分页。
-	// 它们会在所有后端和聚合类型上保持一致。嵌入的 Query.Limit/Query.Offset
-	// 在聚合中会被忽略，因为它们描述的是原始点分页；根据聚合是下推到 SQL 还是在
-	// 内存计算，这会产生不同语义。
+	// BucketLimit and BucketOffset page into the resulting aggregate buckets rather than the underlying raw points.
+	// They will be consistent across all backends and aggregation types. Embedded Query.Limit/Query.Offset
+	// are ignored in aggregations because they describe origin point pagination; depending on whether the aggregation is pushed down to SQL or in
+	// In-memory computing, this results in different semantics.
 	BucketLimit int `json:"bucket_limit,omitempty"`
 	// BucketOffset skips this many aggregate buckets before returning results.
 	//
-	// BucketOffset 在返回结果前跳过指定数量的聚合桶。
+	// BucketOffset skips the specified number of aggregation buckets before returning results.
 	BucketOffset int `json:"bucket_offset,omitempty"`
 }
 
 // Validate checks whether the value is well formed.
 //
-// Validate 检查聚合查询的时间间隔、分页和聚合类型是否合法。
+// Validate checks whether the time interval, paging and aggregation type of the aggregate query are legal.
 func (q AggregateQuery) Validate() error {
 	if err := q.Query.Validate(); err != nil {
 		return err
@@ -401,92 +401,92 @@ func (q AggregateQuery) Validate() error {
 
 // AggregatePoint stores one aggregate bucket result.
 //
-// AggregatePoint 表示一个聚合桶的结果。
+// AggregatePoint represents the results of an aggregate bucket.
 type AggregatePoint struct {
 	// MetricName is the metric represented by the bucket.
 	//
-	// MetricName 是该桶代表的指标名称。
+	// MetricName is the name of the metric represented by this bucket.
 	MetricName string `json:"metric_name"`
 	// EntityID is the entity represented by the bucket when one was requested.
 	//
-	// EntityID 是请求限定实体时该桶代表的实体。
+	// EntityID is the entity that the bucket represents when requesting a qualified entity.
 	EntityID string `json:"entity_id,omitempty"`
 	// Bucket is the bucket start time.
 	//
-	// Bucket 是桶起始时间。
+	// Bucket is the bucket starting time.
 	Bucket time.Time `json:"bucket"`
 	// Value is the computed aggregate value.
 	//
-	// Value 是计算出的聚合值。
+	// Value is the calculated aggregate value.
 	Value float64 `json:"value"`
 	// Count is the number of points represented by the bucket.
 	//
-	// Count 是该桶代表的点数量。
+	// Count is the number of points represented by this bucket.
 	Count int `json:"count"`
 	// Tags identify the logical series represented by the bucket.
 	//
-	// Tags 标识该聚合桶所属的逻辑序列。
+	// Tags identify the logical sequence to which the aggregation bucket belongs.
 	Tags map[string]string `json:"tags,omitempty"`
 }
 
 // Stats stores or computes summary statistics for a point series.
 //
-// Stats 表示一段原始点序列的统计摘要。
+// Stats represents a statistical summary of a raw point sequence.
 type Stats struct {
 	// Count is the number of points in the series.
 	//
-	// Count 是序列中的点数量。
+	// Count is the number of points in the sequence.
 	Count int `json:"count"`
 	// Min is the minimum value.
 	//
-	// Min 是最小值。
+	// Min is the minimum value.
 	Min float64 `json:"min"`
 	// Max is the maximum value.
 	//
-	// Max 是最大值。
+	// Max is the maximum value.
 	Max float64 `json:"max"`
 	// Avg is the arithmetic mean.
 	//
-	// Avg 是算术平均值。
+	// Avg is the arithmetic mean.
 	Avg float64 `json:"avg"`
 	// Sum is the sum of all values.
 	//
-	// Sum 是所有值的总和。
+	// Sum is the sum of all values.
 	Sum float64 `json:"sum"`
 	// P50 is the 50th percentile.
 	//
-	// P50 是第 50 百分位。
+	// P50 is the 50th percentile.
 	P50 float64 `json:"p50"`
 	// P95 is the 95th percentile.
 	//
-	// P95 是第 95 百分位。
+	// P95 is the 95th percentile.
 	P95 float64 `json:"p95"`
 	// P99 is the 99th percentile.
 	//
-	// P99 是第 99 百分位。
+	// P99 is the 99th percentile.
 	P99 float64 `json:"p99"`
 	// First is the first value in time order.
 	//
-	// First 是时间顺序上的第一个值。
+	// First is the first value in chronological order.
 	First float64 `json:"first"`
 	// Last is the last value in time order.
 	//
-	// Last 是时间顺序上的最后一个值。
+	// Last is the last value in chronological order.
 	Last float64 `json:"last"`
 	// Rate is the reset-aware per-second rate.
 	//
-	// Rate 是可处理重置的每秒速率。
+	// Rate is the rate per second at which resets can be processed.
 	Rate float64 `json:"rate"`
 	// Start is the first point timestamp.
 	//
-	// Start 是第一个点的时间戳。
+	// Start is the timestamp of the first point.
 	Start time.Time `json:"start"`
 	// End is the last point timestamp.
 	//
-	// End 是最后一个点的时间戳。
+	// End is the timestamp of the last point.
 	End time.Time `json:"end"`
 	// StdDev is the population standard deviation.
 	//
-	// StdDev 是总体标准差。
+	// StdDev is the population standard deviation.
 	StdDev float64 `json:"std_dev"`
 }

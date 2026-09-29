@@ -10,30 +10,30 @@ import (
 
 // migration.go
 //
-// 启动阶段的 metrics 数据迁移。这里只处理 metrics 存储后端切换时的数据搬运
-// （例如默认 SQLite ./data/metrics.db 切换到 MySQL/PostgreSQL）。旧 komari.db
-// 监控表导入属于一次性迁移，见 pkg/migrations.RunMetricStoreMigrations。
+// Metrics data migration during startup phase. This only handles the data transfer when switching the metrics storage backend.
+// (e.g. default SQLite ./data/metrics.db switches to MySQL/PostgreSQL). oldkomari.db
+// Monitoring table import is a one-time migration, see pkg/migrations.RunMetricStoreMigrations.
 
-// targetFingerprint 返回当前 metrics 目标库的指纹（driver + 归一化 DSN），
-// 用于判断 metrics 存储后端是否发生变化（例如从 SQLite 切换到 MySQL/PostgreSQL）。
+// targetFingerprint returns the fingerprint of the current metrics target database (driver + normalized DSN),
+// Used to determine whether the metrics storage backend has changed (such as switching from SQLite to MySQL/PostgreSQL).
 func targetFingerprint(cfg *MetricStoreConfig) string {
 	driver := ResolveDriverFromConfig(cfg.Driver, cfg.DSN)
 	dsn := strings.TrimSpace(cfg.DSN)
 	return fmt.Sprintf("%s|%s", driver, dsn)
 }
 
-// RunStartupMigration 在服务启动时检查 metrics 存储后端是否发生变化，
-// 若变化则把上一个 metrics 目标库的全部数据搬运到当前目标。
+// RunStartupMigration checks whether the metrics storage backend has changed when the service starts.
+// If there is a change, all data in the previous metrics target database will be moved to the current target.
 //
-// 判定依据 MigrationTargetKey（记录“数据当前完整所在的 metrics 目标指纹”）：
-//   - saved == current：数据已在当前目标，无需处理。
-//   - saved == ""：无历史目标记录。老快照的 metrics 数据固定落在默认 SQLite
-//     （./data/metrics.db）；若当前目标不是默认 SQLite（例如已切到 MySQL/PostgreSQL），
-//     把默认 SQLite 中可能存在的历史数据搬运过来，否则仅登记指纹。
-//   - saved != current：后端已切换，把上一个目标（saved）的数据搬运到当前目标。
+// Determination based on MigrationTargetKey (recording "the complete metrics target fingerprint where the data currently resides"):
+//   - saved == current: The data is already in the current target and does not need to be processed.
+//   - saved == "": No historical target record. The metrics data of old snapshots are fixed in the default SQLite
+//     (./data/metrics.db); if the current target is not the default SQLite (for example, it has been switched to MySQL/PostgreSQL),
+//     Move historical data that may exist in the default SQLite, otherwise only register fingerprints.
+//   - saved != current: The backend has been switched, and the data of the previous target (saved) is moved to the current target.
 //
-// 搬运以 upsert 写入，幂等，中断后重启可安全重跑。任一失败都返回错误，
-// 调用方应让启动失败并打印明确错误。
+// The transfer is written with upsert, which is idempotent. It can be safely restarted after interruption. Any failure returns an error,
+// The caller should let startup fail and print an explicit error.
 func RunStartupMigration() error {
 	s := GetStore()
 	if s == nil {
@@ -48,12 +48,12 @@ func RunStartupMigration() error {
 	current := targetFingerprint(cfg)
 	saved, _ := config.GetAs[string](MigrationTargetKey, "")
 
-	// 数据已完整位于当前目标：无需搬运。
+	// The data is completely at the current destination: no moving required.
 	if saved == current {
 		return nil
 	}
 
-	// 上一个目标：优先使用已保存指纹；无记录时按老快照默认 SQLite 推断。
+	// Previous goal: Give priority to using saved fingerprints; when there is no record, use the default SQLite inference based on the old snapshot.
 	prev := saved
 	if prev == "" {
 		prev = defaultSQLiteFingerprint()

@@ -20,7 +20,7 @@ type aggregateGroupKey struct {
 
 // AggregatePoints groups raw points into time buckets and computes aggregate values.
 //
-// AggregatePoints 在内存中按查询配置将原始点分桶并聚合。
+// AggregatePoints buckets and aggregates raw points in memory per query configuration.
 func AggregatePoints(points []Point, query AggregateQuery) ([]AggregatePoint, error) {
 	if err := query.Validate(); err != nil {
 		return nil, err
@@ -156,7 +156,7 @@ func cloneStringMap(in map[string]string) map[string]string {
 
 // CalculateStats computes summary statistics for a point series.
 //
-// CalculateStats 基于一组点计算统计摘要，包括均值、百分位、首尾值和标准差。
+// CalculateStats Calculate statistical summaries based on a set of points, including mean, percentile, top and bottom values, and standard deviation.
 func CalculateStats(points []Point) (Stats, error) {
 	if len(points) == 0 {
 		// Distinguish "the metric/range yielded no samples" from "the metric
@@ -238,7 +238,7 @@ func calculateMergedPingLatencyStats(points []Point) (Stats, error) {
 
 // aggregateValue computes one aggregation over a point group.
 //
-// aggregateValue 对一组点执行单个聚合类型的计算。
+// aggregateValue performs a single aggregate-type calculation on a set of points.
 func aggregateValue(points []Point, agg Aggregation) (float64, error) {
 	if len(points) == 0 {
 		return 0, nil
@@ -294,10 +294,10 @@ func aggregateValue(points []Point, agg Aggregation) (float64, error) {
 // (last-first)/seconds. For a gauge it yields the total upward movement per
 // second, which is a stable definition for an otherwise ill-defined quantity.
 //
-// counterRate 计算能抵抗计数器重置的每秒变化率。它会遍历按时间排序的序列，
-// 并且只累加正向增量；当值下降时会被视为重置（计数器重新开始），该段贡献为零，
-// 而不是产生负向尖峰。对于严格递增的计数器，这等于 (last-first)/seconds。
-// 对于 gauge，它表示每秒总上升量，为这种本来定义不明确的量提供稳定定义。
+// counterRate calculates the rate of change per second that resists counter reset. It iterates over a time-ordered sequence,
+// And only positive increments are accumulated; when the value drops, it is considered to be reset (the counter restarts), and the segment contribution is zero,
+// Instead of generating negative spikes. For strictly increasing counters, this is equal to (last-first)/seconds.
+// For gauge, it represents the total rise per second, providing a stable definition for this otherwise poorly defined quantity.
 func counterRate(points []Point) float64 {
 	if len(points) < 2 {
 		return 0
@@ -320,8 +320,8 @@ func counterRate(points []Point) float64 {
 // stdDevPop computes the population standard deviation (dividing by N), matching
 // SQL STDDEV_POP and the StdDev field produced by CalculateStats.
 //
-// stdDevPop 计算总体标准差（除以 N），与 SQL 的 STDDEV_POP 以及
-// CalculateStats 返回的 StdDev 语义保持一致。
+// stdDevPop computes the population standard deviation (divided by N), similar to SQL's STDDEV_POP and
+// The semantics of the StdDev returned by CalculateStats remain consistent.
 func stdDevPop(points []Point) float64 {
 	if len(points) == 0 {
 		return 0
@@ -341,7 +341,7 @@ func stdDevPop(points []Point) float64 {
 
 // percentile computes a quantile from point values.
 //
-// percentile 提取点值、排序，并计算指定小数形式的百分位。
+// percentile extracts point values, sorts them, and calculates the percentile to the specified decimal form.
 func percentile(points []Point, p float64) float64 {
 	values := make([]float64, len(points))
 	for i, point := range points {
@@ -355,8 +355,8 @@ func percentile(points []Point, p float64) float64 {
 // already-sorted slice. Shared by percentile() and the raw-value paths so the
 // interpolation method stays identical everywhere.
 //
-// percentileSorted 基于已排序切片用线性插值计算百分位，供原始值路径和
-// percentile 共用，确保所有路径的插值方法一致。
+// percentileSorted computes percentiles using linear interpolation based on sorted slices for the original value path and
+// percentile is shared to ensure that the interpolation method is consistent for all paths.
 func percentileSorted(values []float64, p float64) float64 {
 	if len(values) == 0 {
 		return 0
@@ -376,7 +376,7 @@ func percentileSorted(values []float64, p float64) float64 {
 
 // alignTime floors a timestamp to the start of its interval bucket.
 //
-// alignTime 将时间向下对齐到指定间隔的桶起点。
+// alignTime aligns time downwards to the beginning of the bucket at the specified interval.
 func alignTime(t time.Time, interval time.Duration) time.Time {
 	nano := t.UTC().UnixNano()
 	size := interval.Nanoseconds()

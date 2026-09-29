@@ -2,8 +2,8 @@ package rpc
 
 import "context"
 
-// Invoke 便捷调用：构造请求并执行已注册方法，返回 result 或 *JsonRpcError。
-// 不生成 JsonRpcResponse。
+// Invoke convenience call: constructs a request and executes the registered method, returning result or *JsonRpcError.
+// JsonRpcResponse is not generated.
 //
 // @ref Call
 func Invoke(method string, params any) (any, *JsonRpcError) {
@@ -20,9 +20,9 @@ func Invoke(method string, params any) (any, *JsonRpcError) {
 	return h(context.Background(), req)
 }
 
-// Call 执行方法并直接返回完整的 JSON-RPC Response。
-// 适用于对外暴露：始终返回结构（包括错误）。
-// ctx: 执行上下文；id: 请求 id；method/params: 方法与参数。
+// Call executes the method and returns the complete JSON-RPC Response directly.
+// Suitable for external exposure: always return a structure (including errors).
+// ctx: execution context; id: request id; method/params: method and parameters.
 func Call(id any, method string, params any) *JsonRpcResponse {
 	return CallWithContext(context.Background(), id, method, params)
 }

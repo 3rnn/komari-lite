@@ -7,30 +7,30 @@ import (
 	"strings"
 )
 
-// JsonRpcRequest 表示 JSON-RPC 2.0 请求（单个或批量中的一个元素）
-// 说明：为了能区分 Notification（无 id），这里将 ID 定义为 any 并打上 omitempty。
-// 你可以通过 req.HasID() 判断是否为普通请求（需要返回）还是通知。
+// JsonRpcRequest represents a JSON-RPC 2.0 request (single or an element in a batch)
+// Note: In order to distinguish Notification (without ID), the ID is defined as any and marked with omitempty.
+// You can use req.HasID() to determine whether it is a normal request (needs to be returned) or a notification.
 type JsonRpcRequest struct {
-	Version string `json:"jsonrpc"`          // 必须 === "2.0"
-	Method  string `json:"method"`           // 方法名；以 "rpc." 前缀的为保留内部方法
-	Params  any    `json:"params,omitempty"` // 参数(位置数组或命名对象)
-	ID      any    `json:"id,omitempty"`     // 字符串 / 数值 / null；Notification 时省略
+	Version string `json:"jsonrpc"`          // Required === "2.0"
+	Method  string `json:"method"`           // Method name; those prefixed with "rpc." are reserved internal methods
+	Params  any    `json:"params,omitempty"` // Parameters (positional array or named object)
+	ID      any    `json:"id,omitempty"`     // String / value / null; omitted for Notification
 }
 
-// NewRequest 创建一个普通请求（带 id）
+// NewRequest creates a normal request (with id)
 func NewRequest(id any, method string, params any) *JsonRpcRequest {
 	return &JsonRpcRequest{Version: RPC_VERSION, Method: method, Params: params, ID: id}
 }
 
-// NewNotification 创建一个 Notification（无 id，不会收到返回）
+// NewNotification creates a Notification (no id, no return will be received)
 func NewNotification(method string, params any) *JsonRpcRequest {
 	return &JsonRpcRequest{Version: RPC_VERSION, Method: method, Params: params}
 }
 
-// HasID 判断是否包含 id（Notification 没有 id，不需要返回）
+// HasID determines whether it contains id (Notification does not have id and does not need to be returned)
 func (r *JsonRpcRequest) HasID() bool { return r != nil && r.ID != nil }
 
-// Validate 校验请求格式合法性（不校验方法是否存在）
+// Validate verifies the legality of the request format (does not verify whether the method exists)
 func (r *JsonRpcRequest) Validate() *JsonRpcError {
 	if r == nil {
 		return &JsonRpcError{Code: InvalidRequest, Message: "invalid request: null"}
@@ -44,7 +44,7 @@ func (r *JsonRpcRequest) Validate() *JsonRpcError {
 	return nil
 }
 
-// GetParams(兼容旧接口)：按名称获取参数（仅 map Object 情况），没有则 target 不变
+// GetParams (compatible with old interface): Get parameters by name (only map Object case), if not, the target remains unchanged
 func (r *JsonRpcRequest) GetParams(name string, target *any) {
 	if r == nil || r.Params == nil || target == nil {
 		return
@@ -54,7 +54,7 @@ func (r *JsonRpcRequest) GetParams(name string, target *any) {
 	}
 }
 
-// GetParamAs 获取具名参数并尝试转换为类型 T
+// GetParamAs gets a named parameter and attempts to convert to type T
 func GetParamAs[T any](req *JsonRpcRequest, name string) (val T, ok bool) {
 	if req == nil || req.Params == nil {
 		return
@@ -80,7 +80,7 @@ func GetParamAs[T any](req *JsonRpcRequest, name string) (val T, ok bool) {
 	return
 }
 
-// GetPositionalParamAs 获取位置参数 idx 的值为 T
+// GetPositionalParamAs gets the value of positional parameter idx as T
 func GetPositionalParamAs[T any](req *JsonRpcRequest, idx int) (val T, ok bool) {
 	if req == nil || req.Params == nil {
 		return
@@ -106,14 +106,14 @@ func GetPositionalParamAs[T any](req *JsonRpcRequest, idx int) (val T, ok bool) 
 	return
 }
 
-// BindParams 将 Params 绑定到给定结构体指针。
-// 支持：
-//  1. object(map) -> 按字段名反序列化（标准 encoding/json 行为，大小写不敏感）
-//  2. array([]any) -> 若 target 是结构体指针，按导出字段声明顺序依次填充；
-//     数组更短: 剩余字段保持零值；数组更长: 忽略多余元素。
-//     非结构体指针则退回原逻辑整体反序列化。
-//  3. 单一标量 -> 若 target 是结构体指针，则赋值给第一个导出字段；否则整体反序列化。
-//  4. 其它类型 -> 直接整体反序列化。
+// BindParams Binds Params to the given structure pointer.
+// Support:
+//  1. object(map) -> Deserialize by field name (standard encoding/json behavior, case insensitive)
+//  2. array([]any) -> If target is a structure pointer, fill it in order according to the declaration order of exported fields;
+//     Shorter arrays: remaining fields retain zero values; longer arrays: extra elements are ignored.
+//     Non-structure pointers are returned to the original logical overall deserialization.
+//  3. Single scalar -> If target is a structure pointer, assign it to the first exported field; otherwise, deserialize it as a whole.
+//  4. Other types -> Direct overall deserialization.
 func (r *JsonRpcRequest) BindParams(target any) error {
 	if r == nil {
 		return errors.New("nil request")
@@ -132,20 +132,20 @@ func (r *JsonRpcRequest) BindParams(target any) error {
 		}
 		return json.Unmarshal(b, target)
 	case []any:
-		// 特殊处理：struct 指针时按字段顺序映射
+		// Special treatment: struct pointers are mapped in field order
 		rv := reflect.ValueOf(target).Elem()
 		if rv.Kind() == reflect.Struct {
 			rt := rv.Type()
 			ai := 0
 			for i := 0; i < rt.NumField() && ai < len(p); i++ {
 				f := rt.Field(i)
-				if f.PkgPath != "" { // 非导出字段跳过（不占位置）
+				if f.PkgPath != "" { // Non-exported fields are skipped (do not occupy space)
 					continue
 				}
 				fv := rv.Field(i)
 				raw := p[ai]
 				ai++
-				// 快速路径：可直接赋值
+				// Fast path: direct assignment
 				if raw != nil {
 					val := reflect.ValueOf(raw)
 					if val.IsValid() {
@@ -159,7 +159,7 @@ func (r *JsonRpcRequest) BindParams(target any) error {
 						}
 					}
 				}
-				// 回退：通过 JSON 做一次精确转换（处理数字 float64 -> int 等）
+				// Fallback: do an exact conversion via JSON (processing numbers float64 -> int, etc.)
 				b, err := json.Marshal(raw)
 				if err != nil {
 					return err
@@ -172,20 +172,20 @@ func (r *JsonRpcRequest) BindParams(target any) error {
 			}
 			return nil
 		}
-		// 非 struct 情况，退回整体解码
+		// In non-struct cases, return to overall decoding.
 		b, err := json.Marshal(p)
 		if err != nil {
 			return err
 		}
 		return json.Unmarshal(b, target)
 	default:
-		// 单一标量到结构体首个导出字段
+		// Single scalar to first exported field of structure
 		rv := reflect.ValueOf(target).Elem()
 		if rv.Kind() == reflect.Struct {
 			rt := rv.Type()
 			for i := 0; i < rt.NumField(); i++ {
 				f := rt.Field(i)
-				if f.PkgPath != "" { // 非导出
+				if f.PkgPath != "" { // non-export
 					continue
 				}
 				fv := rv.Field(i)
@@ -203,7 +203,7 @@ func (r *JsonRpcRequest) BindParams(target any) error {
 						}
 					}
 				}
-				// fallback json 转换
+				// fallback json conversion
 				b, err := json.Marshal(raw)
 				if err != nil {
 					return err
@@ -215,7 +215,7 @@ func (r *JsonRpcRequest) BindParams(target any) error {
 				fv.Set(tmp.Elem())
 				return nil
 			}
-			// 无导出字段
+			// No export fields
 			return nil
 		}
 		b, err := json.Marshal(p)

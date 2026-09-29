@@ -14,7 +14,7 @@ import (
 )
 
 // admin.notification.go
-// 通知相关 RPC2 方法（admin 命名空间）：负载告警、离线通知、流量报告、丢包告警。
+// Notification related RPC2 methods (admin namespace): load alarm, offline notification, traffic report, packet loss alarm.
 
 func init() {
 	// load notifications
@@ -49,7 +49,7 @@ func init() {
 	reg("setPingLossNotificationDefault", adminSetPingLossNotificationDefault, "Set the default ping loss notification for new clients")
 }
 
-// reg 是 admin 命名空间方法的注册便捷封装。
+// reg is a convenient wrapper for registering admin namespace methods.
 func reg(name string, h rpc.Handler, summary string) {
 	RegisterWithGroupAndMeta(name, rpc.RoleAdmin, h, &rpc.MethodMeta{Name: "admin:" + name, Summary: summary})
 }
@@ -178,7 +178,7 @@ func adminEditOfflineNotification(_ context.Context, req *rpc.JsonRpcRequest) (a
 	return nil, nil
 }
 
-// setOfflineNotificationEnable 是 enable/disable 的共享实现。
+// setOfflineNotificationEnable is a shared implementation of enable/disable.
 func setOfflineNotificationEnable(req *rpc.JsonRpcRequest, enable bool) *rpc.JsonRpcError {
 	var uuids []string
 	if err := req.BindParams(&uuids); err != nil {

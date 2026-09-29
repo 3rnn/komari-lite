@@ -338,7 +338,7 @@ const PingLossContent = () => {
         <AdminPageTitle
           description={t(
             "notification.ping_loss.description",
-            "根据延迟监测结果设置丢包阈值、统计窗口和冷却时间。",
+            "Set packet-loss thresholds, evaluation windows, and cooldowns based on latency monitor results.",
           )}
         >
           {t("notification.ping_loss.full_title")}

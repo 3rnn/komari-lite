@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// 部署形态标记：仅用于向面板/节点如实报告运行方式，不参与任何更新逻辑。
+// Deployment form tag: only used to truthfully report the operating mode to the panel/node and does not participate in any update logic.
 const (
 	DeploymentDocker  = "docker"
 	DeploymentLinux   = "linux"
@@ -14,7 +14,7 @@ const (
 	DeploymentUnknown = "unknown"
 )
 
-// DeploymentType 返回当前进程的部署形态（容器 / Linux 二进制 / Windows / 未知）。
+// DeploymentType returns the deployment form of the current process (container/Linux binary/Windows/unknown).
 func DeploymentType() string {
 	switch strings.ToLower(strings.TrimSpace(os.Getenv("KOMARI_DEPLOYMENT"))) {
 	case DeploymentDocker:

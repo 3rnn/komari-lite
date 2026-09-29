@@ -21,7 +21,7 @@ func TestDetailedGPUDetection(t *testing.T) {
 			t.Logf("GPU usage: %v", usage)
 		}
 
-		// 测试详细信息获取
+		// Test retrieval of detailed information.
 		detailedInfo, err := GetDetailedGPUInfo()
 		if err != nil {
 			t.Logf("GPU detailed info collection failed: %v", err)
@@ -55,7 +55,7 @@ func TestDetailedGPUInfo(t *testing.T) {
 		t.Logf("  Utilization: %.1f%%", info.Utilization)
 		t.Logf("  Temperature: %d°C", info.Temperature)
 
-		// 验证数据的合理性
+		// Check that the data is reasonable.
 		//if info.MemoryTotal > 0 && info.MemoryUsed+info.MemoryFree != info.MemoryTotal {
 		//	t.Logf("Warning: Memory usage calculation may be inconsistent for %s", info.Name)
 		//}

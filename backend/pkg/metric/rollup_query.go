@@ -26,18 +26,18 @@ import (
 // answered by merging the per-bucket t-digests, so they survive downsampling
 // with bounded error.
 //
-// AggregateRollup 从已存储的 rollup 层回答 AggregateQuery，而不是读取原始点。
-// resolution 指定要读取的层级（必须匹配 Compact 已物化的某个层级 Interval）。
-// 查询的 Interval 必须是 resolution 的正整数倍，因此每个输出桶都由完整的
-// rollup 桶组成。
+// AggregateRollup answers the AggregateQuery from the stored rollup layer instead of reading the original point.
+// resolution specifies the level to read (must match one of the levels Interval that Compact has materialized).
+// The query's Interval must be a positive integer multiple of resolution, so each output bucket consists of a complete
+// Rollup bucket composition.
 //
-// query.Tags 会被遵守：只有存储标签集合匹配过滤条件的 rollup 序列会被合入，
-// 因此标签过滤会选中与原始点查询相同的数据。默认会把匹配序列合并进每个
-// 输出桶；需要保留 entity/tag 身份的调用方可以设置 PreserveSeries。
+// query.Tags will be respected: only rollup sequences whose stored tag sets match the filter criteria will be merged,
+// Therefore label filtering will select the same data as the original point query. By default, matching sequences will be merged into each
+// Output bucket; callers who need to preserve entity/tag identities can set PreserveSeries.
 //
-// 除 AggRate 外，每种聚合都可用；AggRate 需要有序原始序列，因此只能基于原始点。
-// 百分位（p50、p95、p99 和任意 pXX）通过合并每桶 t-digest 回答，因此能在
-// 降采样后以有界误差保留下来。
+// Every aggregation is available except AggRate; AggRate requires an ordered raw sequence and therefore can only be based on raw points.
+// Percentiles (p50, p95, p99 and any pXX) are answered by merging the t-digests per bucket, so that
+// After downsampling, it is retained with bounded error.
 func (s *Store) AggregateRollup(ctx context.Context, query AggregateQuery, resolution time.Duration) ([]AggregatePoint, error) {
 	if err := s.ensureOpen(); err != nil {
 		return nil, err
@@ -85,8 +85,8 @@ func (s *Store) AggregateRollup(ctx context.Context, query AggregateQuery, resol
 // AggregatePoints, computing the requested aggregation from each bucket's
 // summaries/digest.
 //
-// rollupGroupsToPoints 将合并后的输出桶转换为有序 AggregatePoint，并根据
-// 每个桶的摘要或 digest 计算请求的聚合。
+// rollupGroupsToPoints converts the merged output buckets into ordered AggregatePoints and
+// The digest or digest of each bucket is calculated as the aggregate of the request.
 func rollupGroupsToPoints(groups map[rollupKey]*rollupBucket, query AggregateQuery) ([]AggregatePoint, error) {
 	if !query.PreserveSeries {
 		return mergedRollupGroupsToPoints(groups, query)
@@ -172,14 +172,14 @@ func mergedRollupGroupsToPoints(groups map[rollupKey]*rollupBucket, query Aggreg
 // (start == end) contains no whole bucket and yields an empty result — callers
 // that need sub-bucket precision must query raw points.
 //
-// scanRollupRowsContained 读取某分辨率下整桶窗口 [bucket, bucket+resolution)
-// 完整落在闭区间 [start, end] 内的 rollup 行，并可把实体和标签过滤下推到 SQL。
+// scanRollupRowsContained reads the entire bucket window at a certain resolution [bucket, bucket+resolution)
+// Rollup rows that completely fall within the closed interval [start, end], and can push entity and label filters down to SQL.
 //
-// 采用“完整包含”（而非仅重叠）作为边界规则，避免 rollup 查询过度计数：rollup
-// 桶是不可分割的摘要，只与窗口部分重叠的桶若被纳入，会把窗口外的样本一起带入。
-// end 边界为闭区间，以匹配原始查询语义（raw 使用 ts <= end）；因此最后覆盖纳秒
-// 恰为 end 的桶仍算被包含。零宽窗口（start == end）不包含任何完整桶，返回空结果，
-// 需要亚桶精度的调用方应查询原始点。
+// Use "complete inclusion" (rather than just overlap) as a boundary rule to avoid overcounting rollup queries: rollup
+// Buckets are indivisible summaries. If buckets that only partially overlap the window are included, samples outside the window will be brought in together.
+// end is bounded as a closed interval to match the original query semantics (raw uses ts <= end); so nanoseconds are covered at the end
+// The bucket exactly at end is still included. A zero-width window (start == end) does not contain any full buckets and returns an empty result,
+// Callers requiring sub-bucket accuracy should query the original point.
 func (s *Store) scanRollupRowsContained(ctx context.Context, metricName, entityID string, tags map[string]string, resolution time.Duration, start, end time.Time, needDigest bool) ([]storedRollup, error) {
 	resNano := resolution.Nanoseconds()
 	startNano := start.UTC().UnixNano()
@@ -205,9 +205,9 @@ func (s *Store) scanRollupRowsContained(ctx context.Context, metricName, entityI
 // the containment and hybrid scans; the bucket-window semantics are imposed by
 // the caller through the bounds it passes.
 //
-// scanRollupRowsBetween 读取某分辨率下桶起点落在闭区间
-// [lowerBucket, upperBucket] 内的 rollup 行，并可把实体和标签过滤下推到 SQL。
-// 它是包含扫描和混合扫描共用的 SQL 原语；桶窗口语义由调用方通过传入的边界决定。
+// scanRollupRowsBetween reads that the starting point of the bucket falls in a closed interval at a certain resolution
+// rollup rows within [lowerBucket, upperBucket] and push entity and tag filtering down to SQL.
+// It is a SQL primitive common to containment scans and hybrid scans; bucket window semantics are determined by the caller via the boundaries passed in.
 func (s *Store) scanRollupRowsBetween(ctx context.Context, metricName, entityID string, tags map[string]string, resNano, lowerBucket, upperBucket int64, needDigest bool) ([]storedRollup, error) {
 	if s.sqliteStorageV4 {
 		rows, err := s.querySQLiteV4Rollups(ctx, s.reader(), metricName, entityID, tags, resNano, lowerBucket, upperBucket, needDigest)
@@ -250,9 +250,9 @@ func (s *Store) scanRollupRowsBetween(ctx context.Context, metricName, entityID 
 // an existing map lets a caller accumulate rollup and raw contributions into
 // the same output buckets.
 //
-// foldRollupRows 将存储的 rollup 行折叠进 interval 宽的输出桶。百分位查询会
-// 按桶合并 t-digest，其他聚合只携带精确摘要。groups 可为 nil，此时会分配新 map；
-// 传入已有 map 可让调用方把 rollup 和 raw 的贡献累加到同一批输出桶中。
+// foldRollupRows Folds stored rollup rows into interval wide output buckets. Percentile inquiry meeting
+// Merge t-digest by bucket, other aggregations only carry exact digests. groups can be nil, in which case a new map will be allocated;
+// Passing in an existing map allows the caller to accumulate rollup and raw contributions into the same batch of output buckets.
 func (s *Store) hydrateSQLiteV4RollupDigests(ctx context.Context, metricName, entityID string, tags map[string]string, resolution int64, rows []storedRollup) ([]storedRollup, error) {
 	missing := make([]int, 0)
 	var lower, upper int64
@@ -348,9 +348,9 @@ func foldRollupRow(groups map[rollupKey]*rollupBucket, row storedRollup, interva
 // recent raw half into the same output buckets and aggregate them together
 // (correct count/avg/percentile across the boundary).
 //
-// foldRawPoints 将原始点折叠进 interval 宽的输出桶，把每个观测值加入对应桶的
-// 累加器。它与 foldRollupRows 共用桶 map，因此混合查询可以把旧 rollup 半边和
-// 近期 raw 半边合并到同一批输出桶中并一起聚合（跨边界的 count/avg/百分位正确）。
+// foldRawPoints folds raw points into interval wide output buckets, adding each observation to the corresponding bucket
+// Accumulator. It shares the bucket map with foldRollupRows, so mixed queries can combine the old rollup halves with
+// Recent raw halves are merged into the same batch of output buckets and aggregated together (count/avg/percentiles across boundaries are correct).
 func foldRawPoints(groups map[rollupKey]*rollupBucket, points []Point, interval time.Duration, comp float64, preserveSeries, needDigest bool) (map[rollupKey]*rollupBucket, error) {
 	if groups == nil {
 		groups = make(map[rollupKey]*rollupBucket)
@@ -409,10 +409,10 @@ func rollupTagsFromJSON(tagsJSON string) (map[string]string, error) {
 // entity_id, tags_hash, tags, bucket_nano, count, sum, sum_sq, min_val, max_val,
 // first_val, first_ts, last_val, last_ts, and optionally digest.
 //
-// scanStoredRollups 从结果集中还原 storedRollup 行。结果集的列顺序必须是：
-// entity_id、tags_hash、tags、bucket_nano、
-// count、sum、sum_sq、min_val、max_val、first_val、first_ts、last_val、
-// last_ts，以及可选的 digest。
+// scanStoredRollups restores storedRollup rows from the result set. The column order of the result set must be:
+// entity_id,tags_hash,tags,bucket_nano,
+// count,sum,sum_sq,min_val,max_val,first_val,first_ts,last_val,
+// last_ts, and optionally digest.
 func scanStoredRollups(rows *sql.Rows, needDigest bool) ([]storedRollup, error) {
 	var out []storedRollup
 	for rows.Next() {
@@ -465,8 +465,8 @@ func scanStoredRollups(rows *sql.Rows, needDigest bool) ([]storedRollup, error) 
 // rawTagsToJSON normalizes a scanned tags column (string or []byte) into the
 // canonical JSON string used when the bucket is re-written by a coarser tier.
 //
-// rawTagsToJSON 将扫描出的 tags 列（string 或 []byte）规范化为 JSON 字符串，
-// 供更粗层级重写桶时复用。
+// rawTagsToJSON normalizes the scanned tags column (string or []byte) into a JSON string.
+// For reuse when rewriting buckets at a coarser level.
 func rawTagsToJSON(v any) (string, error) {
 	switch x := v.(type) {
 	case nil:
@@ -569,22 +569,22 @@ func bestRollupTier(policy RollupPolicy, interval time.Duration, start, now time
 // TSDB" read path: recent ranges answer from raw at full resolution, older
 // ranges answer from progressively coarser rollups.
 //
-// Series 会在给定 `now` 的情况下，通过透明选择最佳数据源来回答 AggregateQuery：
+// Series answers AggregateQuery by transparently selecting the best data source given `now`:
 //
-//   - 如果 rollup 已禁用，或整个窗口仍在原始保留期内，它会读取原始点
-//     （Aggregate）以获得完整保真度。
-//   - 否则它会选择最细的 rollup 层，该层必须同时满足 (a) Interval 能整除
-//     query.Interval，且 (b) 保留时间能覆盖到窗口起点，然后从该层服务查询。
-//   - 如果查询跨越原始数据保留期边界，它使用混合方式：读取旧部分的 rollup
-//     和最近部分的原始点，然后合并结果，避免丢掉未 compact 的最近数据。
-//   - 如果起点早于所有层级的保留窗口，它会读取保留时间最长的兼容层级，返回请求
-//     窗口与实际保留数据的交集。
-//   - 只有没有任何层级与输出间隔兼容时才回退到原始点。
+//   - If rollup is disabled, or the entire window is still within the original retention period, it reads the original point
+//     (Aggregate) for full fidelity.
+//   - Otherwise it will select the thinnest rollup layer, which must also satisfy (a) Interval is divisible
+//     query.Interval, and (b) the retention time can cover the beginning of the window, and then serve the query from this layer.
+//   - If the query crosses the original data retention boundary, it uses hybrid: read rollup of the old part
+//     and the nearest part of the original points, and then merge the results to avoid losing recent uncompacted data.
+//   - If the starting point is earlier than the retention window of all levels, it will read the compatible level with the longest retention time and return the request
+//     The intersection of the window with the actual retained data.
+//   - Fallback to the original point only if no level is compatible with the output interval.
 //
-// query.Tags 在两条分支上都会被遵守：原始路径已按标签过滤，rollup 路径会按
-// 存储的标签集合过滤，因此无论由哪个数据源回答，标签过滤都会选择相同序列。
-// 这是“降采样 TSDB”的读取路径：近期范围以完整分辨率从原始点回答，旧范围从
-// 逐级更粗的 rollup 回答。
+// query.Tags is respected on both branches: original paths are filtered by tags, rollup paths are filtered by
+// The stored set of tags is filtered so that tag filtering selects the same sequence regardless of which data source answers it.
+// Here is the read path for the "downsampled TSDB": the recent range is answered from the original point at full resolution, the old range is answered from
+// Progressively thicker rollup answer.
 func (s *Store) Series(ctx context.Context, query AggregateQuery, now time.Time) ([]AggregatePoint, error) {
 	if err := s.ensureOpen(); err != nil {
 		return nil, err
@@ -1085,17 +1085,17 @@ func (s *Store) seriesWithoutWatermark(ctx context.Context, query AggregateQuery
 // points at or after the cutoff, so the two halves neither overlap nor leave a
 // gap when the selected rollup resolution is coarser than raw retention.
 //
-// seriesHybrid 回答跨越原始保留期边界的查询：读取旧部分的 rollup 和近期部分的
-// 原始点，并在归约前把两者折叠进同一批 query.Interval 宽的输出桶。
+// seriesHybrid answers queries that cross the original retention boundary: read rollup of the old part and rollup of the recent part
+// original points, and collapse both into the same batch of query.Interval wide output buckets before reduction.
 //
-// 旧的有损做法会把两半各自归约成 AggregatePoint 再按桶时间去重，让 raw 在二者
-// 共有的输出桶里完全覆盖 rollup 点，从而丢掉跨边界桶的 rollup 半边（例如 1h 输出
-// 桶且边界落在小时中间时，11:05 的 rollup 样本和 11:35 的 raw 样本都属于 11:00 桶，
-// 结果却只剩 raw 样本，count/avg 错误）。把两半折叠进同一个 rollupBucket 即可修复：
-// count、sum/avg、min/max 和百分位都在两半的并集上计算。
+// The old lossy method will reduce the two halves to AggregatePoint and then deduplicate them by bucket time, so that the raw
+// The common output bucket completely covers the rollup point, thereby discarding the rollup half of the cross-border bucket (for example, the 1h output
+// bucket and the boundary falls in the middle of the hour, the rollup sample at 11:05 and the raw sample at 11:35 both belong to the 11:00 bucket,
+// The result is only raw samples, count/avg errors). Fixed by folding both halves into the same rollupBucket:
+// count, sum/avg, min/max, and percentiles are all calculated on the union of the halves.
 //
-// 包含 raw 截止点的 rollup 桶可能尚未完整；它只包含截止点之前已压缩的数据。读取
-// 该桶，再合入截止点及之后的 raw 点，可以在粗粒度层级上避免重叠和缺口。
+// The rollup bucket containing the raw cutoff may not be complete yet; it only contains compressed data before the cutoff. read
+// This bucket, combined with the cutoff point and subsequent raw points, can avoid overlaps and gaps at a coarse-grained level.
 func (s *Store) seriesHybrid(ctx context.Context, query AggregateQuery, boundary time.Time, tier *RollupTier) ([]AggregatePoint, error) {
 	return s.seriesHybridWithRollupEnd(ctx, query, boundary, boundary, tier)
 }

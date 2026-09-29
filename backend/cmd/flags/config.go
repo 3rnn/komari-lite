@@ -7,9 +7,9 @@ const (
 )
 
 var (
-	// 数据库配置
-	DatabaseType string // 数据库类型：sqlite
-	DatabaseFile string // SQLite数据库文件路径
+	// Database configuration
+	DatabaseType string // Database type: sqlite
+	DatabaseFile string // SQLite database file path
 
 	Listen string
 )

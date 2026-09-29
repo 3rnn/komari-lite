@@ -1,93 +1,93 @@
 /**
- * JSON-RPC 2.0 标准类型定义
- * 基于规范：https://www.jsonrpc.org/specification
+ * Standard JSON-RPC 2.0 type definitions
+ * Based on https://www.jsonrpc.org/specification
  */
 
 /**
- * JSON-RPC 2.0 请求对象
+ * JSON-RPC 2.0 request object
  */
 export interface JSONRPC2Request<T = any> {
-  /** JSON-RPC 版本，必须为 "2.0" */
+  /** JSON-RPC version; must be "2.0" */
   jsonrpc: "2.0";
-  /** 调用的方法名 */
+  /** Method to call */
   method: string;
-  /** 调用参数（可选） */
+  /** Optional method parameters */
   params?: T;
-  /** 请求ID，如果为空则为通知请求 */
+  /** Request ID; absent for notifications */
   id?: string | number | null;
 }
 
 /**
- * JSON-RPC 2.0 响应对象（成功）
+ * Successful JSON-RPC 2.0 response object
  */
 export interface JSONRPC2SuccessResponse<T = any> {
-  /** JSON-RPC 版本，必须为 "2.0" */
+  /** JSON-RPC version; must be "2.0" */
   jsonrpc: "2.0";
-  /** 调用结果 */
+  /** Result of the call */
   result: T;
-  /** 请求ID */
+  /** Request ID */
   id: string | number | null;
 }
 
 /**
- * JSON-RPC 2.0 错误对象
+ * JSON-RPC 2.0 error object
  */
 export interface JSONRPC2Error {
-  /** 错误代码 */
+  /** Error code */
   code: number;
-  /** 错误消息 */
+  /** Error message */
   message: string;
-  /** 错误详细信息（可选） */
+  /** Optional error details */
   data?: any;
 }
 
 /**
- * JSON-RPC 2.0 响应对象（错误）
+ * Failed JSON-RPC 2.0 response object
  */
 export interface JSONRPC2ErrorResponse {
-  /** JSON-RPC 版本，必须为 "2.0" */
+  /** JSON-RPC version; must be "2.0" */
   jsonrpc: "2.0";
-  /** 错误信息 */
+  /** Error information */
   error: JSONRPC2Error;
-  /** 请求ID */
+  /** Request ID */
   id: string | number | null;
 }
 
 /**
- * JSON-RPC 2.0 响应联合类型
+ * JSON-RPC 2.0 response union
  */
 export type JSONRPC2Response<T = any> = JSONRPC2SuccessResponse<T> | JSONRPC2ErrorResponse;
 
 /**
- * JSON-RPC 2.0 批量请求
+ * JSON-RPC 2.0 batch request
  */
 export type JSONRPC2BatchRequest = JSONRPC2Request[];
 
 /**
- * JSON-RPC 2.0 批量响应
+ * JSON-RPC 2.0 batch response
  */
 export type JSONRPC2BatchResponse = JSONRPC2Response[];
 
 /**
- * 预定义的错误代码
+ * Predefined error codes
  */
 export const JSONRPC2ErrorCode = {
-  /** 解析错误 - 服务器收到无效的JSON */
+  /** Parse error: server received invalid JSON */
   PARSE_ERROR: -32700,
-  /** 无效请求 - 发送的JSON不是有效的请求对象 */
+  /** Invalid request: JSON is not a valid request object */
   INVALID_REQUEST: -32600,
-  /** 方法未找到 - 所调用的方法不存在或不可用 */
+  /** Method not found: method does not exist or is unavailable */
   METHOD_NOT_FOUND: -32601,
-  /** 无效参数 - 无效的方法参数 */
+  /** Invalid params: method parameters are invalid */
   INVALID_PARAMS: -32602,
-  /** 内部错误 - JSON-RPC内部错误 */
+  /** Internal JSON-RPC error */
   INTERNAL_ERROR: -32603,
 } as const;
 
 export type JSONRPC2ErrorCodeType = typeof JSONRPC2ErrorCode[keyof typeof JSONRPC2ErrorCode];
 
 /**
- * RPC 连接状态
+ * RPC connection state
  */
 export const RPC2ConnectionState = {
   DISCONNECTED: "disconnected",
@@ -100,39 +100,39 @@ export const RPC2ConnectionState = {
 export type RPC2ConnectionStateType = typeof RPC2ConnectionState[keyof typeof RPC2ConnectionState];
 
 /**
- * RPC 连接选项
+ * RPC connection options
  */
 export interface RPC2ConnectionOptions {
-  /** 自动建立连接 */
+  /** Connect automatically */
   autoConnect?: boolean;
-  /** 自动重连 */
+  /** Reconnect automatically */
   autoReconnect?: boolean;
-  /** 重连间隔（毫秒） */
+  /** Reconnect interval in milliseconds */
   reconnectInterval?: number;
-  /** 最大重连次数 */
+  /** Maximum reconnect attempts */
   maxReconnectAttempts?: number;
-  /** 请求超时时间（毫秒） */
+  /** Request timeout in milliseconds */
   requestTimeout?: number;
-  /** 启用心跳包 */
+  /** Enable heartbeat */
   enableHeartbeat?: boolean;
-  /** 心跳包间隔（毫秒） */
+  /** Heartbeat interval in milliseconds */
   heartbeatInterval?: number;
-  /** 自定义headers（仅用于POST请求） */
+  /** Custom headers (POST requests only) */
   headers?: Record<string, string>;
 }
 
 /**
- * RPC 调用选项
+ * RPC call options
  */
 export interface RPC2CallOptions {
-  /** 请求超时时间（毫秒） */
+  /** Request timeout in milliseconds */
   timeout?: number;
-  /** 是否为通知请求（不期望响应） */
+  /** Notification request (no response expected) */
   notification?: boolean;
 }
 
 /**
- * 事件监听器类型
+ * Event listener types
  */
 export interface RPC2EventListeners {
   onConnect?: () => void;

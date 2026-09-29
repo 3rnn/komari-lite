@@ -2,60 +2,60 @@ import React from "react";
 import { useRPC2Call } from "./RPC2Context";
 
 export type NodeBasicInfo = {
-  /** 节点唯一标识符 */
+  /** Unique node ID. */
   uuid: string;
-  /** 节点名称 */
+  /** Node name. */
   name: string;
-  /** CPU型号 */
+  /** CPU model. */
   cpu_name: string;
-  /** 虚拟化 */
+  /** Virtualization. */
   virtualization: string;
-  /** 系统架构 */
+  /** System architecture. */
   arch: string;
-  /** CPU核心数 */
+  /** CPU core count. */
   cpu_cores: number;
-  /** 操作系统 */
+  /** Operating system. */
   os: string;
-  /** 内核版本 */
+  /** Kernel version. */
   kernel_version: string;
-  /** GPU型号 */
+  /** GPU model. */
   gpu_name: string;
-  /** 地区标识 */
+  /** Region identifier. */
   region: string;
   region_override: string;
-  /** 总内存(字节) */
+  /** Total memory in bytes. */
   mem_total: number;
-  /** 总交换空间(字节) */
+  /** Total swap in bytes. */
   swap_total: number;
-  /** 总磁盘空间(字节) */
+  /** Total disk space in bytes. */
   disk_total: number;
-  /** 版本号 */
+  /** Version. */
   version: string;
-  /** 权重 */
+  /** Weight. */
   weight: number;
-  /** 价格 */
+  /** Price. */
   price: number;
   tags: string;
-  /** 账单周期（天）*/
+  /** Billing period in days. */
   billing_cycle: number;
-  /** 货币 */
+  /** Currency. */
   currency: string;
-  /** 分组 */
+  /** Group. */
   group: string;
-  /** 流量阈值 */
+  /** Traffic threshold. */
   traffic_limit: number;
-  /** 流量阈值类型 */
+  /** Traffic threshold type. */
   traffic_limit_type: undefined | "sum" | "max" | "min" | "up" | "down";
   /** Monthly traffic reset day. 0 disables reset; null follows Agent config. */
   traffic_reset_day?: number | null;
   traffic_reset_allowance: number;
   effective_traffic_limit: number;
   effective_traffic_type: "sum" | "max" | "min" | "up" | "down";
-  /** 过期时间 */
+  /** Expiration time. */
   expired_at: string;
-  /** 创建时间 */
+  /** Creation time. */
   created_at: string;
-  /** 更新时间 */
+  /** Last update time. */
   updated_at: string;
   ipv4?: string; 
   ipv6?: string;
@@ -106,7 +106,7 @@ export const NodeListProvider: React.FC<{ children: React.ReactNode }> = ({
     const refreshSeq = ++refreshSeqRef.current;
     // setIsLoading(true);
     setError(null);
-    // 通过 RPC2 获取节点基本信息
+    // Fetch basic node information through RPC2.
     call<{ uuid?: string }, Record<string, any>>("common:getNodes")
       .then((result) => {
         if (!mountedRef.current || refreshSeq !== refreshSeqRef.current) return;
@@ -114,7 +114,7 @@ export const NodeListProvider: React.FC<{ children: React.ReactNode }> = ({
           setNodeList([]);
           return;
         }
-        // 将 { [uuid]: Client } 转换为 NodeBasicInfo[]
+        // Convert { [uuid]: Client } into NodeBasicInfo[].
         const list: NodeBasicInfo[] = Object.values(result).map((n: any) => ({
           uuid: n.uuid,
           name: n.name,
@@ -130,7 +130,7 @@ export const NodeListProvider: React.FC<{ children: React.ReactNode }> = ({
           mem_total: n.mem_total,
           swap_total: n.swap_total,
           disk_total: n.disk_total,
-          // 兼容旧字段，若无版本信息则给空串
+          // Support older records by using an empty string when the version is absent.
           version: n.version ?? "",
           weight: n.weight ?? 0,
           price: n.price ?? 0,

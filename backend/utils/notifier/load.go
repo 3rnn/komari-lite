@@ -20,7 +20,7 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// LoadNotificationService 管理定时器和任务
+// LoadNotificationService manages timers and tasks
 type LoadNotificationService struct {
 	mu        sync.Mutex
 	tasks     map[int][]models.LoadNotification
@@ -32,7 +32,7 @@ var LoadNotificationManager = &LoadNotificationService{
 	executing: make(map[uint]struct{}),
 }
 
-// Reload 重载时间表
+// Reload reload schedule
 func (m *LoadNotificationService) Reload(loadNotifications []models.LoadNotification) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -40,13 +40,13 @@ func (m *LoadNotificationService) Reload(loadNotifications []models.LoadNotifica
 	corn.RemovePrefix("load-notification:")
 	m.tasks = make(map[int][]models.LoadNotification)
 
-	// 按Interval分组任务
+	// Group tasks by Interval
 	taskGroups := make(map[int][]models.LoadNotification)
 	for _, task := range loadNotifications {
 		taskGroups[task.Interval] = append(taskGroups[task.Interval], task)
 	}
 
-	// 为每个唯一的Interval创建定时器
+	// Create timer for each unique Interval
 	for interval, tasks := range taskGroups {
 		interval := interval
 		tasks := append([]models.LoadNotification(nil), tasks...)
@@ -63,7 +63,7 @@ func (m *LoadNotificationService) Reload(loadNotifications []models.LoadNotifica
 	return nil
 }
 
-// executeLoadNotificationTask 执行单个LoadNotificationTask
+// executeLoadNotificationTask executes a single LoadNotificationTask
 func executeLoadNotificationTask(task models.LoadNotification) {
 	if !LoadNotificationManager.beginExecution(task.Id) {
 		return
@@ -270,12 +270,12 @@ func pendingLoadRecoveryClientsWithDB(db *gorm.DB, taskID uint) ([]string, error
 	return clients, err
 }
 
-// getRecordsForClient 获取指定客户端在时间窗口内的记录
+// getRecordsForClient Gets the records of the specified client within the time window
 func getRecordsForClient(clientUUID string, start, end time.Time, metric string) ([]models.Record, error) {
 	return records.GetRecordsByClientAndTimeForLoadType(clientUUID, start, end, metric)
 }
 
-// checkMetricThreshold 检查指标是否达到阈值
+// checkMetricThreshold checks whether the metric reaches the threshold
 func checkMetricThreshold(records []models.Record, task models.LoadNotification, client *models.Client) bool {
 	active, _, _ := evaluateMetricThreshold(records, task, client)
 	return active
@@ -286,7 +286,7 @@ func evaluateMetricThreshold(records []models.Record, task models.LoadNotificati
 		return false, 0, 0
 	}
 
-	// 计算需要达标的最小记录数
+	// Calculate the minimum number of records required to meet the criteria
 	minRequiredRecords := int(math.Ceil(float64(len(records)) * float64(task.Ratio)))
 	if minRequiredRecords == 0 {
 		minRequiredRecords = 1
@@ -304,7 +304,7 @@ func evaluateMetricThreshold(records []models.Record, task models.LoadNotificati
 	return exceededCount >= minRequiredRecords, latestValue, exceededCount
 }
 
-// getMetricValue 根据指标名称获取记录中的对应值
+// getMetricValue gets the corresponding value in the record based on the metric name
 func getMetricValue(record models.Record, metric string, client *models.Client) float32 {
 	switch metric {
 	case "cpu":
@@ -335,7 +335,7 @@ func getMetricValue(record models.Record, metric string, client *models.Client) 
 		}
 		return 0
 	default:
-		// 尝试通过反射获取字段值
+		// Try to get field value via reflection
 		v := reflect.ValueOf(record)
 		field := v.FieldByName(metric)
 		if field.IsValid() && field.CanInterface() {
@@ -366,11 +366,11 @@ func bytesPerSecondToMbps(bytesPerSecond int64) float32 {
 		return 0
 	}
 
-	// 采用十进制 Mbps：1 Mbps = 1,000,000 bit/s
+	// In decimal Mbps: 1 Mbps = 1,000,000 bit/s
 	return float32(float64(bytesPerSecond) * 8 / 1_000_000)
 }
 
-// sendLoadNotification 发送负载通知
+// sendLoadNotification sends load notification
 func sendLoadNotification(clientUUIDs []string, task models.LoadNotification, now time.Time) error {
 	return sendLoadNotificationWith(dbcore.GetDBInstance(), clientUUIDs, task, now, clients.GetClientByUUID, messageSender.SendEvent)
 }
@@ -398,7 +398,7 @@ func sendLoadClientNotificationsWith(db *gorm.DB, clientUUIDs []string, task mod
 		}
 		emoji, message := "⚠️", task.Name
 		if recovery {
-			emoji, message = "✅", task.Name+" 已恢复"
+			emoji, message = "✅", task.Name+" recovered"
 		}
 		if err := send(models.EventMessage{
 			Event: messageevent.Alert, Clients: []models.Client{client}, Time: now.UTC(), Emoji: emoji, Message: message,
@@ -435,7 +435,7 @@ func sendLoadClientNotificationsWith(db *gorm.DB, clientUUIDs []string, task mod
 	return errors.Join(sendErrors...)
 }
 
-// updateLastNotified 更新最后通知时间
+// updateLastNotified updates the last notification time
 func updateLastNotifiedWithDB(db *gorm.DB, taskID uint, notifyTime time.Time) error {
 	result := db.Model(&models.LoadNotification{}).Where("id = ?", taskID).Update("last_notified", notifyTime.UTC())
 	if result.Error != nil {
@@ -447,7 +447,7 @@ func updateLastNotifiedWithDB(db *gorm.DB, taskID uint, notifyTime time.Time) er
 	return nil
 }
 
-// ReloadLoadNotificationSchedule 加载或重载时间表
+// ReloadLoadNotificationSchedule loads or reloads the schedule
 func ReloadLoadNotificationSchedule(loadNotifications []models.LoadNotification) error {
 	if err := LoadNotificationManager.Reload(loadNotifications); err != nil {
 		return err

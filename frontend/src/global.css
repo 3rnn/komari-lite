@@ -76,7 +76,7 @@
 }
 
 :root {
-  --radius: 0.625rem;
+  --radius: 0.5rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -859,7 +859,6 @@ body, * {
   border-radius: 50%;
   background: var(--color-panel-solid);
   color: var(--gray-11);
-  box-shadow: var(--shadow-2);
   transform: translateY(-50%);
 }
 
@@ -1164,9 +1163,8 @@ html[data-admin-shell-active="true"] .rt-BaseDialogOverlay::before {
 }
 
 html[data-admin-shell-active="true"] .rt-BaseDialogContent {
-  box-shadow:
-    0 10px 28px -14px var(--black-a4),
-    0 2px 8px -5px var(--black-a3);
+  border: 1px solid var(--gray-a5);
+  box-shadow: none;
 }
 
 html[data-admin-shell-active="true"] .rt-BaseDialogOverlay[data-state="open"]::before {
@@ -1328,15 +1326,7 @@ html[data-reduce-motion="true"] .rt-BaseDialogContent {
   position: absolute;
   inset: 0;
   z-index: 1;
-  background:
-    linear-gradient(
-      90deg,
-      color-mix(in srgb, var(--gray-4) 78%, transparent) 20%,
-      color-mix(in srgb, var(--gray-5) 88%, transparent) 50%,
-      color-mix(in srgb, var(--gray-4) 78%, transparent) 80%
-    );
-  background-size: 220% 100%;
-  animation: km-theme-preview-skeleton 1.4s ease-in-out infinite;
+  background: var(--gray-3);
   opacity: 1;
   transition: opacity 180ms ease;
 }
@@ -1388,15 +1378,6 @@ html[data-reduce-motion="true"] .rt-BaseDialogContent {
 
 .km-theme-preview-fallback[data-visible="true"] {
   opacity: 1;
-}
-
-@keyframes km-theme-preview-skeleton {
-  0% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
-  }
 }
 
 [data-reduce-motion="true"] .admin-route-progress-track,

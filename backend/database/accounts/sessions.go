@@ -15,7 +15,7 @@ import (
 	"github.com/komari-monitor/komari/utils/messageSender"
 )
 
-// GetAllSessions 获取所有会话
+// GetAllSessions Get all sessions
 func GetAllSessions() (sessions []models.Session, err error) {
 	db := dbcore.GetDBInstance()
 	err = db.Find(&sessions).Error
@@ -25,7 +25,7 @@ func GetAllSessions() (sessions []models.Session, err error) {
 	return sessions, nil
 }
 
-// CreateSession 创建新会话
+// CreateSession creates a new session
 func CreateSession(uuid string, expires int, userAgent, ip, login_method string) (string, error) {
 	db := dbcore.GetDBInstance()
 	session := utils.GenerateRandomString(32)
@@ -64,7 +64,7 @@ func CreateSession(uuid string, expires int, userAgent, ip, login_method string)
 	return session, nil
 }
 
-// GetSession 根据会话 ID 获取 UUID
+// GetSession Gets UUID based on session ID
 func GetSession(session string) (uuid string, err error) {
 	db := dbcore.GetDBInstance()
 	var sessionRecord models.Session
@@ -74,7 +74,7 @@ func GetSession(session string) (uuid string, err error) {
 	}
 
 	if time.Now().UTC().After(sessionRecord.Expires) {
-		// 会话已过期，删除它
+		// Session has expired, delete it
 		_ = DeleteSession(session)
 		return "", errors.New("session expired")
 	}
@@ -92,7 +92,7 @@ func GetUserBySession(session string) (models.User, error) {
 	return GetUserByUUID(sessionRecord.UUID)
 }
 
-// DeleteSession 删除指定会话
+// DeleteSession deletes the specified session
 func DeleteSession(session string) (err error) {
 	db := dbcore.GetDBInstance()
 	result := db.Where("session = ?", session).Delete(&models.Session{})

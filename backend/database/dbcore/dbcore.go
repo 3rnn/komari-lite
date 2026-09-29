@@ -21,9 +21,9 @@ import (
 	"gorm.io/gorm"
 )
 
-// zipDirectoryExcluding 将 srcDir 打包为 dstZip，exclude 是绝对路径集合需要排除
+// zipDirectoryExcluding packs srcDir into dstZip, exclude is a set of absolute paths that need to be excluded
 func zipDirectoryExcluding(srcDir, dstZip string, exclude map[string]struct{}) error {
-	// 规范化排除路径为绝对路径
+	// Normalize excluded paths to absolute paths
 	normExclude := make(map[string]struct{}, len(exclude))
 	for p := range exclude {
 		abs, _ := filepath.Abs(p)
@@ -44,30 +44,30 @@ func zipDirectoryExcluding(srcDir, dstZip string, exclude map[string]struct{}) e
 		if err != nil {
 			return err
 		}
-		// 排除 backup.zip 本身
+		// Exclude backup.zip itself
 		if _, ok := normExclude[path]; ok {
 			if info.IsDir() {
 				return filepath.SkipDir
 			}
 			return nil
 		}
-		// 计算 zip 内相对路径
+		// Calculate relative paths within zip
 		rel, err := filepath.Rel(absSrc, path)
 		if err != nil {
 			return err
 		}
-		// 根目录跳过
+		// root directory skip
 		if rel == "." {
 			return nil
 		}
-		// 替换为正斜杠
+		// Replace with forward slash
 		zipName := filepath.ToSlash(rel)
 
 		if info.IsDir() {
 			_, err := zw.Create(zipName + "/")
 			return err
 		}
-		// 普通文件
+		// Ordinary document
 		fh, err := os.Open(path)
 		if err != nil {
 			return err
@@ -90,7 +90,7 @@ func zipDirectoryExcluding(srcDir, dstZip string, exclude map[string]struct{}) e
 	return zw.Close()
 }
 
-// removeAllInDirExcept 删除 dir 下除 exclude 指定绝对路径外的所有文件和文件夹
+// removeAllInDirExcept deletes all files and folders under dir except the absolute path specified by exclude
 func removeAllInDirExcept(dir string, exclude map[string]struct{}) error {
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
@@ -117,7 +117,7 @@ func removeAllInDirExcept(dir string, exclude map[string]struct{}) error {
 	return nil
 }
 
-// unzipToDir 将 zipPath 解压到 dstDir，包含路径遍历保护
+// unzipToDir Unzip zipPath to dstDir, including path traversal protection
 func unzipToDir(zipPath, dstDir string) error {
 	zr, err := zip.OpenReader(zipPath)
 	if err != nil {
@@ -131,7 +131,7 @@ func unzipToDir(zipPath, dstDir string) error {
 	absDst, _ := filepath.Abs(dstDir)
 
 	for _, f := range zr.File {
-		// 构造目标路径并做路径遍历保护
+		// Construct the target path and perform path traversal protection
 		cleanName := filepath.Clean(f.Name)
 		targetPath := filepath.Join(absDst, cleanName)
 		if !strings.HasPrefix(targetPath, absDst+string(os.PathSeparator)) && targetPath != absDst {
@@ -539,26 +539,26 @@ var (
 	pendingRestore *stagedRestore
 )
 
-// SystemVersionKey 是记录“上次启动所用版本标识”的配置键（存于 configs 表）。
-// 取代旧的 ./data/.komari-version 文件：版本标识随配置库一起备份/恢复，
-// 也避免额外的裸文件依赖。
+// SystemVersionKey is the configuration key (stored in the configs table) that records the "last boot version identifier".
+// Replaces the old ./data/.komari-version file: the version identification is backed up/restored along with the configuration repository,
+// Also avoids additional bare file dependencies.
 const SystemVersionKey = "system_version"
 
-// versionID 是当前构建的版本标识，由 SetVersionID 在 Initialize 前注入。
+// versionID is the version ID of the current build, injected by SetVersionID before Initialize.
 var versionID string
 
-// dbFileExistedAtStartup 记录本次进程启动、打开数据库之前 komari.db 是否已存在，
-// 用于区分“全新安装”与“从旧版升级（无版本标记）”。在 doInitialize 打开数据库
-// 之前采集。
+// dbFileExistedAtStartup records whether komari.db already exists before this process starts and the database is opened.
+// Used to distinguish between "fresh installation" and "upgrade from an older version (no version tag)". Open the database in doInitialize
+// collected before.
 var dbFileExistedAtStartup bool
 
-// SetVersionID 设置当前构建的版本标识（通常为 CurrentVersion+"-"+VersionHash），
-// 用于版本升级检测与自动备份。应在 Initialize() 之前调用；为空则跳过升级备份。
+// SetVersionID sets the version ID of the current build (usually CurrentVersion+"-"+VersionHash),
+// Used for version upgrade detection and automatic backup. Should be called before Initialize(); empty to skip upgrade backup.
 func SetVersionID(id string) {
 	versionID = id
 }
 
-// resolveDatabaseFile 返回当前使用的 SQLite 数据库文件路径。
+// resolveDatabaseFile Returns the path to the currently used SQLite database file.
 func resolveDatabaseFile() string {
 	dbFile := flags.DatabaseFile
 	if dbFile == "" {
@@ -567,20 +567,20 @@ func resolveDatabaseFile() string {
 	return dbFile
 }
 
-// backupOnVersionUpgrade 在检测到版本升级时，把当前 ./data 打包到
-// ./backup/upgrade-{time}.zip，便于升级（含 metrics 迁移）异常时回滚。
+// backupOnVersionUpgrade When detecting a version upgrade, package the current ./data into
+// ./backup/upgrade-{time}.zip, to facilitate rollback when upgrade (including metrics migration) is abnormal.
 //
-// 版本标识存放于配置库（configs 表，键 system_version），因此本函数必须在
-// config.SetDb 之后、一次性 metrics 迁移（InitStores）之前调用。
+// The version identifier is stored in the configuration database (configs table, key system_version), so this function must be in
+// Called after config.SetDb and before one-time metrics migration (InitStores).
 //
-// 触发规则：
-//   - versionID 为空：跳过（未注入版本，如部分测试场景）。
-//   - 配置中无版本且启动前无数据库文件：全新安装，仅写版本，不备份。
-//   - 配置中无版本但启动前已有数据库文件：从无版本标记的旧稳定版升级，备份。
-//   - 配置中版本与当前不同：版本升级，备份。
-//   - 配置中版本与当前一致：无需备份。
+// Trigger rules:
+//   - versionID is empty: skip (no version is injected, such as some test scenarios).
+//   - There is no version in the configuration and no database file before startup: fresh installation, only writing version, no backup.
+//   - There is no version in the configuration but there is a database file before startup: upgrade from the old stable version without version mark and back up.
+//   - The version in the configuration is different from the current version: version upgrade, backup.
+//   - The version in the configuration is consistent with the current version: no backup is required.
 //
-// 备份失败不阻止启动，但打印明确错误；备份成功（或无需备份）后写入/更新版本。
+// Backup failure does not prevent startup, but prints clear errors; the version is written/updated after a successful backup (or no backup required).
 func backupOnVersionUpgrade() {
 	if versionID == "" {
 		return
@@ -590,20 +590,20 @@ func backupOnVersionUpgrade() {
 	prevVersion = strings.TrimSpace(prevVersion)
 	versionRecorded := readErr == nil && prevVersion != ""
 
-	// 版本未变化，无需备份。
+	// The version has not changed and no backup is required.
 	if versionRecorded && prevVersion == versionID {
 		return
 	}
 
-	// 全新安装：配置中无版本且启动前无数据库文件，直接写版本不备份。
+	// New installation: There is no version in the configuration and there is no database file before startup. The version is written directly without backup.
 	if !versionRecorded && !dbFileExistedAtStartup {
 		writeVersionMarker()
 		return
 	}
 
-	// 需要备份（升级或从旧稳定版首次带版本标记启动）。
-	// 先做一次 WAL checkpoint，确保 komari.db 主文件包含最新数据，
-	// 避免备份出的库缺少仍留在 -wal 中的写入。
+	// Requires backup (upgrade or first version-tagged boot from an old stable version).
+	// First do a WAL checkpoint to ensure that the main komari.db file contains the latest data.
+	// Avoid backing up a database that is missing writes that remain in -wal.
 	if instance != nil {
 		instance.Exec("PRAGMA wal_checkpoint(TRUNCATE);")
 	}
@@ -624,7 +624,7 @@ func backupOnVersionUpgrade() {
 	writeVersionMarker()
 }
 
-// writeVersionMarker 将当前 versionID 写入配置库。
+// writeVersionMarker writes the current versionID to the configuration database.
 func writeVersionMarker() {
 	if err := config.Set(SystemVersionKey, versionID); err != nil {
 		logger.Errorf("dbcore", "[upgrade-backup] failed to persist version marker: %v", err)
@@ -653,9 +653,9 @@ func buildSQLiteDSN(databaseFile string) string {
 	return "file:" + filepath.ToSlash(databaseFile) + separator + params
 }
 
-// Initialize 显式初始化数据库连接与表结构，仅执行一次。
-// 与 GetDBInstance 不同，Initialize 返回错误而非直接退出进程，
-// 便于启动生命周期统一处理错误、以及在测试/CLI 命令中做隔离。
+// Initialize explicitly initializes the database connection and table structure and is only executed once.
+// Unlike GetDBInstance, Initialize returns an error rather than exiting the process directly.
+// It facilitates unified handling of errors in the startup life cycle and isolation in test/CLI commands.
 func Initialize() error {
 	once.Do(func() {
 		initErr = doInitialize()
@@ -663,9 +663,9 @@ func Initialize() error {
 	return initErr
 }
 
-// GetDBInstance 返回全局数据库实例。
-// 为兼容既有大量调用点，这里保留“出错即退出”的语义；
-// 需要错误处理的启动流程应优先调用 Initialize()。
+// GetDBInstance returns the global database instance.
+// In order to be compatible with the existing large number of call points, the semantics of "exit on error" are retained here;
+// Startup processes that require error handling should call Initialize() first.
 func GetDBInstance() *gorm.DB {
 	if err := Initialize(); err != nil {
 		logger.Fatalf("dbcore", "Failed to initialize database: %v", err)
@@ -673,7 +673,7 @@ func GetDBInstance() *gorm.DB {
 	return instance
 }
 
-// Close 关闭底层数据库连接，供关闭流程调用。
+// Close closes the underlying database connection for the shutdown process to call.
 func Close() error {
 	var closeErr error
 	if instance != nil {
@@ -732,9 +732,9 @@ func doInitialize() error {
 		_ = RollbackPendingRestore()
 	}()
 
-	// 记录“打开数据库之前”komari.db 是否已存在，用于区分全新安装与旧版升级。
-	// 必须在（可能的）恢复逻辑之后、gorm.Open 之前采集：恢复会解压出旧库，
-	// gorm.Open 会创建空库。
+	// Record whether komari.db already exists "before opening the database" to distinguish between new installations and old version upgrades.
+	// Must be collected after (possible) recovery logic and before gorm.Open: recovery will decompress the old database,
+	// gorm.Open will create an empty database.
 	if _, statErr := os.Stat(resolveDatabaseFile()); statErr == nil {
 		dbFileExistedAtStartup = true
 	}
@@ -744,28 +744,28 @@ func doInitialize() error {
 		NowFunc: func() time.Time { return time.Now().UTC() },
 	}
 
-	// 根据数据库类型选择不同的连接方式
+	// Choose different connection methods according to database type
 	switch flags.ApplyDatabaseTypeNormalization() {
 	case flags.DatabaseTypeSQLite:
-		// SQLite 连接
-		// 通过 DSN 传入 _busy_timeout / _txlock 等参数，确保连接池中的每一条连接
-		// 都生效：
-		//   - _busy_timeout=5000：遇到写锁时最多等待 5s 再返回，避免瞬时
-		//     "database is locked" 直接失败（仅靠后续 PRAGMA Exec 只作用于
-		//     当时执行该语句的单条连接，池内其它连接不生效）。
-		//   - _txlock=immediate：事务一开始即获取写锁，避免「先 SELECT 后写」
-		//     的锁升级在并发写入下产生死锁式的立即 SQLITE_BUSY。
-		//   - _journal_mode=WAL / _synchronous=NORMAL：与下方 PRAGMA 保持一致，
-		//     在 DSN 层为所有连接预设。
+		// SQLite connection
+		// Pass in parameters such as _busy_timeout / _txlock through DSN to ensure that every connection in the connection pool
+		// All take effect:
+		//   - _busy_timeout=5000: When encountering a write lock, wait up to 5s before returning to avoid instantaneous
+		//     "database is locked" fails directly (only subsequent PRAGMA Exec only works on
+		//     The single connection that executes this statement at that time will not take effect on other connections in the pool).
+		//   - _txlock=immediate: Obtain the write lock at the beginning of the transaction to avoid "SELECT first and write later"
+		//     Lock escalation produces a deadlock-like immediate SQLITE_BUSY under concurrent writes.
+		//   - _journal_mode=WAL / _synchronous=NORMAL: consistent with PRAGMA below,
+		//     Preset for all connections at the DSN level.
 		dsn := buildSQLiteDSN(flags.DatabaseFile)
 		instance, err = gorm.Open(sqlite.Open(dsn), logConfig)
 		if err != nil {
 			return fmt.Errorf("failed to connect to SQLite3 database: %w", err)
 		}
 		if sqlDB, dbErr := instance.DB(); dbErr == nil {
-			// SQLite 同一时刻只允许一个写者；限制连接数可避免连接池层面的写写竞争。
-			// 负载历史每分钟会执行包含读和写的事务，若连接池允许多个连接，容易与
-			// ping 结果等短写入撞锁并导致整批负载记录回滚。
+			// SQLite only allows one writer at a time; limiting the number of connections can avoid write competition at the connection pool level.
+			// The load history will execute transactions including reading and writing every minute. If the connection pool allows multiple connections, it is easy to
+			// Short writes such as ping results hit the lock and cause the entire batch of load records to be rolled back.
 			sqlDB.SetMaxOpenConns(1)
 			sqlDB.SetMaxIdleConns(1)
 			sqlDB.SetConnMaxLifetime(0)
@@ -791,18 +791,18 @@ func doInitialize() error {
 	}
 	config.SetDb(instance)
 
-	// 配置库就绪后、执行后续 AutoMigrate 与一次性 metrics 迁移之前：
-	// 基于配置中的版本标记检测升级并自动备份 ./data，便于回滚。
+	// After the configuration database is ready and before performing subsequent AutoMigrate and one-time metrics migration:
+	// Detect upgrades based on version tags in the configuration and automatically back up ./data for easy rollback.
 	backupOnVersionUpgrade()
 
-	// 自动迁移模型
+	// Automatically migrate models
 	//
-	// 注意：负载/GPU/ping 历史监控数据运行期全部走 metric store（默认 SQLite
-	// ./data/metrics.db，或配置的 MySQL/PostgreSQL）。旧的 records /
-	// records_long_term / gpu_records / ping_records 表不再建表、不再写入。
-	// 若升级时旧表仍存在，会在 pkg/migrations.RunMetricStoreMigrations 中先导入再清理。
-	// models.Record / models.PingRecord / models.GPURecord 结构体仍作为
-	// metric store 的读写 DTO 和旧表导入 DTO 保留在 models 包中。
+	// Note: Load/GPU/ping historical monitoring data all go to the metric store during the running period (default SQLite
+	// ./data/metrics.db, or configured MySQL/PostgreSQL). old records /
+	// The records_long_term / gpu_records / ping_records tables will no longer be created or written to.
+	// If the old table still exists during the upgrade, it will be imported and then cleaned in pkg/migrations.RunMetricStoreMigrations.
+	// models.Record / models.PingRecord / models.GPURecord structures are still as
+	// The metric store's read-write DTOs and legacy table import DTOs remain in the models package.
 
 	err = instance.AutoMigrate(
 		&models.User{},

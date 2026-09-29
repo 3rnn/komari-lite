@@ -98,13 +98,13 @@ func levelName(level slog.Level) string {
 func levelColor(level slog.Level) string {
 	switch {
 	case level <= slog.LevelDebug:
-		return "\033[36m" // 青
+		return "\033[36m" // green
 	case level < slog.LevelWarn:
-		return "\033[32m" // 绿
+		return "\033[32m" // green
 	case level < slog.LevelError:
-		return "\033[33m" // 黄
+		return "\033[33m" // Yellow
 	default:
-		return "\033[31m" // 红
+		return "\033[31m" // red
 	}
 }
 

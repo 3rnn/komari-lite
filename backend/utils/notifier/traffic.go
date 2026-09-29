@@ -17,9 +17,9 @@ import (
 	cache "github.com/patrickmn/go-cache"
 )
 
-// trafficCache 用于记录每个客户端已触发的阈值步进，避免重复提醒
+// trafficCache is used to record the threshold steps triggered by each client to avoid repeated reminders
 // key: "traffic:"+clientUUID, value: trafficReminderState
-var trafficCache = cache.New(30*24*time.Hour, time.Hour) // 30天缓存，1小时清理
+var trafficCache = cache.New(30*24*time.Hour, time.Hour) // 30 days cache, 1 hour cleanup
 
 type trafficUsageSnapshot struct {
 	Used  int64
@@ -42,10 +42,10 @@ func currentTrafficUsage(client models.Client, up, down int64, now time.Time) tr
 	}
 }
 
-// CheckTraffic 检查各客户端流量使用情况，并在达到阈值和每+5%时提醒一次；100%时额外提醒一次
-// 由外部协程每分钟调用一次
+// CheckTraffic checks the traffic usage of each client and reminds you once when the threshold is reached and every +5%; an additional reminder when it reaches 100%
+// Called once every minute by an external coroutine
 func CheckTraffic() {
-	// 获取最新上报与客户端配置
+	// Get the latest reports and client configurations
 	reports := agent_runtime.GetLatestReport()
 	if len(reports) == 0 {
 		return
@@ -59,7 +59,7 @@ func CheckTraffic() {
 		return
 	}
 
-	// 起始阈值：例如 80%，非5的倍数则从上取整到最近的5的倍数，例如 83->85
+	// Starting threshold: for example 80%, non-multiples of 5 are rounded up to the nearest multiple of 5, for example 83->85
 	startThreshold := cfg
 	if startThreshold < 0 {
 		startThreshold = 0
@@ -107,7 +107,7 @@ func CheckTraffic() {
 			continue
 		}
 
-		// 当前所在阈值步进（5%的倍数）
+		// Current threshold step (multiple of 5%)
 		curStep := int(math.Floor(pct/5.0) * 5.0)
 		if curStep < baseStep {
 			curStep = baseStep
@@ -116,17 +116,17 @@ func CheckTraffic() {
 		// 	curStep = 100
 		// }
 
-		// 修复：当检测到当前进度小于历史记录时，说明流量已重置，将基准归零
+		// Fix: When it is detected that the current progress is less than the historical record, it means that the traffic has been reset and the baseline is reset to zero
 		if curStep < state.Step {
 			state.Step = 0
 		}
 
-		if curStep > state.Step { // 只在进入新步进时提醒一次
+		if curStep > state.Step { // Only remind once when entering a new step
 			state.Step = curStep
 			trafficCache.SetDefault(key, state)
 
 			msg := fmt.Sprintf("used %d%% (%s / %s), type=%s", curStep, humanBytes(usage.Used), humanBytes(usage.Limit), usage.Type)
-			// 发送通知（内部会检查 NotificationEnabled）
+			// Send notification (NotificationEnabled is checked internally)
 			_ = messageSender.SendEvent(models.EventMessage{
 				Event:   "Traffic",
 				Clients: []models.Client{c},

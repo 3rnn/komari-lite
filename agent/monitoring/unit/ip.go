@@ -13,13 +13,13 @@ import (
 )
 
 var (
-	// 创建适用于IPv4和IPv6的HTTP客户端
+	// Create HTTP clients for IPv4 and IPv6.
 	ipv4HTTPClient = &http.Client{
 		Transport: &http.Transport{
 			Proxy: http.ProxyFromEnvironment,
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 				dialer := dnsresolver.GetNetDialer(15 * time.Second)
-				return dialer.DialContext(ctx, "tcp4", addr) // 锁v4防止出现问题
+				return dialer.DialContext(ctx, "tcp4", addr) // Force IPv4 to avoid address-family issues.
 			},
 			DisableKeepAlives:     true,
 			MaxIdleConns:          1,
@@ -34,7 +34,7 @@ var (
 			Proxy: http.ProxyFromEnvironment,
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 				dialer := dnsresolver.GetNetDialer(15 * time.Second)
-				return dialer.DialContext(ctx, "tcp6", addr) // 锁v6防止出现问题
+				return dialer.DialContext(ctx, "tcp6", addr) // Force IPv6 to avoid address-family issues.
 			},
 			DisableKeepAlives:     true,
 			MaxIdleConns:          1,
@@ -71,7 +71,7 @@ func GetIPv4Address() (string, error) {
 			continue
 		}
 		body, err := io.ReadAll(resp.Body)
-		_ = resp.Body.Close() // 获取后立即关闭防止堵塞
+		_ = resp.Body.Close() // Close the response immediately after reading to avoid blocking.
 		if err != nil {
 			continue
 		}
@@ -106,12 +106,12 @@ func GetIPv6Address() (string, error) {
 			continue
 		}
 		body, err := io.ReadAll(resp.Body)
-		_ = resp.Body.Close() // 获取后立即关闭防止堵塞
+		_ = resp.Body.Close() // Close the response immediately after reading to avoid blocking.
 		if err != nil {
 			continue
 		}
 
-		// 使用正则表达式从响应体中提取IPv6地址
+		// Extract the IPv6 address from the response body using a regular expression.
 		re := regexp.MustCompile(`(([0-9A-Fa-f]{1,4}:){7})([0-9A-Fa-f]{1,4})|(([0-9A-Fa-f]{1,4}:){1,6}:)(([0-9A-Fa-f]{1,4}:){0,4})([0-9A-Fa-f]{0,4})`)
 		ipv6 := re.FindString(string(body))
 		if ipv6 != "" {
@@ -214,7 +214,7 @@ func lookupPublicIP() publicIPPair {
 	return pair
 }
 
-// getIPFromInterfaces 从指定的网卡接口获取 IPv4 和 IPv6 地址
+// getIPFromInterfaces retrieves IPv4 and IPv6 addresses from selected interfaces.
 func getIPFromInterfaces(nicNames []string) (ipv4, ipv6 string) {
 	interfaces, err := net.Interfaces()
 	if err != nil {
@@ -222,7 +222,7 @@ func getIPFromInterfaces(nicNames []string) (ipv4, ipv6 string) {
 		return "", ""
 	}
 	for _, iface := range interfaces {
-		// 检查接口是否在允许列表中
+		// Check whether the interface is allowed.
 		if !func(slice []string, item string) bool {
 			for _, s := range slice {
 				if s == item {
@@ -234,7 +234,7 @@ func getIPFromInterfaces(nicNames []string) (ipv4, ipv6 string) {
 			continue
 		}
 
-		// 跳过未启动的接口
+		// Skip interfaces that are down.
 		if iface.Flags&net.FlagUp == 0 {
 			continue
 		}
@@ -257,17 +257,17 @@ func getIPFromInterfaces(nicNames []string) (ipv4, ipv6 string) {
 				continue
 			}
 
-			// 获取 IPv4 地址
+			// Get the IPv4 address.
 			if ipv4 == "" && ip.To4() != nil {
 				ipv4 = ip.String()
 			}
 
-			// 获取 IPv6 地址（排除链路本地地址）
+			// Get the IPv6 address, excluding link-local addresses.
 			if ipv6 == "" && ip.To4() == nil && !ip.IsLinkLocalUnicast() {
 				ipv6 = ip.String()
 			}
 
-			// 如果已经找到 IPv4 和 IPv6,提前返回
+			// Return early once both IPv4 and IPv6 addresses are found.
 			if ipv4 != "" && ipv6 != "" {
 				return ipv4, ipv6
 			}

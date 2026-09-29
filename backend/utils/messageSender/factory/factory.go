@@ -23,7 +23,7 @@ func RegisterMessageSender(constructor MessageSenderConstructor) {
 	}
 	senders[sender.GetName()] = sender
 
-	// 使用反射来提取提供程序的配置字段
+	// Using reflection to extract a provider's configuration fields
 	config := sender.GetConfiguration()
 	items := item.Parse(config)
 

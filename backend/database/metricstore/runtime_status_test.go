@@ -132,9 +132,9 @@ func TestRuntimeStatusTracksDigestHandoffDeferredWithoutFailure(t *testing.T) {
 	})
 
 	at := time.Now().UTC()
-	recordDigestHandoffDeferred("cpu.usage", "摘要校验暂未通过", at)
-	recordDigestHandoffDeferred("load.average", "细粒度摘要尚未完整", at.Add(time.Second))
-	recordDigestHandoffDeferred("cpu.usage", "摘要校验暂未通过（已重试）", at.Add(2*time.Second))
+	recordDigestHandoffDeferred("cpu.usage", "Digest verification has not passed yet", at)
+	recordDigestHandoffDeferred("load.average", "Fine-grained digest is not yet complete", at.Add(time.Second))
+	recordDigestHandoffDeferred("cpu.usage", "Digest verification has not passed yet (retried)", at.Add(2*time.Second))
 
 	status := GetRuntimeStatus()
 	if len(status.DigestHandoffDeferred) != 2 {

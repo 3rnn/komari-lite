@@ -23,20 +23,20 @@ const (
 	RoleGuest  = "guest"
 )
 
-// IdentityMiddleware 统一身份识别中间件，在路由栈最外层运行。
-// 负责识别当前请求者身份（Admin / Client / Guest），并写入 Context。
-// 身份识别统一委托给 IdentifyPrincipal;同时保留旧的 c.Set 键(role/uuid/
-// api_key/session/client_uuid)以兼容现有 handler 与中间件。
+// IdentityMiddleware identifies callers at the outermost layer of the route stack.
+// It stores each requester's identity (Admin/Client/Guest) in the context.
+// Identification delegates to IdentifyPrincipal and retains legacy c.Set keys (role/uuid/
+// api_key/session/client_uuid) for existing handlers and middleware.
 func IdentityMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		p := IdentifyPrincipal(c)
 		SetPrincipal(c, p)
 
-		// 写入兼容字段。
+		// Write compatible fields.
 		c.Set("role", p.PrimaryRole())
 		switch p.Type {
 		case rpc.PrincipalAPIKey:
-			// 旧逻辑:API Key 时记录裸 key 与固定占位 uuid。
+			// Preserve the raw API key and fixed placeholder UUID for legacy callers.
 			apiKey := c.GetHeader("Authorization")
 			c.Set("api_key", apiKey[len("Bearer "):])
 			c.Set("uuid", "00000000-0000-0000-0000-000000000000")
@@ -54,7 +54,7 @@ func IdentityMiddleware() gin.HandlerFunc {
 	}
 }
 
-// RequireRole 声明式权限校验中间件，仅允许指定角色通过。
+// RequireRole only permits callers with one of the specified roles.
 func RequireRole(allowedRoles ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		current := GetRole(c)
@@ -69,7 +69,7 @@ func RequireRole(allowedRoles ...string) gin.HandlerFunc {
 	}
 }
 
-// GetRole 获取当前请求的角色
+// GetRole returns the current requester's role.
 func GetRole(c *gin.Context) string {
 	role, exists := c.Get("role")
 	if !exists {
@@ -81,7 +81,7 @@ func GetRole(c *gin.Context) string {
 	return RoleGuest
 }
 
-// --- 私有站点访问控制 ---
+// --- Private Site Access Control ---
 
 var publicPaths = []string{
 	"/ping",
@@ -92,15 +92,15 @@ var publicPaths = []string{
 	"/api/oauth_callback",
 	"/api/version",
 	"/api/recent",
-	"/api/admin",    // 由 RequireRole 处理
-	"/api/clients/", // 由 RequireRole 处理
+	"/api/admin",    // Handled by RequireRole
+	"/api/clients/", // Handled by RequireRole
 }
 
-// PrivateSiteMiddleware 私有站点访问控制。
-// 依赖 IdentityMiddleware 已设置的 role，对未认证的访客在私有站点模式下进行拦截。
+// PrivateSiteMiddleware restricts guest access in private-site mode.
+// It uses the role set by IdentityMiddleware to block unauthenticated visitors.
 func PrivateSiteMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// 已认证用户直接放行
+		// Allow authenticated users.
 		if GetRole(c) != RoleGuest {
 			c.Next()
 			return
@@ -108,7 +108,7 @@ func PrivateSiteMiddleware() gin.HandlerFunc {
 
 		path := c.Request.URL.Path
 
-		// 公开路径直接放行
+		// Allow public paths.
 		for _, p := range publicPaths {
 			if strings.HasPrefix(path, p) {
 				c.Next()
@@ -116,13 +116,13 @@ func PrivateSiteMiddleware() gin.HandlerFunc {
 			}
 		}
 
-		// 非 API 路径直接放行（静态资源等）
+		// Allow non-API paths (including static assets).
 		if !strings.HasPrefix(path, "/api") {
 			c.Next()
 			return
 		}
 
-		// 非私有站点直接放行
+		// Allow requests when private-site mode is off.
 		privateSite, err := config.GetAs[bool](config.PrivateSiteKey, false)
 		if err != nil {
 			RespondError(c, http.StatusInternalServerError, "Failed to get configuration.")
@@ -134,7 +134,7 @@ func PrivateSiteMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		// 临时访问许可
+		// Allow temporary access grants.
 		if hasTempAccess(c) {
 			c.Next()
 			return
@@ -175,7 +175,7 @@ func extractClientToken(c *gin.Context) string {
 			return token
 		}
 	}
-	// rpc2 约定:agent 经 ?Authorization=<token> 传入 client token。
+	// RPC2 agents supply their client token in ?Authorization=<token>.
 	if token := c.Query("Authorization"); token != "" {
 		return token
 	}

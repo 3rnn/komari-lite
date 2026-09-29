@@ -17,7 +17,7 @@ func TestGatewayRejectedCompressedJSON(t *testing.T) {
 		body string
 		want bool
 	}{
-		{name: "html json error", body: "<html><meta charset=\"utf-8\" /><title>json格式错误</title><div>请传递正确的json参数</div></html>\n", want: true},
+		{name: "html json error", body: "<html><meta charset=\"utf-8\" /><title>json\u683c\u5f0f\u9519\u8bef</title><div>\u8bf7\u4f20\u9012\u6b63\u786e\u7684json\u53c2\u6570</div></html>\n", want: true},
 		{name: "json unauthorized", body: `{"status":"error","message":"Unauthorized."}`, want: false},
 		{name: "jsonrpc", body: `{"jsonrpc":"2.0","result":{}}`, want: false},
 		{name: "empty", body: "  ", want: false},
@@ -52,7 +52,7 @@ func TestPostV2JSONRPCFallsBackWhenGzipRejectedAsHTML(t *testing.T) {
 		if r.Header.Get("Content-Encoding") == "gzip" {
 			gzipHits.Add(1)
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			_, _ = w.Write([]byte(`<html><meta charset="utf-8" /><title>json格式错误</title><div>请传递正确的json参数</div></html>` + "\n"))
+			_, _ = w.Write([]byte("<html><meta charset=\"utf-8\" /><title>json\u683c\u5f0f\u9519\u8bef</title><div>\u8bf7\u4f20\u9012\u6b63\u786e\u7684json\u53c2\u6570</div></html>" + "\n"))
 			return
 		}
 		plainHits.Add(1)

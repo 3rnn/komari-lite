@@ -24,6 +24,13 @@ export interface ThemeConfigGroup {
   items: ThemeConfigTabField[];
 }
 
+export function resolveThemeOptionLabel(value: string, translatedLabel?: string): string {
+  // Keep the legacy values in payloads; only the text shown to users changes.
+  if (value === "\u8ddf\u968f\u7cfb\u7edf") return "Follow system";
+  if (value === "\u8ddf\u968f\u540e\u7aef") return "Follow backend";
+  return translatedLabel || value;
+}
+
 export function groupThemeConfigFields(
   fields: ThemeConfigTabField[],
 ): ThemeConfigGroup[] {

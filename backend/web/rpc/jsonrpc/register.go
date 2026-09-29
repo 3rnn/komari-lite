@@ -2,7 +2,7 @@ package jsonrpc
 
 import "github.com/komari-monitor/komari/pkg/rpc"
 
-// Register 以默认分组 "common" 注册方法。
+// Register registers the method in the default group "common".
 func Register(name string, cb rpc.Handler) error {
 	return RegisterWithGroupAndMeta(name, "common", cb, &rpc.MethodMeta{
 		Name:        name,
@@ -11,8 +11,8 @@ func Register(name string, cb rpc.Handler) error {
 	})
 }
 
-// RegisterWithGroupAndMeta 将回调按分组注册为 "group:name"，并附加元数据。
-// group 为空时使用默认分组 "common"。
+// RegisterWithGroupAndMeta registers a callback as "group:name" with metadata.
+// use the default group "common" when group is empty.
 func RegisterWithGroupAndMeta(name, group string, cb rpc.Handler, meta *rpc.MethodMeta) error {
 	if group == "" {
 		group = "common"

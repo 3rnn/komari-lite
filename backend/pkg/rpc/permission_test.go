@@ -10,7 +10,7 @@ func TestNamespaceOf(t *testing.T) {
 		"getNodes":        DefaultNamespace,
 		"admin:addClient": "admin",
 		"client:report":   "client",
-		"rpc.ping":        DefaultNamespace, // 无 ":"，归入默认命名空间
+		"rpc.ping":        DefaultNamespace, // Without ":", fall into the default namespace
 		":bare":           "",
 	}
 	for method, want := range cases {
@@ -35,7 +35,7 @@ func TestCheckPermission(t *testing.T) {
 		{RoleAdmin, "admin:addClient", true},
 		{RoleAdmin, "client:report", false},
 		{RoleAdmin, "common:getNodes", true},
-		// 未知命名空间默认要求 admin
+		// Unknown namespaces require admin by default
 		{RoleGuest, "plugin:foo", false},
 		{RoleAdmin, "plugin:foo", true},
 	}
@@ -57,9 +57,9 @@ func TestRegisterNamespace(t *testing.T) {
 }
 
 func TestAllowWildcardSpecificity(t *testing.T) {
-	// 命名空间默认 admin，但更具体的方法级规则可放宽。
+	// The namespace defaults to admin, but more specific method-level rules can be relaxed.
 	RegisterNamespace("acltest", RoleAdmin)
-	Allow("acltest:public*", RoleGuest) // 前缀通配，比 "acltest:*" 更具体
+	Allow("acltest:public*", RoleGuest) // Prefix wildcard, more specific than "acltest:*"
 
 	if !CheckPermission(RoleGuest, "acltest:publicInfo") {
 		t.Error("guest should be allowed: acltest:public* is more specific than acltest:*")
@@ -68,7 +68,7 @@ func TestAllowWildcardSpecificity(t *testing.T) {
 		t.Error("guest should be denied acltest:secret (falls back to acltest:* = admin)")
 	}
 
-	// 精确规则优先于任何通配。
+	// Exact rules take precedence over any wildcards.
 	Allow("acltest:secret", RoleClient)
 	if !CheckPermission(RoleClient, "acltest:secret") {
 		t.Error("client should be allowed by exact rule acltest:secret")
@@ -83,18 +83,18 @@ func TestAllowOverride(t *testing.T) {
 	if CheckPermission(RoleGuest, "override:x") {
 		t.Fatal("precondition: guest denied")
 	}
-	Allow("override:x", RoleGuest) // 覆盖同一 pattern
+	Allow("override:x", RoleGuest) // Cover the same pattern
 	if !CheckPermission(RoleGuest, "override:x") {
 		t.Error("override should relax override:x to guest")
 	}
 }
 
 func TestInternalMethodsPermission(t *testing.T) {
-	// 内部 rpc.* 方法对 guest 开放。
+	// Internal rpc.* methods are exposed to guests.
 	if !CheckPermission(RoleGuest, "rpc.ping") {
 		t.Error("guest should be allowed to call rpc.ping")
 	}
-	// 裸方法名归入 common，对 guest 开放。
+	// Naked method names belong to common and are open to guests.
 	if !CheckPermission(RoleGuest, "getNodes") {
 		t.Error("guest should be allowed to call bare common method getNodes")
 	}
@@ -114,11 +114,11 @@ func TestUnregister(t *testing.T) {
 	if getHandler(method) != nil {
 		t.Fatal("method should be removed after Unregister")
 	}
-	// 重复注销返回 false
+	// Repeated logout returns false
 	if Unregister(method) {
 		t.Fatal("Unregister should return false for missing method")
 	}
-	// 保留前缀禁止注销
+	// Keep prefix to disable logout
 	if Unregister("rpc.ping") {
 		t.Fatal("Unregister must refuse rpc.* reserved methods")
 	}

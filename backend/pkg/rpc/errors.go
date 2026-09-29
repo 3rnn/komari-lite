@@ -2,16 +2,16 @@ package rpc
 
 import "fmt"
 
-// JsonRpcError 错误对象
-// Code 按 JSON-RPC 规范使用 -32768 ~ -32000 的预留范围，其它业务自定义可使用正数或自定义区间。
-// Message 为简短描述，Data 可携带扩展信息（结构化或字符串）。
+// JsonRpcError error object
+// Code uses the reserved range of -32768 ~ -32000 according to the JSON-RPC specification. Other business customizations can use positive numbers or custom intervals.
+// Message is a short description, and Data can carry extended information (structured or string).
 type JsonRpcError struct {
 	Code    int         `json:"code"`
 	Message string      `json:"message"`
 	Data    interface{} `json:"data,omitempty"`
 }
 
-// 预定义错误码	JSON-RPC 2.0 标准
+// Predefined error codes JSON-RPC 2.0 standard
 const (
 	ParseError     = -32700
 	InvalidRequest = -32600
@@ -20,22 +20,22 @@ const (
 	InternalError  = -32603
 )
 
-// Komari 定义错误码
+// Komari defines error code
 const (
 	NotFound         = -32044
 	AlreadyExists    = -32045
 	PermissionDenied = -32041
-	Unauthenticated  = -32040 // 未登录/无身份
-	Cancelled        = -32010 // 主动取消
-	DeadlineExceeded = -32011 // 超时
-	Aborted          = -32021 // 并发冲突/事务中断
-	OutOfRange       = -32022 // 数值/索引越界
-	Unimplemented    = -32050 // 尚未实现
-	Unavailable      = -32051 // 依赖服务暂不可用
-	DataLoss         = -32052 // 不可恢复的数据丢失
+	Unauthenticated  = -32040 // Not logged in/no identity
+	Cancelled        = -32010 // Cancel proactively
+	DeadlineExceeded = -32011 // timeout
+	Aborted          = -32021 // Concurrency conflicts/transaction interruptions
+	OutOfRange       = -32022 // Value/index out of bounds
+	Unimplemented    = -32050 // not yet implemented
+	Unavailable      = -32051 // Dependent services are temporarily unavailable
+	DataLoss         = -32052 // Unrecoverable data loss
 )
 
-// MakeError 便捷创建错误对象
+// MakeError conveniently creates error objects
 func MakeError(code int, msg string, data any) *JsonRpcError {
 	return &JsonRpcError{Code: code, Message: msg, Data: data}
 }

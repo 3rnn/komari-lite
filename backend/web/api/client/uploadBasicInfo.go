@@ -12,7 +12,7 @@ import (
 )
 
 func getClientIPType(ip net.IP) int {
-	// 0:ipv4 1:ipv6 -1:错误的输入
+	// 0: ipv4 1: ipv6 -1: Wrong input
 	if ip == nil {
 		return -1
 	}

@@ -24,7 +24,7 @@ func (g *Generic) GetConfiguration() factory.Configuration {
 func (g *Generic) GetAuthorizationURL(redirectURI string) (string, string) {
 	state := utils.GenerateRandomString(16)
 
-	// 构建GitHub OAuth授权URL
+	// Build the configured OAuth authorization URL.
 	authURL := fmt.Sprintf(
 		"%s?client_id=%s&state=%s&scope=%s&redirect_uri=%s&response_type=code",
 		g.Addition.AuthURL,
@@ -39,7 +39,7 @@ func (g *Generic) GetAuthorizationURL(redirectURI string) (string, string) {
 func (g *Generic) OnCallback(ctx *gin.Context, state string, query map[string]string, callbackURI string) (factory.OidcCallback, error) {
 	code := query["code"]
 
-	// 验证state防止CSRF攻击
+	// Validate state against CSRF attacks
 	if g.stateCache == nil {
 		return factory.OidcCallback{}, fmt.Errorf("state cache not initialized")
 	}
@@ -50,12 +50,12 @@ func (g *Generic) OnCallback(ctx *gin.Context, state string, query map[string]st
 		return factory.OidcCallback{}, fmt.Errorf("invalid state")
 	}
 
-	// 获取code
+	// Get code
 	if code == "" {
 		return factory.OidcCallback{}, fmt.Errorf("no code provided")
 	}
 
-	// 获取访问令牌
+	// Request an access token.
 	data := url.Values{
 		"client_id":     {g.Addition.ClientId},
 		"client_secret": {g.Addition.ClientSecret},
@@ -82,7 +82,7 @@ func (g *Generic) OnCallback(ctx *gin.Context, state string, query map[string]st
 		return factory.OidcCallback{}, fmt.Errorf("failed to parse access token response: %s", utils.DataMasking(err.Error(), []string{g.Addition.ClientSecret, g.Addition.ClientId}))
 	}
 
-	// 获取用户信息
+	// Get User Information
 	userReq, _ := http.NewRequest("GET", g.Addition.UserInfoURL, nil)
 	userReq.Header.Set("Authorization", "Bearer "+tokenResp.AccessToken)
 	userReq.Header.Set("Accept", "application/json")

@@ -18,19 +18,19 @@ var flags = pkg_flags.GlobalConfig
 var (
 	DNSServers = []string{
 		"[2606:4700:4700::1111]:53", // Cloudflare IPv6
-		"[2606:4700:4700::1001]:53", // Cloudflare IPv6 备用
+		"[2606:4700:4700::1001]:53", // Cloudflare IPv6 fallback.
 		"[2001:4860:4860::8888]:53", // Google IPv6
-		"[2001:4860:4860::8844]:53", // Google IPv6 备用
+		"[2001:4860:4860::8844]:53", // Google IPv6 fallback.
 
-		"114.114.114.114:53", // 114DNS，中国大陆
+		"114.114.114.114:53", // 114DNS, mainland China.
 		"1.1.1.1:53",         // Cloudflare IPv4
 		"8.8.8.8:53",         // Google IPv4
-		"8.8.4.4:53",         // Google IPv4 备用
-		"223.5.5.5:53",       // 阿里DNS，中国大陆
-		"119.29.29.29:53",    // DNSPod，中国大陆
+		"8.8.4.4:53",         // Google IPv4 fallback.
+		"223.5.5.5:53",       // Alibaba DNS, mainland China.
+		"119.29.29.29:53",    // DNSPod, mainland China.
 	}
 
-	// CustomDNSServer 自定义DNS服务器，可以通过命令行参数设置
+	// CustomDNSServer is a custom DNS server set via CLI flags.
 	CustomDNSServer string
 
 	preferV4Once sync.Once
@@ -45,7 +45,7 @@ type httpClientKey struct {
 	preferIPVersion  string
 }
 
-// SetCustomDNSServer 设置自定义DNS服务器
+// SetCustomDNSServer sets the custom DNS server.
 func SetCustomDNSServer(dnsServer string) {
 	if dnsServer == "" {
 		return
@@ -53,51 +53,51 @@ func SetCustomDNSServer(dnsServer string) {
 	CustomDNSServer = normalizeDNSServer(dnsServer)
 }
 
-// normalizeDNSServer 将输入的 DNS 服务器字符串规范化为 host:port 形式：
-// - IPv6 地址自动加方括号并补全端口 :53（若未提供）
-// - IPv4/域名未提供端口时补全 :53
+// normalizeDNSServer normalizes a DNS server to host:port:
+// Bracket IPv6 addresses and add port :53 if missing.
+// Add port :53 to IPv4 addresses or domain names if missing.
 func normalizeDNSServer(s string) string {
 	s = strings.TrimSpace(s)
-	// 已是 [ipv6]:port 或 host:port 形式
+	// Already [ipv6]:port or host:port.
 	if (strings.HasPrefix(s, "[") && strings.Contains(s, "]:")) || (strings.Count(s, ":") == 1 && !strings.Contains(s, "]")) {
 		return s
 	}
-	// 纯 IPv6（未加端口/括号）
+	// Bare IPv6 (without brackets or port).
 	if strings.Count(s, ":") >= 2 && !strings.Contains(s, "]") {
 		return "[" + s + "]:53"
 	}
-	// 其它情况：若未包含端口则补 53
+	// Otherwise add port 53 if absent.
 	if !strings.Contains(s, ":") {
 		return s + ":53"
 	}
 	return s
 }
 
-// getCurrentDNSServer 获取当前要使用的DNS服务器
+// getCurrentDNSServer returns the currently configured DNS server.
 func getCurrentDNSServer() string {
 	if CustomDNSServer != "" {
 		return CustomDNSServer
 	}
-	// 如果没有设置自定义DNS，返回空字符串，表示应使用系统默认解析器
+	// Without a custom DNS server, return empty to use the system resolver.
 	return ""
 }
 
-// GetCustomResolver 返回一个解析器：
-// - 若设置了自定义 DNS：使用该服务器（并在失败时尝试内置列表作为兜底）。
-// - 若未设置自定义 DNS：返回系统默认解析器（不使用内置列表）。
+// GetCustomResolver returns a resolver:
+// With custom DNS, use it and fall back to the built-in server list on failure.
+// Without custom DNS, use the system resolver (not the built-in list).
 func GetCustomResolver() *net.Resolver {
-	// 未设置自定义 DNS，直接使用系统默认解析器
+	// No custom DNS: use the system resolver directly.
 	if getCurrentDNSServer() == "" {
 		return net.DefaultResolver
 	}
 
-	// 设置了自定义 DNS，则构造使用自定义 DNS 的解析器
+	// Custom DNS: build a resolver using that server.
 	return &net.Resolver{
 		PreferGo: true,
 		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
 			d := net.Dialer{Timeout: 10 * time.Second}
 
-			// 优先使用自定义 DNS 服务器
+			// Try the custom DNS server first.
 			dnsServer := getCurrentDNSServer()
 			if dnsServer != "" {
 				if conn, err := d.DialContext(ctx, "udp", dnsServer); err == nil {
@@ -105,7 +105,7 @@ func GetCustomResolver() *net.Resolver {
 				}
 			}
 			log.Printf("Custom DNS server %s is unreachable, trying fallback servers", dnsServer)
-			// 如果自定义DNS不可用，则尝试内置列表作为兜底
+			// If unavailable, try the built-in list as a fallback.
 			for _, server := range DNSServers {
 				if server == dnsServer {
 					continue
@@ -120,7 +120,7 @@ func GetCustomResolver() *net.Resolver {
 	}
 }
 
-// buildTransport 构建带有自定义解析/拨号策略的 HTTP 传输层，可注入 TLS 配置
+// buildTransport builds an HTTP transport with custom DNS/dialing and optional TLS configuration.
 func buildTransport(timeout time.Duration, tlsConfig *tls.Config) *http.Transport {
 	return buildTransportWithPreference(timeout, tlsConfig, "")
 }
@@ -170,8 +170,8 @@ func GetHTTPClient(timeout time.Duration) *http.Client {
 	return getHTTPClient(timeout, "")
 }
 
-// GetHTTPClientWithPreference 返回一个使用自定义解析器并按指定 IP 版本排序的 HTTP 客户端。
-// preferIPVersion 为 "4" 或 "6" 时固定优先对应地址；为空时保留自动选择逻辑。
+// GetHTTPClientWithPreference returns an HTTP client with custom DNS and IP-version ordering.
+// With preferIPVersion "4" or "6", prefer that family; otherwise use automatic selection.
 func GetHTTPClientWithPreference(timeout time.Duration, preferIPVersion string) *http.Client {
 	return getHTTPClient(timeout, normalizeIPVersionPreference(preferIPVersion))
 }
@@ -196,7 +196,7 @@ func getHTTPClient(timeout time.Duration, preferIPVersion string) *http.Client {
 	return client
 }
 
-// GetNetDialer 返回一个使用自定义DNS解析器的网络拨号器
+// GetNetDialer returns a network dialer using the custom DNS resolver.
 func GetNetDialer(timeout time.Duration) *net.Dialer {
 	if timeout <= 0 {
 		timeout = 5 * time.Second
@@ -209,16 +209,16 @@ func GetNetDialer(timeout time.Duration) *net.Dialer {
 	}
 }
 
-// GetDialContext 返回一个自定义 DialContext：
-// - 使用自定义解析器解析主机名
-// - 根据本机网络自动选择 IPv4 或 IPv6 优先
-// - 逐个 IP 进行连接尝试，直到成功或全部失败
+// GetDialContext returns a custom DialContext:
+// Resolve hostnames with the custom resolver.
+// Choose IPv4 or IPv6 priority based on the local network.
+// Try each IP until a connection succeeds or all fail.
 func GetDialContext(timeout time.Duration) func(ctx context.Context, network, addr string) (net.Conn, error) {
 	return GetDialContextWithPreference(timeout, "")
 }
 
-// GetDialContextWithPreference 返回一个可显式指定 IPv4/IPv6 优先级的 DialContext。
-// preferIPVersion 为 "4" 或 "6" 时固定优先对应地址；为空时保留自动选择逻辑。
+// GetDialContextWithPreference returns a DialContext with explicit IPv4/IPv6 preference.
+// With preferIPVersion "4" or "6", prefer that family; otherwise use automatic selection.
 func GetDialContextWithPreference(timeout time.Duration, preferIPVersion string) func(ctx context.Context, network, addr string) (net.Conn, error) {
 	if timeout <= 0 {
 		timeout = 15 * time.Second
@@ -233,7 +233,7 @@ func GetDialContextWithPreference(timeout time.Duration, preferIPVersion string)
 			return nil, err
 		}
 
-		// 为解析设置一个带超时的子 context，避免整体拨号过快超时
+		// Use a timed child context for DNS to avoid exhausting the overall dial timeout.
 		lookupCtx, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
 
@@ -244,7 +244,7 @@ func GetDialContextWithPreference(timeout time.Duration, preferIPVersion string)
 
 		sortIPsByPreference(ips, preferIPVersion)
 
-		// 逐个 IP 尝试连接
+		// Try each IP in turn.
 		for _, ip := range ips {
 			d := &net.Dialer{
 				Timeout:   timeout,
@@ -270,7 +270,7 @@ func normalizeIPVersionPreference(preferIPVersion string) string {
 func sortIPsByPreference(ips []string, preferIPVersion string) {
 	preferIPVersion = normalizeIPVersionPreference(preferIPVersion)
 	if preferIPVersion == "" {
-		// 根据本机是否具备 IPv4 动态排序
+		// Order addresses dynamically based on local IPv4 availability.
 		if preferIPv4First() {
 			preferIPVersion = "4"
 		} else {
@@ -294,7 +294,7 @@ func sortIPsByPreference(ips []string, preferIPVersion string) {
 	copy(ips[n:], others)
 }
 
-// preferIPv4First 检测本机是否存在可用的 IPv4 地址，若没有则在连接尝试中优先 IPv6
+// preferIPv4First checks for usable local IPv4; otherwise dial IPv6 first.
 func preferIPv4First() bool {
 	preferV4Once.Do(func() {
 		ifaces, _ := net.Interfaces()

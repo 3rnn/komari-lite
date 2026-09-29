@@ -10,8 +10,8 @@ import (
 )
 
 // client.go
-// 客户端（agent）面向的 RPC2 方法（client 命名空间，client/admin 可调用）。
-// 这些方法依赖 meta.ClientUUID 标识调用方客户端。
+// Agent-oriented RPC2 methods (client namespace, client/admin callable).
+// These methods rely on the meta.ClientUUID to identify the caller client.
 
 func init() {
 	regClient("getPingTasks", clientGetPingTasks, "Get ping tasks assigned to the calling client")
@@ -22,7 +22,7 @@ func regClient(name string, h rpc.Handler, summary string) {
 	RegisterWithGroupAndMeta(name, rpc.RoleClient, h, &rpc.MethodMeta{Name: "client:" + name, Summary: summary})
 }
 
-// callingClientUUID 返回发起调用的客户端 UUID。
+// callingClientUUID returns the UUID of the calling client.
 func callingClientUUID(ctx context.Context) string {
 	if meta := rpc.MetaFromContext(ctx); meta != nil {
 		return meta.ClientUUID

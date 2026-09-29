@@ -1,42 +1,42 @@
 package rpc
 
 // permission.go
-// 声明式 ACL 权限模型。权限由一组规则 (pattern, minRole) 声明，pattern 支持 "*" 通配符，
-// 匹配完整方法名（如 "admin:addClient"、"rpc.ping"）。判权时在所有匹配规则中取
-// 特异性（specificity）最高者：精确匹配 > 字面前缀更长的通配 > 全局 "*"。
+// Declarative ACL permissions model. Permissions are declared by a set of rules (pattern, minRole), pattern supports the "*" wildcard character,
+// Matches the full method name (such as "admin:addClient", "rpc.ping"). When judging rights, take it from all matching rules.
+// Whichever has the highest specificity: exact match > wildcard with longer literal prefix > global "*".
 //
-// 该模型面向插件扩展：插件可用 Allow 声明任意粒度的规则（命名空间级 "ns:*" 或方法级），
-// 无需修改核心代码。
+// The model is extensible for plugins: plugins can declare rules at any granularity (namespace level "ns:*" or method level) using Allow,
+// No need to modify the core code.
 //
-// 角色采用分级语义：guest < client < admin，规则声明所需最低角色。
+// Roles adopt hierarchical semantics: guest < client < admin, and the rules declare the minimum required roles.
 
 import (
 	"strings"
 	"sync"
 )
 
-// 角色常量。与 web/api 中的角色保持一致（guest/client/admin）。
+// Role constants. Consistent with roles in web/api (guest/client/admin).
 const (
 	RoleGuest  = "guest"
 	RoleClient = "client"
 	RoleAdmin  = "admin"
 )
 
-// roleLevel 定义角色的权限等级。数值越大权限越高。未知角色按 guest（最低）处理。
+// roleLevel defines the permission level of the role. The larger the value, the higher the authority. Unknown roles are handled as guest (minimum).
 var roleLevel = map[string]int{
 	RoleGuest:  0,
 	RoleClient: 1,
 	RoleAdmin:  2,
 }
 
-// DefaultNamespace 是方法名不含 ":" 时归入的命名空间。
+// DefaultNamespace is the namespace into which the method name does not contain ":".
 const DefaultNamespace = "common"
 
-// aclRule 一条声明式 ACL 规则。
+// aclRule A declarative ACL rule.
 type aclRule struct {
-	pattern string // 方法名匹配模式，支持 "*" 通配
-	minRole string // 匹配时所需的最低角色
-	// 预计算的特异性：精确匹配（无通配）给高位 bonus，其余按字面字符数。
+	pattern string // Method name matching pattern, supports "*" wildcard
+	minRole string // Minimum role required to match
+	// Precomputed specificity: Exact matches (no wildcards) give bonus to high bits, and literal character count for the rest.
 	specificity int
 	hasWildcard bool
 }
@@ -47,17 +47,17 @@ var (
 )
 
 func init() {
-	// 默认规则覆盖内置命名空间语义。"*" 兜底要求 admin，确保未声明的方法默认最严格。
+	// Default rules override built-in namespace semantics. "*" Requires admin to ensure that undeclared methods default to the strictest.
 	Allow("*", RoleAdmin)
 	Allow("common:*", RoleGuest)
 	Allow("guest:*", RoleGuest)
-	Allow("rpc.*", RoleGuest) // 内部方法 rpc.ping/rpc.help 等（用 "." 分隔）
+	Allow("rpc.*", RoleGuest) // Internal methods rpc.ping/rpc.help etc. (separated by ".")
 	Allow("rpc:*", RoleGuest)
 	Allow("client:*", RoleClient)
 	Allow("admin:*", RoleAdmin)
 }
 
-// levelOf 返回角色的权限等级，未知角色视为 guest。
+// levelOf returns the permission level of the role. Unknown roles are considered guests.
 func levelOf(role string) int {
 	if lv, ok := roleLevel[role]; ok {
 		return lv
@@ -65,7 +65,7 @@ func levelOf(role string) int {
 	return roleLevel[RoleGuest]
 }
 
-// NamespaceOf 解析方法名的命名空间。"ns:method" 返回 "ns"；无 ":" 返回 DefaultNamespace。
+// NamespaceOf resolves the namespace of method names. "ns:method" returns "ns"; without ":" returns DefaultNamespace.
 func NamespaceOf(method string) string {
 	if i := strings.IndexByte(method, ':'); i >= 0 {
 		return method[:i]
@@ -73,8 +73,8 @@ func NamespaceOf(method string) string {
 	return DefaultNamespace
 }
 
-// computeSpecificity 计算 pattern 的特异性。精确匹配（不含通配符）给一个大 bonus
-// 以保证优先级最高；含通配符的按字面（非 "*"）字符数排序，前缀越长越具体。
+// computeSpecificity computes the specificity of pattern. Exact matches (without wildcards) give a big bonus
+// To ensure the highest priority; those containing wildcards are sorted by the literal number of characters (not "*"), and the longer the prefix, the more specific it is.
 func computeSpecificity(pattern string) (spec int, hasWildcard bool) {
 	literal := 0
 	for _, r := range pattern {
@@ -85,13 +85,13 @@ func computeSpecificity(pattern string) (spec int, hasWildcard bool) {
 		}
 	}
 	if !hasWildcard {
-		return 1 << 20, false // 精确匹配最高优先
+		return 1 << 20, false // Exact match highest priority
 	}
 	return literal, true
 }
 
-// Allow 声明一条 ACL 规则：匹配 pattern 的方法允许 minRole 及以上等级的角色调用。
-// 同一 pattern 重复声明时覆盖原规则。供插件声明自定义权限。
+// Allow declares an ACL rule: methods matching pattern allow roles of minRole and above to be called.
+// Repeated declarations of the same pattern will overwrite the original rules. For plugins to declare custom permissions.
 func Allow(pattern, minRole string) {
 	spec, hasWildcard := computeSpecificity(pattern)
 	rule := aclRule{pattern: pattern, minRole: minRole, specificity: spec, hasWildcard: hasWildcard}
@@ -106,14 +106,14 @@ func Allow(pattern, minRole string) {
 	aclList = append(aclList, rule)
 }
 
-// RegisterNamespace 便捷封装：为整个命名空间声明所需最低角色（等价于 Allow("ns:*", role)）。
+// RegisterNamespace convenience wrapper: declares the minimum required role for the entire namespace (equivalent to Allow("ns:*", role)).
 func RegisterNamespace(namespace, requiredRole string) {
 	Allow(namespace+":*", requiredRole)
 }
 
-// wildcardMatch 判断 s 是否匹配只含 "*" 通配符的 pattern。"*" 匹配任意（含空）字符序列。
+// wildcardMatch determines whether s matches the pattern containing only "*" wildcard characters. "*" matches any (including empty) sequence of characters.
 func wildcardMatch(pattern, s string) bool {
-	// 双指针 + 回溯，O(len(pattern)+len(s))。
+	// Double pointers + backtracking, O(len(pattern)+len(s)).
 	var (
 		p, str       = 0, 0
 		star         = -1
@@ -142,10 +142,10 @@ func wildcardMatch(pattern, s string) bool {
 	return p == lenP
 }
 
-// resolveMinRole 返回 method 适用规则中特异性最高者的所需角色。无匹配规则时默认 admin。
+// resolveMinRole Returns the required role with the highest specificity among the applicable rules for method. If there is no matching rule, it defaults to admin.
 func resolveMinRole(method string) string {
-	// 归一化：无命名空间分隔符（既无 ":" 也无 "rpc." 内部前缀）的裸方法名归入默认命名空间，
-	// 以便被 "common:*" 等规则匹配，保持与历史行为一致。
+	// Normalization: Naked method names without namespace separators (neither ":" nor "rpc." internal prefix) are grouped into the default namespace.
+	// In order to be matched by rules such as "common:*" to maintain consistency with historical behavior.
 	if !strings.ContainsAny(method, ":") && !strings.HasPrefix(method, "rpc.") {
 		method = DefaultNamespace + ":" + method
 	}
@@ -159,7 +159,7 @@ func resolveMinRole(method string) string {
 		if !wildcardMatch(r.pattern, method) {
 			continue
 		}
-		// 特异性更高者胜出；相同特异性时取更严格（等级更高）的角色，偏向安全。
+		// The one with higher specificity wins; with the same specificity, take the more stringent (higher level) role, favoring safety.
 		if r.specificity > bestSpec || (r.specificity == bestSpec && levelOf(r.minRole) > levelOf(bestRole)) {
 			bestSpec = r.specificity
 			bestRole = r.minRole
@@ -172,29 +172,28 @@ func resolveMinRole(method string) string {
 	return bestRole
 }
 
-// RequiredRole 返回调用 method 所需的最低角色。
+// RequiredRole Returns the minimum role required to call method.
 func RequiredRole(method string) string {
 	return resolveMinRole(method)
 }
 
-// CheckPermission 判定 group 角色是否有权调用 method。
+// CheckPermission determines whether the group role has the right to call the method.
 func CheckPermission(group, method string) bool {
 	return CheckPrincipal(PrincipalFromRole(group), method)
 }
 
-// CheckPrincipal 基于主体的能力集判定是否有权调用 method。
-// 采用集合成员语义(而非线性等级):方法要求某最低角色,主体须在其角色集中持有该角色;
-// guest 为公共基线,任何主体均隐式可访问。
-// 该模型使 agent 与 admin 成为正交主体:admin 不再自动获得 client 能力(反之亦然),
-// 从而堵住"admin 会话冒充 agent 调用 client:* 上报方法"等越权路径。
+// CheckPrincipal determines whether the principal has the right to call the method based on the principal's capability set.
+// Use set membership semantics (rather than linear hierarchy): the method requires a certain minimum role that the subject must hold in its role set;
+// guest is a public baseline and is implicitly accessible to any principal.
+// This model makes agent and admin orthogonal subjects: admin no longer automatically obtains client capabilities (and vice versa),
+// This blocks unauthorized paths such as "the admin session impersonates the agent and calls the client:* reporting method".
 func CheckPrincipal(p *Principal, method string) bool {
 	if p == nil {
 		p = NewAnonymousPrincipal()
 	}
 	min := resolveMinRole(method)
 	if min == RoleGuest {
-		return true // 公共基线,所有主体可访问
+		return true // Public baseline, accessible to all subjects
 	}
 	return p.HasRole(min)
 }
-

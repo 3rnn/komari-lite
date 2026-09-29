@@ -55,7 +55,7 @@ func TestEvaluatePingLossNotification(t *testing.T) {
 func TestFormatPingLossMessageIdentifiesExactTask(t *testing.T) {
 	notification := models.PingLossNotification{
 		Client:          "node-a",
-		ClientInfo:      models.Client{Name: "东京节点"},
+		ClientInfo:      models.Client{Name: "Tokyo node"},
 		TaskId:          17,
 		Task:            models.PingTask{Name: "Cloudflare DNS", Target: "1.1.1.1"},
 		WindowSeconds:   60,
@@ -64,32 +64,32 @@ func TestFormatPingLossMessageIdentifiesExactTask(t *testing.T) {
 		CooldownSeconds: 300,
 	}
 	message := formatPingLossMessage(notification, pingLossStats{Total: 20, Lost: 2}, pingLossNotificationAlert)
-	for _, expected := range []string{"延迟监测异常", "东京节点", "检测任务：Cloudflare DNS", "1.1.1.1", "10.00%", "2/20"} {
+	for _, expected := range []string{"Ping monitoring alert", "Tokyo node", "Ping task: Cloudflare DNS", "1.1.1.1", "10.00%", "2/20"} {
 		if !strings.Contains(message, expected) {
 			t.Fatalf("message %q does not contain %q", message, expected)
 		}
 	}
 	assert.NotContains(t, message, "(#17)")
-	assert.Equal(t, "延迟监测告警", messageevent.PingLoss)
+	assert.Equal(t, "\u5ef6\u8fdf\u76d1\u6d4b\u544a\u8b66", messageevent.PingLoss)
 }
 
 func TestFormatPingLossRecoveryMessage(t *testing.T) {
 	notification := models.PingLossNotification{
 		Client:        "node-a",
-		ClientInfo:    models.Client{Name: "宁波服务器"},
+		ClientInfo:    models.Client{Name: "Ningbo server"},
 		TaskId:        117,
-		Task:          models.PingTask{Name: "宁波电信", Target: "example.com"},
+		Task:          models.PingTask{Name: "Ningbo Telecom", Target: "example.com"},
 		WindowSeconds: 60,
 		LossThreshold: 5,
 	}
 	message := formatPingLossMessage(notification, pingLossStats{Total: 20, Lost: 1}, pingLossNotificationRecovery)
-	assert.Contains(t, message, "延迟监测恢复")
-	assert.Contains(t, message, "检测任务：宁波电信")
+	assert.Contains(t, message, "Ping monitoring recovered")
+	assert.Contains(t, message, "Ping task: Ningbo Telecom")
 	assert.NotContains(t, message, "#117")
 }
 
 func TestFormatPingLossWindow(t *testing.T) {
-	assert.Equal(t, "1 分钟", formatPingLossWindow(60))
-	assert.Equal(t, "2 小时", formatPingLossWindow(7200))
-	assert.Equal(t, "90 秒", formatPingLossWindow(90))
+	assert.Equal(t, "1 minute", formatPingLossWindow(60))
+	assert.Equal(t, "2 hours", formatPingLossWindow(7200))
+	assert.Equal(t, "90 seconds", formatPingLossWindow(90))
 }

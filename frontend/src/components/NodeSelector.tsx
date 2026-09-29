@@ -6,7 +6,7 @@ import Selector from "./Selector";
 interface NodeSelectorProps {
   className?: string;
   hiddenDescription?: boolean;
-  value: string[]; // uuid 列表
+  value: string[]; // UUID list.
   onChange: (uuids: string[]) => void;
   hiddenUuidOnlyClient?: boolean;
 }

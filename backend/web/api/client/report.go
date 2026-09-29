@@ -24,11 +24,11 @@ const (
 	postPresenceTTL = 35 * time.Second
 )
 
-// postPresenceEntry 保存单个客户端的 POST 上报会话状态
+// postPresenceEntry tracks one client's HTTP POST reporting session.
 type postPresenceEntry struct {
 	connID     int64
 	timer      *time.Timer
-	generation uint64 // 每次 Reset 递增，用于回调中判断是否为过期的旧回调
+	generation uint64 // Each Reset increment is used to determine whether the old callback is expired in the callback
 }
 
 var (
@@ -36,17 +36,17 @@ var (
 	postPresenceStates = make(map[string]*postPresenceEntry)
 )
 
-// refreshPostPresence 管理 HTTP POST 上报者的在线/离线状态。
-// 每次 POST 刷新 TTL 定时器；定时器到期后触发离线通知。
+// refreshPostPresence tracks online/offline status for HTTP POST reporters.
+// Each POST refreshes the TTL timer; expiry triggers an offline notification.
 func refreshPostPresence(uuid string) {
 	postPresenceMu.Lock()
 	defer postPresenceMu.Unlock()
 
 	if entry, exists := postPresenceStates[uuid]; exists {
-		// 已在线：递增 generation 使可能正在执行的旧回调失效
+		// Already online: increment generation to invalidate any old callbacks still running.
 		entry.generation++
 		entry.timer.Stop()
-		// 重新创建 AfterFunc 以在闭包中捕获新的 generation
+		// Recreate AfterFunc so the closure captures the new generation.
 		gen := entry.generation
 		entry.timer = time.AfterFunc(postPresenceTTL, func() {
 			postPresenceExpired(uuid, entry.connID, gen)
@@ -55,7 +55,7 @@ func refreshPostPresence(uuid string) {
 		return
 	}
 
-	// 新 POST 会话：生成 connID，标记在线，启动超时定时器
+	// New POST session: generate connID, mark online, and start the timeout timer.
 	connID := time.Now().UnixNano()
 	agent_runtime.KeepAlivePresence(uuid, connID, postPresenceTTL)
 	agent_runtime.SetClientProtocolVersion(uuid, 1)
@@ -75,9 +75,9 @@ func refreshPostPresence(uuid string) {
 	postPresenceStates[uuid] = entry
 }
 
-// postPresenceExpired 是定时器到期的回调。
-// 只有当 connID 和 generation 都与当前 entry 匹配时才执行离线清理，
-// 避免 timer.Reset 竞态导致过期回调错误地清除仍活跃的会话。
+// postPresenceExpired runs when the timer expires.
+// Clean up only when connID and generation still match the current entry,
+// preventing timer.Reset races from removing active sessions.
 func postPresenceExpired(uuid string, connID int64, gen uint64) {
 	postPresenceMu.Lock()
 	e, ok := postPresenceStates[uuid]
@@ -113,14 +113,14 @@ func UploadReport(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
 	}
-	// 节点身份只能来自已认证的 Token，不能信任上报正文中的 UUID。
+	// Use only the authenticated token for node identity; never trust a reported UUID.
 	uuid, ok := clientUUIDFromContext(c)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
 		return
 	}
 
-	// POST 上报：落库、更新运行时状态并刷新在线状态
+	// Persist the POST report, update runtime state, and refresh presence.
 	if err := ingestReport(uuid, report, 1, true); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("%v", err)})
 		return
@@ -131,7 +131,7 @@ func UploadReport(c *gin.Context) {
 }
 
 func WebSocketReport(c *gin.Context) {
-	// 升级ws
+	// Upgrade to WebSocket.
 	if !api.IsWebSocketUpgrade(c) {
 		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "error": "Require WebSocket upgrade"})
 		return
@@ -158,11 +158,11 @@ func WebSocketReport(c *gin.Context) {
 		return
 	}
 
-	// 接受新连接，并处理旧连接
+	// Accept new connections and handle old ones
 	if oldConn, exists := agent_runtime.GetConnectedClients()[uuid]; exists {
 		logger.Infof("client-api", "Client %s is reconnecting. Closing the old connection.", uuid)
 
-		// 强制关闭旧连接。这将导致旧连接的 ReadMessage() 循环出错退出。
+		// Force-close the previous connection so its ReadMessage() loop exits.
 		go oldConn.Close()
 	}
 	agent_runtime.SetConnectedClients(uuid, conn)
@@ -173,7 +173,7 @@ func WebSocketReport(c *gin.Context) {
 		notifier.OfflineNotification(uuid, conn.ID)
 	}()
 
-	// 首先处理第一次ws conn收到的消息
+	// Process the first message received on the WebSocket connection.
 	processMessage(conn, message, uuid)
 
 	for {
@@ -184,13 +184,13 @@ func WebSocketReport(c *gin.Context) {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				logger.Errorf("client-api", "Client %s connection error: %v", uuid, err)
 			}
-			break // 任何读错误（包括超时）都意味着连接已断开，退出循环
+			break // Any read errors (including timeouts) mean that the connection has been disconnected, exiting the loop
 		}
 		processMessage(conn, message, uuid)
 	}
 }
 
-// 将消息处理逻辑提取到一个函数中，方便复用
+// Extract message processing into a reusable function.
 func processMessage(conn *connection.SafeConn, message []byte, uuid string) {
 	type MessageType struct {
 		Type string `json:"type"`
@@ -210,7 +210,7 @@ func processMessage(conn *connection.SafeConn, message []byte, uuid string) {
 			conn.WriteJSON(gin.H{"status": "error", "error": "Invalid report format"})
 			return
 		}
-		// WS 连接自行管理在线状态，无需刷新 POST presence
+		// WebSocket connections manage their own presence; do not refresh POST presence.
 		if err := ingestReport(uuid, report, 1, false); err != nil {
 			conn.WriteJSON(gin.H{"status": "error", "error": fmt.Sprintf("%v", err)})
 			return

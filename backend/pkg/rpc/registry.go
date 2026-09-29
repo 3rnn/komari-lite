@@ -8,7 +8,7 @@ import (
 	"sync"
 )
 
-// Handler 方法签名：返回 result (成功) 或 *JsonRpcError (失败)
+// Handler method signature: return result (success) or *JsonRpcError (failure)
 type Handler func(ctx context.Context, req *JsonRpcRequest) (any, *JsonRpcError)
 
 var (
@@ -16,7 +16,7 @@ var (
 	handlers   = map[string]Handler{}
 )
 
-// Register 注册方法。重复注册返回错误。保留前缀 "rpc." 禁止外部注册。
+// Register registration method. Repeated registration returns an error. Reserve the prefix "rpc." to disable external registration.
 func Register(method string, h Handler) error {
 	method = strings.TrimSpace(method)
 	if method == "" {
@@ -34,16 +34,16 @@ func Register(method string, h Handler) error {
 	return nil
 }
 
-// MustRegister 便捷注册（panic on error）
+// MustRegister convenient registration (panic on error)
 func MustRegister(method string, h Handler) {
 	if err := Register(method, h); err != nil {
 		panic(err)
 	}
 }
 
-// Unregister 注销已注册的方法，并清理其元数据。
-// 保留前缀 "rpc." 的内部方法禁止注销。返回是否存在并被移除。
-// 主要供插件卸载时动态移除其注册的方法。
+// Unregister Unregisters a registered method and cleans its metadata.
+// Internal methods that retain the prefix "rpc." disable logout. Returns whether it exists and was removed.
+// It is mainly used to dynamically remove the registration of plug-ins when they are uninstalled.
 func Unregister(method string) bool {
 	method = strings.TrimSpace(method)
 	if method == "" || strings.HasPrefix(method, "rpc.") {
@@ -63,7 +63,7 @@ func Unregister(method string) bool {
 	return exists
 }
 
-// ListMethods 列出当前已注册的方法名（副本）
+// ListMethods lists currently registered method names (copies)
 func ListMethods() []string {
 	muHandlers.RLock()
 	defer muHandlers.RUnlock()

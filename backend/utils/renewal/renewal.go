@@ -14,7 +14,7 @@ import (
 )
 
 func CheckAndAutoRenewal(client models.Client) {
-	// 自动续费检查
+	// Automatic renewal check
 	//type renewedClient struct {
 	//	Name          string
 	//	NewExpireTime time.Time
@@ -24,7 +24,7 @@ func CheckAndAutoRenewal(client models.Client) {
 	if !client.AutoRenewal {
 		return
 	}
-	// 不在线则不续费
+	// No renewal if not online
 	if _, ok := agent_runtime.GetConnectedClients()[client.UUID]; !ok {
 		return
 	}
@@ -35,62 +35,62 @@ func CheckAndAutoRenewal(client models.Client) {
 	clientExpireTime := client.ExpiredAt.UTC()
 	checkTime := time.Now().UTC()
 
-	// 如果到期时间小于0002年，跳过
+	// If the expiration time is less than 0002, skip
 	if clientExpireTime.Year() < 2 {
 		return
 	}
 
-	// 检查是否已过期或当天过期
+	// Check if it has expired or expired today
 	if clientExpireTime.Before(checkTime) || timeutil.SameSystemDate(clientExpireTime, checkTime) {
-		// 计算过期时间距离创建时间的总天数，判断是否为长期账单
+		// Calculate the total number of days from the expiration date to the creation time to determine whether it is a long-term bill
 		now := checkTime
 		localNow := now.In(time.Local)
 		hundredYearsFromNow := localNow.AddDate(100, 0, 0).UTC()
 
-		// 如果过期时间超过当前时间100年，视为长期/一次性账单，不续费
+		// If the expiration time exceeds 100 years from the current time, it will be regarded as a long-term/one-time bill and will not be renewed.
 		if clientExpireTime.After(hundredYearsFromNow) {
 			return
 		}
 
-		// 如果有账单周期且不为0，进行自动续费
+		// If there is a billing cycle and it is not 0, automatic renewal will be performed.
 		if client.BillingCycle > 0 {
-			// 根据账单周期计算新的过期时间
+			// Calculate new expiration time based on billing cycle
 			var newExpireTime time.Time
 			billingCycle := client.BillingCycle
 
-			// 如果服务器的过期时间太早了，那么直接设置为从当前时间算的下一个到期时间
+			// If the server's expiration time is too early, set it directly to the next expiration time calculated from the current time.
 			baseTime := clientExpireTime.In(time.Local)
-			if clientExpireTime.Before(localNow.AddDate(0, 0, -30).UTC()) { // 过期时间超过30天前
+			if clientExpireTime.Before(localNow.AddDate(0, 0, -30).UTC()) { // Expiration date is more than 30 days ago
 				baseTime = localNow
 			}
 
 			if billingCycle >= 27 && billingCycle <= 32 {
-				// 月度计费 - 加1个月
+				// Monthly billing - add 1 month
 				newExpireTime = baseTime.AddDate(0, 1, 0)
 			} else if billingCycle >= 87 && billingCycle <= 95 {
-				// 季度计费 - 加3个月
+				// Quarterly billing - add 3 months
 				newExpireTime = baseTime.AddDate(0, 3, 0)
 			} else if billingCycle >= 175 && billingCycle <= 185 {
-				// 半年计费 - 加6个月
+				// Half-year billing - add 6 months
 				newExpireTime = baseTime.AddDate(0, 6, 0)
 			} else if billingCycle >= 360 && billingCycle <= 370 {
-				// 年度计费 - 加1年
+				// Annual billing - add 1 year
 				newExpireTime = baseTime.AddDate(1, 0, 0)
 			} else if billingCycle >= 720 && billingCycle <= 750 {
-				// 两年计费 - 加2年
+				// Two years billed - add 2 years
 				newExpireTime = baseTime.AddDate(2, 0, 0)
 			} else if billingCycle >= 1080 && billingCycle <= 1150 {
-				// 三年计费 - 加3年
+				// Three years billed - add 3 years
 				newExpireTime = baseTime.AddDate(3, 0, 0)
 			} else if billingCycle >= 1800 && billingCycle <= 1850 {
-				// 五年计费 - 加5年
+				// Five years billed - add 5 years
 				newExpireTime = baseTime.AddDate(5, 0, 0)
 			} else {
-				// 其他情况，直接加上账单周期天数
+				// In other cases, directly add the number of days in the billing cycle
 				newExpireTime = baseTime.AddDate(0, 0, billingCycle)
 			}
 
-			// 更新客户端过期时间
+			// Update client expiration time
 			updates := map[string]interface{}{
 				"uuid":       client.UUID,
 				"expired_at": newExpireTime.UTC(),
@@ -120,7 +120,7 @@ func CheckAndAutoRenewal(client models.Client) {
 		}
 	}
 
-	// 发送续费通知
+	// Send renewal notice
 	// if len(renewedClients) > 0 {
 	// 	message := ""
 	// 	for _, clientInfo := range renewedClients {

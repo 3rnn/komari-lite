@@ -18,8 +18,8 @@ import (
 )
 
 // public.go
-// 公开（guest 可访问）的只读 RPC2 方法。命名空间 public:* 对 guest 开放。
-// 这些方法保持与原 REST 接口完全一致的响应形状。
+// Public read-only RPC2 methods are available to guests through the public:* namespace.
+// These methods preserve the original REST response shapes.
 
 func init() {
 	rpc.Allow("public:*", rpc.RoleGuest)
@@ -37,7 +37,7 @@ func regPublic(name string, h rpc.Handler, summary string) {
 	RegisterWithGroupAndMeta(name, "public", h, &rpc.MethodMeta{Name: "public:" + name, Summary: summary})
 }
 
-// isLoginFromCtx 依据 meta 判断是否为已登录管理员。
+// isLoginFromCtx determines whether it is a logged-in administrator based on meta.
 func isLoginFromCtx(ctx context.Context) bool {
 	if meta := rpc.MetaFromContext(ctx); meta != nil {
 		return meta.Principal != nil && meta.Principal.HasRole(rpc.RoleAdmin)
@@ -74,7 +74,7 @@ func publicGetPublicSettings(ctx context.Context, _ *rpc.JsonRpcRequest) (any, *
 	if e != nil {
 		return nil, rpc.MakeError(rpc.InternalError, e.Error(), nil)
 	}
-	// 临时访问许可由 transport 层在 meta 标注；此处沿用原逻辑判断 temp_key。
+	// The transport marks valid temporary shares in meta; retain the existing temp_key behavior.
 	if meta := rpc.MetaFromContext(ctx); meta != nil && meta.TempShareValid {
 		p["private_site"] = false
 	}
@@ -89,7 +89,7 @@ func publicGetVersion(_ context.Context, _ *rpc.JsonRpcRequest) (any, *rpc.JsonR
 	}, nil
 }
 
-// publicGetMe 返回当前用户信息；未登录时返回 Guest 占位，保持原 /api/me 的扁平形状。
+// publicGetMe returns the current user or a Guest placeholder in the original flat /api/me shape.
 func publicGetMe(ctx context.Context, _ *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
 	guest := map[string]any{"username": "Guest", "logged_in": false}
 	meta := rpc.MetaFromContext(ctx)
@@ -118,7 +118,7 @@ func publicGetClientRecentRecords(ctx context.Context, req *rpc.JsonRpcRequest) 
 		return nil, rpc.MakeError(rpc.InvalidParams, "UUID is required", nil)
 	}
 	if !isLoginFromCtx(ctx) && isHiddenClient(params.UUID) {
-		return nil, rpc.MakeError(rpc.InvalidParams, "UUID is required", nil) // 防止未登录获取隐藏客户端
+		return nil, rpc.MakeError(rpc.InvalidParams, "UUID is required", nil) // Prevent unauthenticated access to hidden clients.
 	}
 	reports := agent_runtime.GetRecentReports(params.UUID)
 	if usage, ok := calibratedUsageForClient(ctx, params.UUID); ok && len(reports) > 0 {
@@ -132,7 +132,7 @@ func publicGetClientRecentRecords(ctx context.Context, req *rpc.JsonRpcRequest) 
 	return reports, nil
 }
 
-// isHiddenClient 查询指定 uuid 是否为隐藏节点。
+// isHiddenClient checks whether the given UUID identifies a hidden node.
 func isHiddenClient(uuid string) bool {
 	var hiddenClients []models.Client
 	db := dbcore.GetDBInstance()
@@ -256,7 +256,7 @@ func publicGetPublicPingTasks(_ context.Context, _ *rpc.JsonRpcRequest) (any, *r
 	return out, nil
 }
 
-// filterPublicRecordsByLoadType 复刻原 public 接口的字段投影逻辑。
+// filterPublicRecordsByLoadType preserves the original public endpoint’s field projection.
 func filterPublicRecordsByLoadType(recs []models.Record, loadType string) []map[string]any {
 	out := make([]map[string]any, 0, len(recs))
 	for _, r := range recs {
@@ -349,7 +349,7 @@ func publicGetPingRecords(ctx context.Context, req *rpc.JsonRpcRequest) (any, *r
 			hiddenMap[cli.UUID] = true
 		}
 		if params.UUID != "" && hiddenMap[params.UUID] {
-			return response, nil // 对尝试获取隐藏 uuid 返回空
+			return response, nil // Return an empty result for a hidden UUID.
 		}
 	}
 

@@ -13,33 +13,32 @@ import (
 	"sync"
 	"time"
 
-
 	_ "github.com/mattn/go-sqlite3"
 )
 
 // Store is the main metric storage handle.
 //
-// Store 是 metric 包的主入口，封装数据库连接、SQL 方言和表名。
+// Store is the main entry point for the metric package, encapsulating database connections, SQL dialects, and table names.
 type Store struct {
 	// cfg is the validated store configuration.
 	//
-	// cfg 是已校验的 Store 配置。
+	// cfg is the verified Store configuration.
 	cfg Config
 	// db is the primary database pool used for writes and fallback reads.
 	//
-	// db 是用于写入和兜底读取的主数据库连接池。
+	// db is the main database connection pool used for writing and reading.
 	db *sql.DB
 	// readDB is the optional dedicated read-only pool.
 	//
-	// readDB 是可选的专用只读连接池。
+	// readDB is an optional dedicated read-only connection pool.
 	readDB *sql.DB
 	// ownedDB reports whether Store should close db.
 	//
-	// ownedDB 表示 Store 是否应关闭 db。
+	// ownedDB indicates whether the Store should close the db.
 	ownedDB bool
 	// ownedReadDB reports whether Store should close readDB.
 	//
-	// ownedReadDB 表示 Store 是否应关闭 readDB。
+	// ownedReadDB indicates whether the Store should close readDB.
 	ownedReadDB bool
 	// heavyReadGate keeps historical decode work bounded independently of the
 	// number of connected agents and HTTP requests.
@@ -50,27 +49,27 @@ type Store struct {
 	axisCache   *sqliteAxisCache
 	// dialect renders backend-specific SQL.
 	//
-	// dialect 渲染后端专用 SQL。
+	// dialect rendering backend-specific SQL.
 	dialect dialect
 	// tables stores the physical table names for this store.
 	//
-	// tables 保存当前 Store 的实际表名。
+	// tables stores the actual table names of the current Store.
 	tables tables
 	// maintenanceMu serializes physical storage maintenance while allowing
 	// concurrent size reads.
 	//
-	// maintenanceMu 串行化物理存储维护，同时允许并发读取存储大小。
+	// maintenanceMu serializes physical storage maintenance while allowing concurrent reads of the storage size.
 	maintenanceMu sync.RWMutex
 	// retentionMu serializes a retention change with writes and compaction so a
 	// disabled metric cannot be repopulated by an in-flight operation.
 	retentionMu sync.RWMutex
 	// mu protects closed state.
 	//
-	// mu 保护 closed 状态。
+	// mu protects the closed state.
 	mu sync.RWMutex
 	// closed reports whether Close has been called.
 	//
-	// closed 表示 Close 是否已经被调用。
+	// closed indicates whether Close has been called.
 	closed bool
 	// sqliteStorageV3 reports that points/rollups are compatibility views over
 	// the normalized SQLite series/value tables.
@@ -91,7 +90,7 @@ func (s *Store) IsVirtualMetric(metricName string) bool {
 
 // Open initializes a Store from a Config.
 //
-// Open 根据配置打开 Store，初始化连接池，并在需要时执行自动迁移。
+// Open opens the Store according to configuration, initializes the connection pool, and performs automatic migration if needed.
 func Open(ctx context.Context, cfg Config) (*Store, error) {
 	if cfg.TablePrefix == "" {
 		cfg.TablePrefix = "metric_"
@@ -281,8 +280,8 @@ func pingDatabaseWithTimeout(ctx context.Context, db *sql.DB, timeout time.Durat
 // reader returns the connection pool to use for read-only queries: the
 // dedicated read pool when one is configured, otherwise the primary pool.
 //
-// reader 返回只读查询应使用的连接池；若配置了专用读池则使用读池，
-// 否则使用主连接池。
+// reader returns the connection pool that should be used for read-only queries; if a dedicated read pool is configured, the read pool will be used.
+// Otherwise the main connection pool is used.
 func (s *Store) reader() *sql.DB {
 	if s.readDB != nil {
 		return s.readDB
@@ -292,7 +291,7 @@ func (s *Store) reader() *sql.DB {
 
 // closeDBs closes database pools owned by the Store.
 //
-// closeDBs 关闭由 Store 自己创建并拥有的数据库连接池。
+// closeDBs closes the database connection pool created and owned by Store itself.
 func (s *Store) closeDBs() {
 	if s.ownedReadDB && s.readDB != nil {
 		_ = s.readDB.Close()
@@ -304,7 +303,7 @@ func (s *Store) closeDBs() {
 
 // prepareSQLiteConfig fills SQLite defaults and prepares file storage.
 //
-// prepareSQLiteConfig 补齐 SQLite 默认参数，并确保文件数据库目录存在。
+// prepareSQLiteConfig completes the SQLite default parameters and ensures that the file database directory exists.
 func prepareSQLiteConfig(cfg Config) (Config, error) {
 	if cfg.SQLite.BusyTimeout == 0 {
 		cfg.SQLite.BusyTimeout = 5 * time.Second
@@ -333,7 +332,7 @@ func prepareSQLiteConfig(cfg Config) (Config, error) {
 
 // ensureSQLiteDir creates the directory for a file-backed SQLite DSN.
 //
-// ensureSQLiteDir 根据 SQLite DSN 创建文件数据库所在目录。
+// ensureSQLiteDir creates the directory where the file database is located based on the SQLite DSN.
 func ensureSQLiteDir(dsn string) error {
 	path := sqliteFilePath(dsn)
 	if path == "" || path == ":memory:" || strings.Contains(dsn, "mode=memory") {
@@ -349,8 +348,8 @@ func ensureSQLiteDir(dsn string) error {
 // sqliteFilePath extracts the filesystem path portion of a SQLite DSN, dropping
 // the "file:" scheme prefix and any query string.
 //
-// sqliteFilePath 从 SQLite DSN 中提取文件路径部分，并去掉 file: 前缀和
-// 查询字符串。
+// sqliteFilePath extracts the file path portion from the SQLite DSN and removes the file: prefix and
+// Query string.
 func sqliteFilePath(dsn string) string {
 	path := strings.TrimPrefix(dsn, "file:")
 	if idx := strings.Index(path, "?"); idx >= 0 {
@@ -362,8 +361,8 @@ func sqliteFilePath(dsn string) string {
 // isMemoryDSN reports whether the DSN refers to an in-memory SQLite database,
 // which cannot be shared across independent connection pools.
 //
-// isMemoryDSN 判断 DSN 是否指向内存 SQLite 数据库；这种数据库不能在独立
-// 连接池之间共享。
+// isMemoryDSN determines whether the DSN points to an in-memory SQLite database; this kind of database cannot be used independently
+// Shared between connection pools.
 func isMemoryDSN(dsn string) bool {
 	if strings.Contains(dsn, "mode=memory") {
 		return true
@@ -373,7 +372,7 @@ func isMemoryDSN(dsn string) bool {
 
 // configureSQLite applies SQLite PRAGMA settings.
 //
-// configureSQLite 对 SQLite 连接执行 WAL、busy_timeout、cache 等 PRAGMA。
+// configureSQLite performs WAL, busy_timeout, cache, etc. PRAGMA on SQLite connections.
 func (s *Store) configureSQLite(ctx context.Context, db *sql.DB) error {
 	return s.configureSQLitePool(ctx, db, 1, s.cfg.SQLite.CacheSizeKB)
 }
@@ -445,7 +444,7 @@ func (s *Store) configureSQLiteConnection(ctx context.Context, db sqlitePragmaEx
 
 // sqliteSynchronousPragma returns the synchronous PRAGMA for a profile.
 //
-// sqliteSynchronousPragma 根据性能预设返回 SQLite synchronous PRAGMA。
+// sqliteSynchronousPragma Returns a SQLite synchronous PRAGMA based on performance preferences.
 func sqliteSynchronousPragma(profile SQLitePerformanceProfile) string {
 	switch profile {
 	case SQLiteProfilePerformance:
@@ -459,14 +458,14 @@ func sqliteSynchronousPragma(profile SQLitePerformanceProfile) string {
 
 // durationMillis converts a duration to rounded-up milliseconds.
 //
-// durationMillis 将 duration 转换为向上取整的毫秒数。
+// durationMillis Converts duration to milliseconds rounded up.
 func durationMillis(d time.Duration) int {
 	return int(math.Ceil(float64(d) / float64(time.Millisecond)))
 }
 
 // Close closes resources owned by the Store.
 //
-// Close 关闭 Store 拥有的连接池；外部传入的 DB 不会被关闭。
+// Close closes the connection pool owned by the Store; external incoming DBs will not be closed.
 func (s *Store) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -490,7 +489,7 @@ func (s *Store) Close() error {
 
 // Ping verifies that the database connection is usable.
 //
-// Ping 检查底层数据库连接是否可用。
+// Ping checks whether the underlying database connection is available.
 func (s *Store) Ping(ctx context.Context) error {
 	if err := s.ensureOpen(); err != nil {
 		return err
@@ -500,7 +499,7 @@ func (s *Store) Ping(ctx context.Context) error {
 
 // ensureOpen verifies that the Store is not closed.
 //
-// ensureOpen 检查 Store 是否仍处于打开状态。
+// ensureOpen checks whether the Store is still open.
 func (s *Store) ensureOpen() error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -515,7 +514,7 @@ func (s *Store) ensureOpen() error {
 
 // CreateMetric creates a metric definition.
 //
-// CreateMetric 创建新的指标定义；同名指标已存在时返回 ErrAlreadyExists。
+// CreateMetric creates a new metric definition; returns ErrAlreadyExists if a metric with the same name already exists.
 func (s *Store) CreateMetric(ctx context.Context, def Definition) error {
 	if err := s.ensureOpen(); err != nil {
 		return err
@@ -560,9 +559,9 @@ func (s *Store) CreateMetric(ctx context.Context, def Definition) error {
 // metadata). Use this when you intentionally want create-or-replace semantics;
 // use CreateMetric when a duplicate name should be an error.
 //
-// UpsertMetric 插入指标定义；如果已存在同名定义，则更新其可变字段
-// （type、unit、description、retention、metadata）。当你明确需要“创建或替换”
-// 语义时使用它；当重复名称应视为错误时使用 CreateMetric。
+// UpsertMetric inserts a metric definition; if a definition with the same name already exists, updates its mutable fields
+// (type, unit, description, retention, metadata). When you explicitly need to "Create or Replace"
+// Use it when semantics are correct; use CreateMetric when duplicate names should be considered an error.
 func (s *Store) UpsertMetric(ctx context.Context, def Definition) error {
 	if err := s.ensureOpen(); err != nil {
 		return err
@@ -603,7 +602,7 @@ func (s *Store) UpsertMetric(ctx context.Context, def Definition) error {
 
 // GetMetric loads one metric definition by name.
 //
-// GetMetric 按名称读取指标定义，不存在时返回 ErrNotFound。
+// GetMetric reads the metric definition by name and returns ErrNotFound if it does not exist.
 func (s *Store) GetMetric(ctx context.Context, name string) (Definition, error) {
 	if err := s.ensureOpen(); err != nil {
 		return Definition{}, err
@@ -624,7 +623,7 @@ func (s *Store) GetMetric(ctx context.Context, name string) (Definition, error) 
 
 // ListMetrics lists all metric definitions.
 //
-// ListMetrics 按名称升序列出所有指标定义。
+// ListMetrics Lists all metric definitions in ascending order of name.
 func (s *Store) ListMetrics(ctx context.Context) ([]Definition, error) {
 	if err := s.ensureOpen(); err != nil {
 		return nil, err
@@ -651,7 +650,7 @@ func (s *Store) ListMetrics(ctx context.Context) ([]Definition, error) {
 
 // DeleteMetric deletes a metric definition and all of its raw and rollup data.
 //
-// DeleteMetric 删除指标定义及其所有原始点和 rollup 数据。
+// DeleteMetric deletes the metric definition and all its raw points and rollup data.
 func (s *Store) DeleteMetric(ctx context.Context, name string) error {
 	if err := s.ensureOpen(); err != nil {
 		return err
@@ -916,7 +915,7 @@ func (s *Store) DeleteMetricDataIfDisabled(ctx context.Context, name string) (bo
 
 // DeleteEntity deletes all raw and rollup data for one entity across every metric.
 //
-// DeleteEntity 删除某个实体在所有指标下的原始点和 rollup 数据。
+// DeleteEntity deletes the raw point and rollup data of an entity under all metrics.
 func (s *Store) DeleteEntity(ctx context.Context, entityID string) (int64, error) {
 	if err := s.ensureOpen(); err != nil {
 		return 0, err
@@ -968,9 +967,9 @@ func (s *Store) DeleteEntity(ctx context.Context, entityID string) (int64, error
 // MetricName is required; EntityID and Tags are optional, so callers can delete
 // one task tag across all agents or one tagged series for a single agent.
 //
-// DeleteSeries 删除匹配查询式序列过滤条件的原始点和 rollup 数据。MetricName 必填；
-// EntityID 和 Tags 可选，因此调用方可以删除所有 agent 的某个 task 标签，或删除
-// 单个 agent 的某条带标签序列。
+// DeleteSeries deletes raw point and rollup data that match the query sequence filter. MetricName is required;
+// EntityID and Tags are optional, so the caller can delete a task tag for all agents, or delete
+// A labeled sequence of a single agent.
 func (s *Store) DeleteSeries(ctx context.Context, filter Query) (int64, error) {
 	if err := s.ensureOpen(); err != nil {
 		return 0, err
@@ -1040,14 +1039,14 @@ func (s *Store) DeleteSeries(ctx context.Context, filter Query) (int64, error) {
 
 // Write stores one metric point.
 //
-// Write 写入单个采样点。
+// Write writes a single sample point.
 func (s *Store) Write(ctx context.Context, point Point) error {
 	return s.WriteBatch(ctx, []Point{point})
 }
 
 // writeBatch writes one chunk of metric points through an executor.
 //
-// WriteBatch 批量写入采样点，并在大批量分块时保持整体事务性。
+// WriteBatch writes sample points in batches and maintains overall transactionality when chunking large batches.
 func (s *Store) WriteBatch(ctx context.Context, points []Point) error {
 	if err := s.ensureOpen(); err != nil {
 		return err
@@ -1129,8 +1128,8 @@ func (s *Store) filterDisabledMetricPoints(ctx context.Context, points []Point) 
 // execer is satisfied by both *sql.DB and *sql.Tx, letting writeBatch run either
 // standalone or inside the batch transaction.
 //
-// execer 同时由 *sql.DB 和 *sql.Tx 满足，使 writeBatch 既可独立执行，
-// 也可在批量事务中执行。
+// execer is satisfied by *sql.DB and *sql.Tx at the same time, so that writeBatch can be executed independently.
+// Can also be executed in batch transactions.
 type execer interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 }
@@ -1142,10 +1141,10 @@ type execer interface {
 // against the pool instead would block forever waiting for the connection the
 // transaction already holds.
 //
-// querier 同时由 *sql.DB 和 *sql.Tx 满足，使读取辅助函数既能独立执行（走读池
-// 或主连接），也能在已有事务中执行。当 Store 只持有单个连接时（例如
-// MaxOpenConns=1 的 SQLite），事务内的读取必须走其所属的 *sql.Tx；否则向连接池
-// 发起读取会永远等待事务已占用的那个连接，造成死锁。
+// The querier is satisfied by both *sql.DB and *sql.Tx, so that the read auxiliary function can be executed independently (the reading pool
+// or main connection), can also be executed within an existing transaction. When the Store only holds a single connection (e.g.
+// SQLite with MaxOpenConns=1), the read within the transaction must go through the *sql.Tx to which it belongs; otherwise, it will go to the connection pool
+// Initiating a read will wait forever for the connection occupied by the transaction, causing a deadlock.
 type querier interface {
 	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
 	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
@@ -1201,7 +1200,7 @@ func (s *Store) pruneUnusedSQLiteSeries(ctx context.Context, q queryExecer) erro
 
 // writeBatch writes one chunk of metric points through an executor.
 //
-// writeBatch 使用给定执行器写入一批采样点。
+// writeBatch writes a batch of sample points using the given executor.
 func (s *Store) writeBatch(ctx context.Context, ex execer, points []Point) error {
 	args := make([]any, 0, len(points)*8)
 	now := time.Now().UTC().UnixNano()
@@ -1242,7 +1241,7 @@ func (s *Store) rollupUpsertSQL() string {
 
 // Query loads raw metric points matching a query.
 //
-// Query 按条件查询原始采样点。
+// Query queries the original sample points according to conditions.
 func (s *Store) Query(ctx context.Context, query Query) ([]Point, error) {
 	if err := s.ensureOpen(); err != nil {
 		return nil, err
@@ -1316,7 +1315,7 @@ func (s *Store) Query(ctx context.Context, query Query) ([]Point, error) {
 
 // EntityIDs returns distinct entity ids that have raw or rollup data matching a query.
 //
-// EntityIDs 返回在原始点或 rollup 中匹配查询条件的实体 ID。
+// EntityIDs Returns the entity IDs that match the query criteria at origin or rollup.
 func (s *Store) EntityIDs(ctx context.Context, query Query) ([]string, error) {
 	if err := s.ensureOpen(); err != nil {
 		return nil, err
@@ -1542,7 +1541,7 @@ func (s *Store) MetricEntityTagValues(ctx context.Context, metricName, tagName s
 
 // Latest loads the newest points for a metric and entity.
 //
-// Latest 查询某指标和实体的最新采样点。
+// Latest queries the latest sample point of an metric and entity.
 func (s *Store) Latest(ctx context.Context, metricName, entityID string, limit int) ([]Point, error) {
 	if err := s.ensureOpen(); err != nil {
 		return nil, err
@@ -1748,7 +1747,7 @@ func (s *Store) LatestBefore(ctx context.Context, metricName, entityID string, b
 
 // Aggregate computes bucketed aggregates from raw points.
 //
-// Aggregate 对原始点执行分桶聚合，能下推到 SQL 的聚合会优先下推。
+// Aggregate performs bucket aggregation on the original points, and aggregates that can be pushed down to SQL will be pushed down first.
 func (s *Store) Aggregate(ctx context.Context, query AggregateQuery) ([]AggregatePoint, error) {
 	if err := s.ensureOpen(); err != nil {
 		return nil, err
@@ -1794,9 +1793,9 @@ func (s *Store) Aggregate(ctx context.Context, query AggregateQuery) ([]Aggregat
 // returned (limit <= 0 means no limit). It mirrors the SQL LIMIT/OFFSET applied
 // in aggregateInSQL so both paths page identically.
 //
-// pageBuckets 对有序 AggregatePoint 切片应用桶级分页。它会从前面跳过 offset
-// 个桶，并最多返回 limit 个桶（limit <= 0 表示不限制）。它镜像 aggregateInSQL
-// 中应用的 SQL LIMIT/OFFSET，使两条路径的分页行为一致。
+// pageBuckets applies bucket-level paging to ordered AggregatePoint slices. It will skip offset from the front
+// buckets, and returns at most limit buckets (limit <= 0 means no limit). It mirrors aggregateInSQL
+// The SQL LIMIT/OFFSET applied in makes the paging behavior of the two paths consistent.
 func pageBuckets(buckets []AggregatePoint, limit, offset int) []AggregatePoint {
 	if offset > 0 {
 		if offset >= len(buckets) {
@@ -1812,7 +1811,7 @@ func pageBuckets(buckets []AggregatePoint, limit, offset int) []AggregatePoint {
 
 // aggregateInSQL computes a bucketed aggregate in the database.
 //
-// aggregateInSQL 使用数据库 GROUP BY 执行可下推的聚合查询。
+// aggregateInSQL uses database GROUP BY to perform pushdown-able aggregate queries.
 func (s *Store) aggregateInSQL(ctx context.Context, query AggregateQuery, valueExpr string) ([]AggregatePoint, error) {
 	q := query.Query.normalized()
 	where, args := s.buildWhere(q)
@@ -1877,7 +1876,7 @@ func (s *Store) aggregateInSQL(ctx context.Context, query AggregateQuery, valueE
 
 // Stats stores or computes summary statistics for a point series.
 //
-// Stats 查询原始点并计算统计摘要。
+// Stats queries the original points and calculates statistical summaries.
 func (s *Store) Stats(ctx context.Context, query Query) (Stats, error) {
 	points, err := s.Query(ctx, query)
 	if err != nil {
@@ -1903,7 +1902,7 @@ func (s *Store) Stats(ctx context.Context, query Query) (Stats, error) {
 
 // DeleteBefore deletes raw points older than a cutoff.
 //
-// DeleteBefore 删除指定时间之前的原始点，可按指标名限定范围。
+// DeleteBefore deletes the original points before the specified time, and the range can be limited by the metric name.
 func (s *Store) DeleteBefore(ctx context.Context, metricName string, before time.Time) (int64, error) {
 	if err := s.ensureOpen(); err != nil {
 		return 0, err
@@ -1983,7 +1982,7 @@ func (s *Store) sqliteV4HasPointsBefore(ctx context.Context, metricName string, 
 
 // CleanupExpired deletes expired raw points for every metric.
 //
-// CleanupExpired 根据各指标保留天数清理过期原始点。
+// CleanupExpired cleans expired original points based on the retention days of each metric.
 func (s *Store) CleanupExpired(ctx context.Context, now time.Time) (int64, error) {
 	defs, err := s.ListMetrics(ctx)
 	if err != nil {
@@ -2013,7 +2012,7 @@ func (s *Store) CleanupExpired(ctx context.Context, now time.Time) (int64, error
 
 // buildWhere renders the WHERE clause and arguments for a raw query.
 //
-// buildWhere 根据 Query 构造 SQL WHERE 条件和参数。
+// buildWhere constructs SQL WHERE conditions and parameters based on Query.
 func (s *Store) buildWhere(query Query) (string, []any) {
 	args := []any{query.MetricName, query.Start.UnixNano(), query.End.UnixNano()}
 	parts := []string{
@@ -2037,7 +2036,7 @@ func (s *Store) buildWhere(query Query) (string, []any) {
 
 // sortedKeys returns sorted map keys.
 //
-// sortedKeys 返回 map 的有序 key 列表，用于生成稳定 SQL。
+// sortedKeys returns a map's ordered key list, used to generate stable SQL.
 func sortedKeys(m map[string]string) []string {
 	if len(m) == 0 {
 		return nil
@@ -2052,7 +2051,7 @@ func sortedKeys(m map[string]string) []string {
 
 // scanDefinition scans a metric definition from one row.
 //
-// scanDefinition 从一行查询结果扫描指标定义。
+// scanDefinition scans a metric definition from a row of query results.
 func scanDefinition(scanner interface{ Scan(dest ...any) error }) (Definition, error) {
 	var def Definition
 	var typ string
@@ -2074,7 +2073,7 @@ func scanDefinition(scanner interface{ Scan(dest ...any) error }) (Definition, e
 
 // sortedPoints returns points ordered by timestamp.
 //
-// sortedPoints 返回按时间排序的点；若输入已排序则直接复用。
+// sortedPoints returns points sorted by time; if the input is sorted, it is reused directly.
 func sortedPoints(points []Point) []Point {
 	// Callers frequently pass series that are already time-ordered (the SQL
 	// queries ORDER BY ts_nano). Detecting that lets us return the input as-is
@@ -2092,7 +2091,7 @@ func sortedPoints(points []Point) []Point {
 
 // isTimeSorted reports whether points are already time sorted.
 //
-// isTimeSorted 判断点序列是否已按时间升序排列。
+// isTimeSorted determines whether the point sequence has been sorted in ascending order of time.
 func isTimeSorted(points []Point) bool {
 	for i := 1; i < len(points); i++ {
 		if points[i].Timestamp.Before(points[i-1].Timestamp) {
@@ -2107,9 +2106,9 @@ func isTimeSorted(points []Point) bool {
 // driver-specific error type imports; this is a best-effort backstop behind the
 // explicit existence check in CreateMetric.
 //
-// isUniqueViolation 判断 err 是否为唯一约束或主键约束冲突。它通过驱动错误文本
-// 匹配，从而让 package 不需要导入驱动专用错误类型；这是 CreateMetric 中显式
-// 存在性检查之后的尽力兜底。
+// isUniqueViolation checks whether err indicates a unique or primary-key constraint violation by
+// matching driver error text, avoiding driver-specific error imports. It is a
+// best-effort fallback after the explicit existence check.
 func isUniqueViolation(err error) bool {
 	if err == nil {
 		return false

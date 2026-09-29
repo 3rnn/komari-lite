@@ -17,8 +17,8 @@ import (
 )
 
 // admin.system.go
-// 系统/运维类 RPC2 方法（admin 命名空间）：日志与连通性测试。
-// 精简版已移除远程执行（admin:exec）、任务结果查询与 Cloudflare Tunnel 管控。
+// System and operations RPC2 methods (admin namespace): logs and connectivity tests.
+// Lite removes remote execution (admin:exec), task-result queries, and Cloudflare Tunnel controls.
 
 func init() {
 	RegisterWithGroupAndMeta("getLogs", rpc.RoleAdmin, adminGetLogs, &rpc.MethodMeta{

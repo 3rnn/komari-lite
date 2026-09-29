@@ -37,9 +37,9 @@ func getClientUUIDByToken(db *gorm.DB, token string, now time.Time) (clientUUID 
 	return client.UUID, nil
 }
 
-// 检查数据防止异常数据导致数据库损坏
+// Check data to prevent abnormal data from causing database damage
 func ReportVerify(report v1.Report) error {
-	// 防止输入不合理范围
+	// Prevent unreasonable input ranges
 	if report.CPU.Usage < 0 || report.CPU.Usage > 100 {
 		return fmt.Errorf("CPU.Usage must be between 0 and 100")
 	}
@@ -55,7 +55,7 @@ func ReportVerify(report v1.Report) error {
 		return nil
 	}
 
-	// [float64] 防止数据溢出
+	// [float64] Prevent data overflow
 	if err := checkFloat64("CPU.Usage", report.CPU.Usage); err != nil {
 		return err
 	}
@@ -73,29 +73,29 @@ func ReportVerify(report v1.Report) error {
 		return nil
 	}
 
-	// [int64] 防止数据溢出
-	// Ram 验证
+	// [int64] Prevent data overflow
+	// Ram verification
 	if err := checkInt64("Ram.Used", report.Ram.Used); err != nil {
 		return err
 	}
 	if err := checkInt64("Ram.Total", report.Ram.Total); err != nil {
 		return err
 	}
-	// Swap 验证
+	// Swap verification
 	if err := checkInt64("Swap.Used", report.Swap.Used); err != nil {
 		return err
 	}
 	if err := checkInt64("Swap.Total", report.Swap.Total); err != nil {
 		return err
 	}
-	// Disk 验证
+	// Disk verification
 	if err := checkInt64("Disk.Used", report.Disk.Used); err != nil {
 		return err
 	}
 	if err := checkInt64("Disk.Total", report.Disk.Total); err != nil {
 		return err
 	}
-	// Network 验证
+	// Network verification
 	if err := checkInt64("Network.Up", report.Network.Up); err != nil {
 		return err
 	}
@@ -108,7 +108,7 @@ func ReportVerify(report v1.Report) error {
 	if err := checkInt64("Network.TotalDown", report.Network.TotalDown); err != nil {
 		return err
 	}
-	// 拒绝所有负数Int
+	// Reject all negative Int
 	if report.Process < 0 {
 		return fmt.Errorf("Process must be non-negative: %d", report.Process)
 	}

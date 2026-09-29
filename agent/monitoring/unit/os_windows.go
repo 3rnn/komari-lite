@@ -22,29 +22,29 @@ func OSName() string {
 		return "Microsoft Windows"
 	}
 
-	// Server 版本保持原样
+	// Preserve Server edition names.
 	if strings.Contains(productName, "Server") {
 		return productName
 	}
 
-	// 如果注册表已经直接提供 Windows 11 名称，直接返回
+	// If the registry already names Windows 11, return it as is.
 	if strings.Contains(productName, "Windows 11") {
 		return productName
 	}
 
-	// Windows 11 从 build 22000 起。DisplayVersion 在 Win10 21H2 也会是 21H2，不能作为判断依据。
+	// Windows 11 starts at build 22000. DisplayVersion can also be 21H2 on Windows 10, so it is not definitive.
 	buildNumberStr, _, err := key.GetStringValue("CurrentBuild")
 	if err == nil {
 		if buildNumber, err2 := strconv.Atoi(buildNumberStr); err2 == nil && buildNumber >= 22000 {
-			// 旧字段可能仍然写着 Windows 10，把前缀替换为 Windows 11
+			// Older registry fields may still say Windows 10; replace that prefix with Windows 11.
 			if strings.HasPrefix(productName, "Windows 10 ") {
 				edition := strings.TrimPrefix(productName, "Windows 10 ")
 				return "Windows 11 " + edition
 			}
-			if productName == "Windows 10" { // 极端精简情况
+			if productName == "Windows 10" { // Minimal registry data case.
 				return "Windows 11"
 			}
-			// 如果不是以 Windows 10 开头，但 build 已经 >= 22000，直接补成 Windows 11 + 原名称尾部
+			// If the name lacks a Windows 10 prefix but build >= 22000, prefix Windows 11 to the remaining name.
 			if !strings.Contains(productName, "Windows 11") {
 				return strings.Replace(productName, "Windows 10", "Windows 11", 1)
 			}

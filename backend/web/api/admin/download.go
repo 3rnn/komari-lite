@@ -340,9 +340,9 @@ func writeDirectoryToZip(writer *zip.Writer, contentDir string) error {
 }
 
 func writeBackupMarkup(writer *zip.Writer, scope backupScope, now time.Time) error {
-	content := "此文件为 Komari 备份标记文件，请勿删除。\nThis is a Komari backup markup file, please do not delete.\n\n" +
-		"备份类型 / Backup Type: " + string(scope) + "\n" +
-		"备份时间 / Backup Time: " + now.UTC().Format(time.RFC3339Nano)
+	content := "This is a Komari backup marker file; do not delete it.\n\n" +
+		"Backup Type: " + string(scope) + "\n" +
+		"Backup Time: " + now.UTC().Format(time.RFC3339Nano)
 	entry, err := writer.CreateHeader(&zip.FileHeader{Name: "komari-backup-markup", Method: zip.Deflate, Modified: now})
 	if err != nil {
 		return err
@@ -384,23 +384,23 @@ func DownloadBackup(c *gin.Context) {
 		return
 	}
 	if !flags.IsSQLite() {
-		api.RespondError(c, http.StatusUnprocessableEntity, "当前主数据库不是 SQLite，无法生成可直接恢复的 Komari 备份")
+		api.RespondError(c, http.StatusUnprocessableEntity, "The primary database is not SQLite; a directly restorable Komari backup cannot be created")
 		return
 	}
 
 	tempDir, err := os.MkdirTemp("", "komari-backup-*")
 	if err != nil {
-		api.RespondError(c, http.StatusInternalServerError, fmt.Sprintf("创建备份临时目录失败: %v", err))
+		api.RespondError(c, http.StatusInternalServerError, fmt.Sprintf("Failed to create temporary backup directory: %v", err))
 		return
 	}
 	defer os.RemoveAll(tempDir)
 	contentDir := filepath.Join(tempDir, "content")
 	if err := os.MkdirAll(contentDir, 0o755); err != nil {
-		api.RespondError(c, http.StatusInternalServerError, fmt.Sprintf("创建备份内容目录失败: %v", err))
+		api.RespondError(c, http.StatusInternalServerError, fmt.Sprintf("Failed to create backup contents directory: %v", err))
 		return
 	}
 	if err := copyPersistentFiles(contentDir); err != nil {
-		api.RespondError(c, http.StatusInternalServerError, fmt.Sprintf("复制持久化配置失败: %v", err))
+		api.RespondError(c, http.StatusInternalServerError, fmt.Sprintf("Failed to copy persisted configuration: %v", err))
 		return
 	}
 
@@ -415,7 +415,7 @@ func DownloadBackup(c *gin.Context) {
 	}
 	if scope == backupScopeFull {
 		if err := metricstore.BackupSQLite(c.Request.Context(), filepath.Join(contentDir, "metrics.db")); err != nil {
-			api.RespondError(c, http.StatusUnprocessableEntity, "完整备份未生成："+err.Error()+"。若使用 MySQL/PostgreSQL，请同时使用数据库自身的备份工具；也可以改用仅配置导出。")
+			api.RespondError(c, http.StatusUnprocessableEntity, "Could not create a full backup: "+err.Error()+". If you use MySQL/PostgreSQL, also use the database-native backup tools, or export configuration only.")
 			return
 		}
 	}
@@ -423,12 +423,12 @@ func DownloadBackup(c *gin.Context) {
 	now := time.Now().UTC()
 	archivePath := filepath.Join(tempDir, "backup.zip")
 	if err := buildBackupArchive(archivePath, contentDir, scope, now); err != nil {
-		api.RespondError(c, http.StatusInternalServerError, fmt.Sprintf("生成备份压缩包失败: %v", err))
+		api.RespondError(c, http.StatusInternalServerError, fmt.Sprintf("Failed to create backup archive: %v", err))
 		return
 	}
 	archive, err := os.Open(archivePath)
 	if err != nil {
-		api.RespondError(c, http.StatusInternalServerError, fmt.Sprintf("读取备份压缩包失败: %v", err))
+		api.RespondError(c, http.StatusInternalServerError, fmt.Sprintf("Failed to read backup archive: %v", err))
 		return
 	}
 	defer archive.Close()

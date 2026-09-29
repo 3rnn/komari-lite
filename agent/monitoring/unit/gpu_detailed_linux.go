@@ -13,13 +13,13 @@ const (
 
 var vendorType = getDetailedVendor()
 
-// DetailedGPUInfo 详细GPU信息结构体
+// DetailedGPUInfo holds detailed GPU information.
 type DetailedGPUInfo struct {
-	Name        string  `json:"name"`         // GPU型号
-	MemoryTotal uint64  `json:"memory_total"` // 总显存 (字节)
-	MemoryUsed  uint64  `json:"memory_used"`  // 已用显存 (字节)
-	Utilization float64 `json:"utilization"`  // GPU使用率 (0-100)
-	Temperature uint64  `json:"temperature"`  // 温度 (摄氏度)
+	Name        string  `json:"name"`         // GPU model.
+	MemoryTotal uint64  `json:"memory_total"` // Total VRAM (bytes).
+	MemoryUsed  uint64  `json:"memory_used"`  // Used VRAM (bytes).
+	Utilization float64 `json:"utilization"`  // GPU utilization (0-100).
+	Temperature uint64  `json:"temperature"`  // Temperature (Celsius).
 }
 
 func getDetailedVendor() uint8 {
@@ -75,7 +75,7 @@ func getAMDDetailedHost() ([]string, error) {
 	return getAMDSysfsDetailedHost()
 }
 
-// GetDetailedGPUHost 获取GPU型号信息
+// GetDetailedGPUHost returns GPU models.
 func GetDetailedGPUHost() ([]string, error) {
 	var gi []string
 	var err error
@@ -96,7 +96,7 @@ func GetDetailedGPUHost() ([]string, error) {
 	return gi, nil
 }
 
-// GetDetailedGPUState 获取GPU使用率
+// GetDetailedGPUState returns GPU utilization.
 func GetDetailedGPUState() ([]float64, error) {
 	var gs []float64
 	var err error
@@ -117,7 +117,7 @@ func GetDetailedGPUState() ([]float64, error) {
 	return gs, nil
 }
 
-// GetDetailedGPUInfo 获取详细GPU信息
+// GetDetailedGPUInfo returns detailed GPU information.
 func GetDetailedGPUInfo() ([]DetailedGPUInfo, error) {
 	var gpuInfos []DetailedGPUInfo
 	var err error

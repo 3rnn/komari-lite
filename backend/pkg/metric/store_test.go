@@ -30,7 +30,7 @@ func TestPingDatabaseWithTimeoutUsesFreshDeadline(t *testing.T) {
 
 // TestSQLiteStoreWriteQueryAggregate verifies SQLite write, query, aggregate, and stats.
 //
-// TestSQLiteStoreWriteQueryAggregate 验证 SQLite 写入、查询、聚合和统计。
+// TestSQLiteStoreWriteQueryAggregate validates SQLite writes, queries, aggregations, and statistics.
 func TestSQLiteStoreWriteQueryAggregate(t *testing.T) {
 	ctx := context.Background()
 	store, err := Open(ctx, SQLite("file:test-metric?mode=memory&cache=shared"))
@@ -186,7 +186,7 @@ func TestUpdateMetricRetentionDefersDisabledMetricCleanup(t *testing.T) {
 
 // TestSQLiteInDirCreatesDirectoryAndAppliesPragmas verifies SQLite file setup and PRAGMAs.
 //
-// TestSQLiteInDirCreatesDirectoryAndAppliesPragmas 验证 SQLite 文件初始化和 PRAGMA 设置。
+// TestSQLiteInDirCreatesDirectoryAndAppliesPragmas Verifies SQLite file initialization and PRAGMA settings.
 func TestSQLiteInDirCreatesDirectoryAndAppliesPragmas(t *testing.T) {
 	ctx := context.Background()
 	dir := filepath.Join(t.TempDir(), "metrics")

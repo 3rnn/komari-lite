@@ -50,7 +50,7 @@ test("every admin language explains reset quota behavior", () => {
   const zhCN = JSON.parse(
     readFileSync(path.resolve("src/i18n/locales/zh_CN.json"), "utf8"),
   );
-  assert.equal(zhCN.admin.nodeEdit.trafficResetAllowance, "重置流量额度");
+  assert.equal(zhCN.admin.nodeEdit.trafficResetAllowance, "Reset traffic allowance");
 });
 
 test("country selector searches by ISO code and renders local flag assets", () => {

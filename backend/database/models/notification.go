@@ -8,27 +8,27 @@ import (
 	"time"
 )
 
-// Notification 定义了通知相关的数据库模型
+// Notification defines notification-related database models
 type OfflineNotification struct {
 	Client     string `json:"client" gorm:"type:varchar(36);not null;index;unique;constraint:OnDelete:CASCADE,OnUpdate:CASCADE;foreignKey:client;references:UUID"`
 	ClientInfo Client `json:"client_info,omitempty" gorm:"foreignKey:Client;references:UUID"`
 	Enable     bool   `json:"enable" gorm:"type:boolean;default:false"`
-	//Cooldown     int       `json:"cooldown" gorm:"type:int;not null;default:1800"`                // 冷却时间（秒），默认 30 分钟
-	GracePeriod  int        `json:"grace_period" gorm:"type:int;not null;default:180"` // 宽限期（秒），默认 3 分钟
-	LastNotified *time.Time `json:"last_notified"`                                     // 上次通知时间
+	//Cooldown int `json:"cooldown" gorm:"type:int;not null;default:1800"` // Cooldown time (seconds), default 30 minutes
+	GracePeriod  int        `json:"grace_period" gorm:"type:int;not null;default:180"` // Grace period (seconds), default 3 minutes
+	LastNotified *time.Time `json:"last_notified"`                                     // Last notification time
 }
 
-// LoadNotification 定义了基于资源占用达标时间比的负载通知规则
+// LoadNotification defines load notification rules based on the ratio of resource occupation to target time
 type LoadNotification struct {
 	Id           uint        `json:"id,omitempty" gorm:"primaryKey;autoIncrement"`
 	Name         string      `json:"name" gorm:"type:varchar(255)"`
 	Clients      StringArray `json:"clients" gorm:"type:longtext"`
-	DefaultOn    bool        `json:"default_on" gorm:"column:all_clients;not null;default:false"` // 新加入的服务器是否自动启用此告警；现有服务器不受此字段影响
-	Metric       string      `json:"metric" gorm:"type:varchar(50);not null;default:'cpu'"`       // 监控指标，如 cpu, ram, load
-	Threshold    float32     `json:"threshold" gorm:"type:decimal(5,2);not null;default:80.00"`   // 阈值百分比
-	Ratio        float32     `json:"ratio" gorm:"type:decimal(5,2);not null;default:0.80"`        // 达标时间比
-	Interval     int         `json:"interval" gorm:"type:int;not null;default:15"`                // 监测间隔（分钟）
-	LastNotified *time.Time  `json:"last_notified"`                                               // 上次通知时间
+	DefaultOn    bool        `json:"default_on" gorm:"column:all_clients;not null;default:false"` // Whether newly added servers automatically enable this alarm; existing servers are not affected by this field
+	Metric       string      `json:"metric" gorm:"type:varchar(50);not null;default:'cpu'"`       // Monitor indicators such as cpu, ram, load
+	Threshold    float32     `json:"threshold" gorm:"type:decimal(5,2);not null;default:80.00"`   // threshold percentage
+	Ratio        float32     `json:"ratio" gorm:"type:decimal(5,2);not null;default:0.80"`        // Time to reach target ratio
+	Interval     int         `json:"interval" gorm:"type:int;not null;default:15"`                // Monitoring interval (minutes)
+	LastNotified *time.Time  `json:"last_notified"`                                               // Last notification time
 }
 
 // LoadNotificationRuleFingerprint identifies the fields that define one load
@@ -65,16 +65,16 @@ type LoadNotificationState struct {
 	UpdatedAt       time.Time        `json:"updated_at"`
 }
 
-// TrafficReportNotification 定义了流量定时报告的数据库模型
+// TrafficReportNotification defines the database model for traffic scheduled reporting
 type TrafficReportNotification struct {
 	Client         string `json:"client" gorm:"type:varchar(36);not null;index;unique;constraint:OnDelete:CASCADE,OnUpdate:CASCADE;foreignKey:client;references:UUID"`
 	ClientInfo     Client `json:"client_info,omitempty" gorm:"foreignKey:Client;references:UUID"`
 	Enable         bool   `json:"enable" gorm:"type:boolean;default:false"`
-	Daily          bool   `json:"daily" gorm:"type:boolean;default:false"`           // 日报
-	Weekly         bool   `json:"weekly" gorm:"type:boolean;default:false"`          // 周报
-	Monthly        bool   `json:"monthly" gorm:"type:boolean;default:false"`         // 月报
-	IncludeTraffic bool   `json:"include_traffic" gorm:"type:boolean;default:true"`  // 上行/下行流量
-	IncludeBilling bool   `json:"include_billing" gorm:"type:boolean;default:false"` // 按服务器计费规则计算的流量
+	Daily          bool   `json:"daily" gorm:"type:boolean;default:false"`           // daily newspaper
+	Weekly         bool   `json:"weekly" gorm:"type:boolean;default:false"`          // weekly report
+	Monthly        bool   `json:"monthly" gorm:"type:boolean;default:false"`         // monthly report
+	IncludeTraffic bool   `json:"include_traffic" gorm:"type:boolean;default:true"`  // Upstream/Downstream traffic
+	IncludeBilling bool   `json:"include_billing" gorm:"type:boolean;default:false"` // Traffic calculated according to server billing rules
 }
 
 // TrafficDailyLedger stores exact report traffic for one Beijing calendar day.

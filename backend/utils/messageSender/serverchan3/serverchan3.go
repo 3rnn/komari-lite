@@ -12,43 +12,43 @@ import (
 	"github.com/komari-monitor/komari/utils/messageSender/factory"
 )
 
-// ServerChan3Sender 为 Server酱³ 推送实现
+// ServerChan3Sender is implemented for Serverchan³ push
 type ServerChan3Sender struct {
 	Addition
 }
 
-// GetName 返回推送通道名称
+// GetName returns the push channel name
 func (s *ServerChan3Sender) GetName() string {
-	return "Server酱³"
+	return "Server\u9171³"
 }
 
-// GetConfiguration 返回配置结构体指针
+// GetConfiguration returns the configuration structure pointer
 func (s *ServerChan3Sender) GetConfiguration() factory.Configuration {
 	return &s.Addition
 }
 
-// Init 初始化（当前无需处理）
+// Init initialization (no need to process currently)
 func (s *ServerChan3Sender) Init() error { return nil }
 
-// Destroy 清理（当前无需处理）
+// Destroy cleanup (no need to process currently)
 func (s *ServerChan3Sender) Destroy() error { return nil }
 
-// SendTextMessage 发送文本消息（携带标题）。
-// 简化为固定 JSON POST：内部仅组装 {"title": ..., "desp": ...}，不允许用户自定义请求体或内容类型。
+// SendTextMessage Sends a text message (with headers).
+// Simplified to a fixed JSON POST: only {"title": ..., "desp": ...} is assembled internally, and users are not allowed to customize the request body or content type.
 func (s *ServerChan3Sender) SendTextMessage(message, title string) error {
 	apiURL := strings.TrimSpace(s.Addition.APIURL)
 	if apiURL == "" {
-		return fmt.Errorf("未配置 Server酱³ 接口地址(api_url)")
+		return fmt.Errorf("ServerChan3 API URL (api_url) is not configured")
 	}
 
-	// 简化校验：若标题与正文均为空则拒绝发送
+	// Simplified verification: If the title and body are both empty, refuse to send
 	finalTitle := strings.TrimSpace(title)
 	finalMessage := strings.TrimSpace(message)
 	if finalTitle == "" && finalMessage == "" {
-		return fmt.Errorf("serverchan3: 标题与正文均为空")
+		return fmt.Errorf("serverchan3: both title and body are empty")
 	}
 
-	// 固定 JSON 载荷，包含 title、desp，并支持可选 tags（通过 | 分割）
+	// Fixed JSON payload, including title, desp, and supports optional tags (split by |)
 	payload := map[string]string{
 		"title": finalTitle,
 		"desp":  finalMessage,
@@ -63,43 +63,43 @@ func (s *ServerChan3Sender) SendTextMessage(message, title string) error {
 			}
 		}
 		if len(cleaned) > 0 {
-			// Server酱³ 校验提示需要字符串，这里按 | 拼接为字符串
+			// ServerChan3 requires a string for its verification prompt; join tags with |.
 			payload["tags"] = strings.Join(cleaned, "|")
 		}
 	}
 	bodyBytes, err := json.Marshal(payload)
 	if err != nil {
-		return fmt.Errorf("组装 JSON 失败: %v", err)
+		return fmt.Errorf("failed to build JSON: %v", err)
 	}
 
 	client := &http.Client{Timeout: 30 * time.Second}
 	req, err := http.NewRequest("POST", apiURL, bytes.NewBuffer(bodyBytes))
 	if err != nil {
-		return fmt.Errorf("创建请求失败: %v", err)
+		return fmt.Errorf("failed to create request: %v", err)
 	}
-	// 固定设置 Content-Type
+	// Fixed setting Content-Type
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("发送请求失败: %v", err)
+		return fmt.Errorf("failed to send request: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		// 读取响应体用于错误信息打印
+		// Read the response body for error message printing
 		b, _ := io.ReadAll(resp.Body)
 		msg := strings.TrimSpace(string(b))
 		if msg == "" {
-			return fmt.Errorf("接口返回非 2xx 状态码: %d", resp.StatusCode)
+			return fmt.Errorf("API returned a non-2xx status: %d", resp.StatusCode)
 		}
-		return fmt.Errorf("接口返回非 2xx 状态码: %d，响应: %s", resp.StatusCode, msg)
+		return fmt.Errorf("API returned a non-2xx status: %d, response: %s", resp.StatusCode, msg)
 	}
 
 	return nil
 }
 
-// 之前的模板、表单解析与手动转义工具不再需要，简化实现
+// The previous templates, form parsing and manual escaping tools are no longer needed, simplifying implementation.
 
-// 确保实现 IMessageSender 接口
+// Make sure to implement the IMessageSender interface
 var _ factory.IMessageSender = (*ServerChan3Sender)(nil)

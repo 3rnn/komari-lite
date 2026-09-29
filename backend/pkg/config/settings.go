@@ -10,28 +10,28 @@ const (
 
 type Settings struct {
 	ID                     uint   `json:"id,omitempty"`                                        // 1
-	Sitename               string `json:"sitename" default:"Komari Lite"`                      // 站点名称，默认 "Komari Lite"
-	Description            string `json:"description" default:"A simple server monitor tool."` // 站点描述
-	AdminDefaultPageSize   int    `json:"admin_default_page_size" default:"10"`                // 后台列表默认每页条数
-	ReduceMotion           bool   `json:"reduce_motion" default:"false"`                       // 减少后台界面动态效果
-	AutoOrderNewClients    bool   `json:"auto_order_new_clients_by_region" default:"false"`    // 新服务器首次识别国家后自动排到同组同国家节点后面，默认关闭
-	CorsOriginCheckEnabled bool   `json:"cors_origin_check_enabled" default:"true"`            // 是否启用 API CORS 跨域请求校验，默认 true
-	CorsAllowedOrigins     string `json:"cors_allowed_origins" default:""`                     // API 跨域允许列表
-	WsOriginCheckEnabled   bool   `json:"ws_origin_check_enabled" default:"true"`              // 是否校验 WebSocket Origin
-	WsAllowedOrigins       string `json:"ws_allowed_origins" default:""`                       // WebSocket Origin 允许列表
-	Theme                  string `json:"theme" default:"nezha"`                               // 新安装默认使用 Nezha 公共主题
-	PrivateSite            bool   `json:"private_site" default:"false"`                        // 是否为私有站点，默认 false
-	ApiKey                 string `json:"api_key" default:""`                                  // API 密钥，默认空字符串
-	AutoDiscoveryKey       string `json:"auto_discovery_key" default:""`                       // 自动发现密钥
-	ScriptDomain           string `json:"script_domain" default:""`                            // 自定义脚本域名
-	SendIpAddrToGuest      bool   `json:"send_ip_addr_to_guest" default:"false"`               // 是否向访客页面发送 IP 地址，默认 false
-	VisitorAuditEnabled    bool   `json:"visitor_audit_enabled" default:"false"`               // 是否允许公开访客事件写入审计日志，默认 false
+	Sitename               string `json:"sitename" default:"Komari Lite"`                      // Site name, default "Komari Lite"
+	Description            string `json:"description" default:"A simple server monitor tool."` // site description
+	AdminDefaultPageSize   int    `json:"admin_default_page_size" default:"10"`                // The default number of items per page in the background list
+	ReduceMotion           bool   `json:"reduce_motion" default:"false"`                       // Reduce background interface dynamic effects
+	AutoOrderNewClients    bool   `json:"auto_order_new_clients_by_region" default:"false"`    // After the new server recognizes the country for the first time, it will automatically be ranked behind the nodes in the same group and the same country. It is turned off by default.
+	CorsOriginCheckEnabled bool   `json:"cors_origin_check_enabled" default:"true"`            // Whether to enable API CORS cross-domain request verification, default true
+	CorsAllowedOrigins     string `json:"cors_allowed_origins" default:""`                     // API cross-domain allow list
+	WsOriginCheckEnabled   bool   `json:"ws_origin_check_enabled" default:"true"`              // Whether to verify WebSocket Origin
+	WsAllowedOrigins       string `json:"ws_allowed_origins" default:""`                       // WebSocket Origin allow list
+	Theme                  string `json:"theme" default:"nezha"`                               // New installations use the Nezha public theme by default
+	PrivateSite            bool   `json:"private_site" default:"false"`                        // Whether it is a private site, default false
+	ApiKey                 string `json:"api_key" default:""`                                  // API key, default empty string
+	AutoDiscoveryKey       string `json:"auto_discovery_key" default:""`                       // Automatically discover keys
+	ScriptDomain           string `json:"script_domain" default:""`                            // Custom script domain name
+	SendIpAddrToGuest      bool   `json:"send_ip_addr_to_guest" default:"false"`               // Whether to send the IP address to the guest page, default false
+	VisitorAuditEnabled    bool   `json:"visitor_audit_enabled" default:"false"`               // Whether to allow public guest events to be written to the audit log, default false
 	EulaAccepted           bool   `json:"eula_accepted" default:"false"`
 	BaseScriptsURLKey      string `json:"base_scripts_url" default:""`
-	// GeoIP 配置
+	// GeoIP configuration
 	GeoIpEnabled  bool   `json:"geo_ip_enabled" default:"false"`
 	GeoIpProvider string `json:"geo_ip_provider" default:"ipinfo"` // empty, mmdb, ip-api, geojs
-	// OAuth 配置
+	// OAuth configuration
 	OAuthEnabled          bool   `json:"o_auth_enabled" default:"false"`
 	OAuthProvider         string `json:"o_auth_provider" default:"github"`
 	DisablePasswordLogin  bool   `json:"disable_password_login" default:"false"`
@@ -41,19 +41,19 @@ type Settings struct {
 	HTTPSRedirectHTTP     bool   `json:"https_redirect_http" default:"false"`
 	HTTPSCertificatePath  string `json:"https_certificate_path" default:"./data/tls/server.crt"`
 	HTTPSPrivateKeyPath   string `json:"https_private_key_path" default:"./data/tls/server.key"`
-	// 自定义美化
+	// Custom landscaping
 	CustomHead string `json:"custom_head" default:""`
 	CustomBody string `json:"custom_body" default:""`
 
-	// 通知
-	NotificationEnabled        bool    `json:"notification_enabled" default:"true"` // 通知总开关
+	// Notification
+	NotificationEnabled        bool    `json:"notification_enabled" default:"true"` // Notification master switch
 	NotificationMethod         string  `json:"notification_method" default:"none"`
 	NotificationTemplate       string  `json:"notification_template" default:"{{emoji}}{{emoji}}{{emoji}}\nEvent: {{event}}\nClients: {{client}}\nMessage: {{message}}\nTime: {{time}}"`
-	ExpireNotificationEnabled  bool    `json:"expire_notification_enabled" default:"true"` // 是否启用过期通知
-	ExpireNotificationLeadDays int     `json:"expire_notification_lead_days" default:"7"`  // 过期前多少天通知，默认7天
-	LoginNotification          bool    `json:"login_notification" default:"true"`          // 登录通知
-	TrafficLimitPercentage     float64 `json:"traffic_limit_percentage" default:"80.00"`   // 流量限制百分比，默认80.00%
-	TrafficReportTime          string  `json:"traffic_report_time" default:"00:00"`        // 流量日报/周报/月报发送时间（北京时间）
+	ExpireNotificationEnabled  bool    `json:"expire_notification_enabled" default:"true"` // Whether to enable expiry notifications
+	ExpireNotificationLeadDays int     `json:"expire_notification_lead_days" default:"7"`  // How many days to notify before expiration, the default is 7 days
+	LoginNotification          bool    `json:"login_notification" default:"true"`          // Login notification
+	TrafficLimitPercentage     float64 `json:"traffic_limit_percentage" default:"80.00"`   // Traffic limit percentage, default 80.00%
+	TrafficReportTime          string  `json:"traffic_report_time" default:"00:00"`        // Traffic daily/weekly/monthly report sending time (Beijing time)
 	UpdatedAt                  time.Time
 }
 

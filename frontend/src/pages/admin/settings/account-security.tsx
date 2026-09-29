@@ -40,7 +40,7 @@ export default function AccountSecuritySettings() {
       <AdminPageTitle
         description={t(
           "settings.account_security_page_description",
-          "管理管理员账户、登录方式与当前会话。",
+          "Manage login credentials, two-factor authentication, sessions, and API access.",
         )}
       >
         {t("navigation.account_security")}

@@ -1,9 +1,9 @@
 import type { PasswordLoginResult } from "./adminAuth";
 
 export type LoginStepState = {
-  /** 是否已经进入「输入动态口令」这一步 */
+  /** Whether the user has reached the one-time-code step. */
   require2FA: boolean;
-  /** 展示给用户的错误文案（空字符串表示不显示） */
+  /** Error text to display; an empty string hides it. */
   errorMsg: string;
 };
 
@@ -13,10 +13,10 @@ export const initialLoginStepState: LoginStepState = {
 };
 
 /**
- * 根据一次登录尝试的结果推导下一步界面状态。
+ * Derive the next UI state from a login attempt.
  *
- * 关键点：服务端在账号开启 2FA 且本次没带口令时返回 `2FA code is required`，
- * 这只是「流程进入第二步」的信号，不是错误——把它当红色报错抛给用户会让人以为账号有问题。
+ * The server responds with `2FA code is required` for 2FA-enabled accounts when no code is supplied.
+ * That is a transition to step two, not an error; displaying it as an error wrongly suggests bad credentials.
  */
 export function nextLoginStepState(
   previous: LoginStepState,

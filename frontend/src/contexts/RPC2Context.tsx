@@ -21,12 +21,12 @@ interface RPC2ContextType {
 
 const RPC2Context = createContext<RPC2ContextType | undefined>(undefined);
 
-// 模块级单例，避免在开发环境 StrictMode 或路由切换时产生多个连接
+// Module-level singleton prevents duplicate connections under StrictMode or route changes.
 let __rpc2_singleton__: RPC2Client | null = null;
 let __rpc2_refcount = 0;
 
 export const RPC2Provider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // 创建/复用客户端实例，默认启用自动连接
+  // Create or reuse the client with automatic connection enabled.
   const [client] = useState(() => {
     if (!__rpc2_singleton__) {
       __rpc2_singleton__ = new RPC2Client("/api/rpc2", { autoConnect: true });
@@ -38,7 +38,7 @@ export const RPC2Provider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     __rpc2_refcount++;
-    // 设置事件监听器
+    // Register event listeners.
     client.setEventListeners({
       onConnect: () => {
         setConnectionState(client.state);
@@ -53,14 +53,14 @@ export const RPC2Provider: React.FC<{ children: React.ReactNode }> = ({ children
       },
       onReconnecting: (attempt) => {
         setConnectionState(client.state);
-        console.log(`RPC2 重连尝试 ${attempt}`);
+        console.log(`RPC2 reconnect attempt ${attempt}`);
       },
     });
 
-    // 清理函数
+    // Clean up listeners.
     return () => {
       __rpc2_refcount = Math.max(0, __rpc2_refcount - 1);
-      // 只有在最后一个 Provider 卸载时才断开连接
+      // Disconnect only when the last provider unmounts.
       if (__rpc2_refcount === 0) {
         client.clearEventListeners();
         client.disconnect();
@@ -110,11 +110,11 @@ export const useRPC2 = (): RPC2ContextType => {
   return context;
 };
 
-// 自定义 Hook 用于调用 RPC 方法
+// Hook for RPC method calls.
 export const useRPC2Call = () => {
   const { client, isConnected } = useRPC2();
 
-  // 保持稳定引用，避免消费者重复触发副作用
+  // Keep a stable reference to avoid retriggering consumer effects.
   const call = useCallback(<TParams = any, TResult = any>(
     method: string,
     params?: TParams,

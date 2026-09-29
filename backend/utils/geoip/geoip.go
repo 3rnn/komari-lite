@@ -24,8 +24,8 @@ func init() {
 	geoCache = cache.New(48*time.Hour, 1*time.Hour)
 }
 
-// GeoIPService 接口定义了获取地理位置信息的核心方法。
-// 任何实现此接口的类型都可以作为地理位置服务提供者。
+// The GeoIPService interface defines the core method for obtaining geographical location information.
+// Any type that implements this interface can serve as a geolocation service provider.
 type GeoIPService interface {
 	Name() string
 
@@ -115,7 +115,7 @@ func InitGeoIp() {
 	}
 }
 
-// Shutdown 关闭当前 GeoIP provider 持有的资源（如 mmdb 文件句柄）。供关闭流程调用。
+// Shutdown closes the resources held by the current GeoIP provider (such as mmdb file handle). Called by the shutdown process.
 func Shutdown() error {
 	if CurrentProvider == nil {
 		return nil

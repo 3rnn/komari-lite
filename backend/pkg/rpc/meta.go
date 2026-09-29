@@ -1,8 +1,8 @@
 package rpc
 
 // meta.go
-// 为已注册的 RPC 方法维护可选的帮助/描述信息，供 rpc.help 使用。
-// 不影响原有 Register 行为；未显式附加元数据时会自动生成仅包含名称的占位。
+// Maintains optional help/description information for registered RPC methods for use by rpc.help.
+// Does not affect the original Register behavior; when metadata is not explicitly attached, a placeholder containing only the name will be automatically generated.
 
 import (
 	"sort"
@@ -10,7 +10,7 @@ import (
 	"sync"
 )
 
-// ParamMeta 描述单个参数。
+// ParamMeta describes a single parameter.
 type ParamMeta struct {
 	Name        string `json:"name"`
 	Type        string `json:"type,omitempty"`
@@ -18,7 +18,7 @@ type ParamMeta struct {
 	Description string `json:"description,omitempty"`
 }
 
-// MethodMeta 描述方法的帮助信息。
+// MethodMeta Help information describing the method.
 type MethodMeta struct {
 	Name        string      `json:"name"`
 	Summary     string      `json:"summary,omitempty"`
@@ -33,7 +33,7 @@ var (
 	methodMetas = map[string]*MethodMeta{}
 )
 
-// getMetaUnsafe 内部使用：调用方需已持有 handlers 的读/写锁或自行同步（此处独立锁保障并发）。
+// getMetaUnsafe internal use: the caller needs to hold the read/write lock of handlers or synchronize itself (independent lock here guarantees concurrency).
 func getMetaUnsafe(name string) *MethodMeta {
 	muMetas.RLock()
 	m := methodMetas[name]
@@ -41,7 +41,7 @@ func getMetaUnsafe(name string) *MethodMeta {
 	return m
 }
 
-// ensureMeta 确保存在基本元数据（最少 Name）。
+// ensureMeta ensures basic metadata (minimum Name) is present.
 func ensureMeta(name string) {
 	if name == "" {
 		return
@@ -53,7 +53,7 @@ func ensureMeta(name string) {
 	muMetas.Unlock()
 }
 
-// RegisterMeta 为已注册方法附加/覆盖元数据（Name 字段若为空自动填充）。
+// RegisterMeta appends/overwrites metadata for registered methods (the Name field is automatically filled in if it is empty).
 func RegisterMeta(name string, meta *MethodMeta) {
 	if name == "" || meta == nil {
 		return
@@ -66,7 +66,7 @@ func RegisterMeta(name string, meta *MethodMeta) {
 	muMetas.Unlock()
 }
 
-// RegisterWithMeta 同时注册方法与元数据；若注册失败返回错误。
+// RegisterWithMeta registers methods and metadata at the same time; if registration fails, an error is returned.
 func RegisterWithMeta(method string, h Handler, meta *MethodMeta) error {
 	if err := Register(method, h); err != nil {
 		return err
@@ -79,7 +79,7 @@ func RegisterWithMeta(method string, h Handler, meta *MethodMeta) error {
 	return nil
 }
 
-// listMetas 获取所有方法（按给定过滤器）简要元数据的副本。
+// listMetas Gets a copy of the brief metadata for all methods (by the given filter).
 func listMetas(includeInternal bool) []*MethodMeta {
 	muHandlers.RLock()
 	names := make([]string, 0, len(handlers))
@@ -93,7 +93,7 @@ func listMetas(includeInternal bool) []*MethodMeta {
 			continue
 		}
 		if m := getMetaUnsafe(n); m != nil {
-			out = append(out, &MethodMeta{ // 复制简要字段
+			out = append(out, &MethodMeta{ // Copy brief fields
 				Name:    m.Name,
 				Summary: m.Summary,
 			})

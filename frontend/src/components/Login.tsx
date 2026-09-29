@@ -12,7 +12,6 @@ import {
 import { useTranslation } from "react-i18next";
 import { CircleAlert, LoaderCircle, LogIn } from "lucide-react";
 import { TablerSettings } from "./Icones/Tabler";
-import LanguageSwitch from "./Language";
 import LoginIdentityHeader from "./LoginIdentityHeader";
 import ThemeSwitch from "./ThemeSwitch";
 import {
@@ -34,7 +33,7 @@ type LoginDialogProps = {
   standalone?: boolean;
 };
 
-// 服务端在动态口令错误时返回的原文（web/api/AuthSensitive.go: err2FAInvalid）。
+// Original server error for an invalid one-time code (web/api/AuthSensitive.go: err2FAInvalid).
 const INVALID_2FA_MESSAGE = "Invalid 2FA code";
 
 const LoginDialogContent = ({
@@ -92,7 +91,7 @@ const LoginDialogContent = ({
         }
         return;
       }
-      // 「需要动态口令」是流程信号而不是错误，交给 loginFlow 决定界面状态
+      // A required code signals the next step, not an error; let loginFlow choose the UI state.
       const next = nextLoginStepState({ require2FA, errorMsg }, result);
       setRequire2FA(next.require2FA);
       setErrorMsg(next.errorMsg);
@@ -195,17 +194,17 @@ const LoginDialogContent = ({
         {passwordLoginEnabled && require2FA ? (
           <Flex direction="column" gap="2">
             <Text as="div" size="2" weight="medium">
-              {t("login.two_factor_title", "两步验证")}
+              {t("login.two_factor_title", "Two-step verification")}
             </Text>
             <Text as="div" size="1" color="gray">
               {t(
                 "login.two_factor_hint",
-                "请打开身份验证器 App，输入当前显示的 6 位动态口令。",
+                "Open your authenticator app and enter the current 6-digit code.",
               )}
             </Text>
             <label>
               <Text as="div" size="2" mb="1" weight="medium">
-                {t("login.two_factor_code_label", "动态口令")}
+                {t("login.two_factor_code_label", "One-time code")}
               </Text>
               <TextField.Root
                 value={twoFactorDigits}
@@ -225,7 +224,7 @@ const LoginDialogContent = ({
             <Text as="div" size="1" color="gray">
               {t(
                 "login.two_factor_trouble",
-                "提示：口令 30 秒更新一次，请确认设备时间准确；连续失败会被临时限流。",
+                "Codes rotate every 30 seconds - make sure the device clock is accurate. Repeated failures are rate limited.",
               )}
             </Text>
           </Flex>
@@ -235,7 +234,7 @@ const LoginDialogContent = ({
             {require2FA && errorMsg === INVALID_2FA_MESSAGE
               ? t(
                   "login.two_factor_invalid_hint",
-                  "口令不正确或已过期，请输入验证器当前显示的 6 位口令后重试。",
+                  "That code is wrong or expired. Enter the 6-digit code your authenticator shows right now.",
                 )
               : errorMsg}
           </Text>
@@ -257,7 +256,7 @@ const LoginDialogContent = ({
           {isLoading
             ? t("login.logging_in")
             : require2FA
-              ? t("login.two_factor_verify", "验证并登录")
+              ? t("login.two_factor_verify", "Verify and sign in")
               : t("login.title")}
         </Button>
         {require2FA ? (
@@ -269,7 +268,7 @@ const LoginDialogContent = ({
             disabled={isLoading}
             onClick={resetTwoFactorStep}
           >
-            {t("login.two_factor_back", "返回上一步")}
+            {t("login.two_factor_back", "Back")}
           </Button>
         ) : null}
       </Flex>
@@ -309,10 +308,9 @@ const StandaloneShell = ({
   return (
     <div className="w-full max-w-[420px] px-4 py-8 sm:px-0">
       <div className="fixed right-4 top-4 z-10 flex gap-2 sm:right-6 sm:top-6">
-        <LanguageSwitch />
         <ThemeSwitch />
       </div>
-      <section className="rounded-lg border border-[var(--gray-a5)] bg-[var(--color-panel-solid)] p-5 shadow-lg sm:p-7">
+      <section className="rounded-lg border border-[var(--gray-a5)] bg-[var(--color-panel-solid)] p-5 sm:p-7">
         <LoginIdentityHeader />
         {info ? <Text as="div" size="2" color="gray" mb="4">{info}</Text> : null}
         {children}

@@ -8,38 +8,38 @@ import (
 	"time"
 )
 
-// GeoJSService 使用 geojs.io 服务实现 GeoIPService 接口。
+// GeoJSService implements the GeoIPService interface using geojs.io services.
 type GeoJSService struct {
 	Client *http.Client
 }
 
-// geoJSResponse 定义了 geojs.io 服务返回的 JSON 响应的结构。
-// 我们只定义我们需要的字段。
+// geoJSResponse defines the structure of the JSON response returned by the geojs.io service.
+// We only define the fields we need.
 type geoJSResponse struct {
 	Country     string `json:"country"`
 	CountryCode string `json:"country_code"`
-	// 可以根据需要添加其他字段，例如:
+	// Additional fields can be added as needed, for example:
 	// City    string `json:"city"`
 	// Region  string `json:"region"`
 }
 
-// NewGeoJSService 创建并返回一个 GeoJSService 的新实例。
+// NewGeoJSService Creates and returns a new instance of GeoJSService.
 func NewGeoJSService() (*GeoJSService, error) {
 	return &GeoJSService{
 		Client: &http.Client{
-			Timeout: 5 * time.Second, // 设置一个合理的超时时间
+			Timeout: 5 * time.Second, // Set a reasonable timeout
 		},
 	}, nil
 }
 
-// Name 返回服务的名称。
+// Name returns the name of the service.
 func (s *GeoJSService) Name() string {
 	return "geojs.io"
 }
 
-// GetGeoInfo 使用 geojs.io 服务检索给定 IP 地址的地理位置信息。
+// GetGeoInfo uses the geojs.io service to retrieve geolocation information for a given IP address.
 func (s *GeoJSService) GetGeoInfo(ip net.IP) (*GeoInfo, error) {
-	// GeoJS 的 API 端点
+	// API endpoints for GeoJS
 	apiURL := fmt.Sprintf("https://get.geojs.io/v1/ip/geo/%s.json", ip.String())
 
 	resp, err := s.Client.Get(apiURL)
@@ -48,7 +48,7 @@ func (s *GeoJSService) GetGeoInfo(ip net.IP) (*GeoInfo, error) {
 	}
 	defer resp.Body.Close()
 
-	// 检查响应状态码
+	// Check response status code
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("geojs.io returned non-200 status code: %d", resp.StatusCode)
 	}
@@ -58,7 +58,7 @@ func (s *GeoJSService) GetGeoInfo(ip net.IP) (*GeoInfo, error) {
 		return nil, fmt.Errorf("failed to decode geojs.io response: %w", err)
 	}
 
-	// 检查国家代码是否为空，因为 geojs 对无效/私有IP可能返回200 OK但内容为空
+	// Check if the country code is empty as geojs may return 200 OK for invalid/private IP but with empty content
 	if apiResp.CountryCode == "" {
 		return nil, fmt.Errorf("geojs.io returned empty geo info for ip: %s", ip.String())
 	}
@@ -69,12 +69,12 @@ func (s *GeoJSService) GetGeoInfo(ip net.IP) (*GeoInfo, error) {
 	}, nil
 }
 
-// UpdateDatabase 对于 geojs.io 是一个空操作，因为它是一个 Web 服务。
+// UpdateDatabase is a no-op for geojs.io since it is a web service.
 func (s *GeoJSService) UpdateDatabase() error {
 	return nil
 }
 
-// Close 对于 geojs.io 是一个空操作。
+// Close is a no-op for geojs.io.
 func (s *GeoJSService) Close() error {
 	return nil
 }

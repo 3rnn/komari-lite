@@ -121,7 +121,7 @@ const ReportOption = ({
   </div>
 );
 
-// 表单：编辑单条或批量修改
+// Form for editing one or several entries.
 const TrafficReportEditForm = ({
   initialValues,
   onSubmit,
@@ -259,7 +259,7 @@ const reportContentLabel = (
     : "-";
 };
 
-// 把三个 bool 转成展示文字
+// Convert three booleans to display text.
 const reportTypeLabel = (
   n: TrafficReportNotification | undefined,
   t: (key: string) => string
@@ -516,7 +516,7 @@ const InnerLayout = () => {
         <AdminPageTitle
           description={t(
             "notification.traffic_report.description",
-            "按节点设置日报、周报与月报的推送周期和内容。",
+            "Configure daily, weekly, and monthly traffic reports for each node.",
           )}
         >
           {t("notification.traffic_report.full_title")}
@@ -759,11 +759,11 @@ const TrafficReportTable = ({
             );
             return (
               <TableRow key={node.uuid}>
-                <TableCell className="w-12 px-3" data-label={t("common.select", "选择")}>
+                <TableCell className="w-12 px-3" data-label={t("common.select", "Select")}>
                   <div className="flex items-center justify-center">
                     <Checkbox
                       checked={selected.includes(node.uuid)}
-                      aria-label={t("common.select", "选择")}
+                      aria-label={t("common.select", "Select")}
                       onCheckedChange={(checked) => {
                         if (checked) {
                           onSelectionChange([...selected, node.uuid]);
@@ -827,12 +827,12 @@ const ActionButtons = ({
           <Button
             variant="ghost"
             className="admin-single-action-button"
-            aria-label={t("common.modify", "修改")}
-            title={t("common.modify", "修改")}
+            aria-label={t("common.modify", "Modify")}
+            title={t("common.modify", "Modify")}
           >
             <Pencil size={16} />
             <span className="admin-single-action-label">
-              {t("common.modify", "修改")}
+              {t("common.modify", "Modify")}
             </span>
           </Button>
         </Dialog.Trigger>

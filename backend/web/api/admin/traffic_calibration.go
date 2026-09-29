@@ -32,18 +32,18 @@ func findTrafficCalibrationClient(uuid string) (models.Client, error) {
 func GetTrafficCalibration(c *gin.Context) {
 	client, err := findTrafficCalibrationClient(c.Param("uuid"))
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		api.RespondError(c, http.StatusNotFound, "服务器不存在")
+		api.RespondError(c, http.StatusNotFound, "Server not found")
 		return
 	}
 	if err != nil {
-		api.RespondError(c, http.StatusInternalServerError, "读取服务器失败："+err.Error())
+		api.RespondError(c, http.StatusInternalServerError, "Failed to read server: "+err.Error())
 		return
 	}
 	if _, _, err := trafficledger.CurrentTrafficCycle(client.TrafficResetDay, time.Now().UTC()); err != nil {
 		api.RespondSuccess(c, gin.H{
 			"available": false,
 			"client":    client.UUID,
-			"reason":    "请先在服务器编辑中设置流量重置日",
+			"reason":    "Set a traffic reset day in the server settings first",
 		})
 		return
 	}
@@ -51,7 +51,7 @@ func GetTrafficCalibration(c *gin.Context) {
 		c.Request.Context(), dbcore.GetDBInstance(), client, time.Now().UTC(),
 	)
 	if err != nil {
-		api.RespondError(c, http.StatusInternalServerError, "读取流量校准信息失败："+err.Error())
+		api.RespondError(c, http.StatusInternalServerError, "Failed to read traffic calibration: "+err.Error())
 		return
 	}
 	api.RespondSuccess(c, gin.H{"available": true, "snapshot": snapshot})
@@ -60,20 +60,20 @@ func GetTrafficCalibration(c *gin.Context) {
 func UpdateTrafficCalibration(c *gin.Context) {
 	var request trafficCalibrationRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
-		api.RespondError(c, http.StatusBadRequest, "流量校准参数无效："+err.Error())
+		api.RespondError(c, http.StatusBadRequest, "Invalid traffic calibration parameters: "+err.Error())
 		return
 	}
 	if request.TargetUp < 0 || request.TargetDown < 0 {
-		api.RespondError(c, http.StatusBadRequest, "校准后的上传和下载流量不能小于 0")
+		api.RespondError(c, http.StatusBadRequest, "Calibrated upload and download traffic cannot be negative")
 		return
 	}
 	client, err := findTrafficCalibrationClient(c.Param("uuid"))
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		api.RespondError(c, http.StatusNotFound, "服务器不存在")
+		api.RespondError(c, http.StatusNotFound, "Server not found")
 		return
 	}
 	if err != nil {
-		api.RespondError(c, http.StatusInternalServerError, "读取服务器失败："+err.Error())
+		api.RespondError(c, http.StatusInternalServerError, "Failed to read server: "+err.Error())
 		return
 	}
 	actor, _ := c.Get("uuid")
@@ -87,7 +87,7 @@ func UpdateTrafficCalibration(c *gin.Context) {
 		now,
 	)
 	if err != nil {
-		api.RespondError(c, http.StatusBadRequest, "保存流量校准失败："+err.Error())
+		api.RespondError(c, http.StatusBadRequest, "Failed to save traffic calibration: "+err.Error())
 		return
 	}
 	auditlog.Log(

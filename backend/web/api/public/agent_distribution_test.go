@@ -30,8 +30,8 @@ func TestAgentInstallerIsServedByPanelWithoutGitHubURLs(t *testing.T) {
 	}
 }
 
-// 精简版 Agent 由面板自己发布：data/agent-release/manifest.json 给出允许分发的
-// 制品清单与 SHA-256，下载时按清单校验，绝不回源到 GitHub。
+// The Lite Agent is published by the panel itself: data/agent-release/manifest.json gives the allowed distribution
+// The product list and SHA-256 are verified according to the list when downloading, and will never be returned to GitHub.
 func TestAgentDownloadServesPanelLocalReleaseAndVerifiesDigest(t *testing.T) {
 	dir := t.TempDir()
 	payload := []byte("#!/bin/sh\necho slim-agent\n")
@@ -97,7 +97,7 @@ func TestAgentDownloadRejectsUnknownArtifacts(t *testing.T) {
 }
 
 func TestAgentDownloadFailsLoudlyWithoutManifest(t *testing.T) {
-	stubAgentReleaseDir(t, t.TempDir()) // 目录存在但没有 manifest.json
+	stubAgentReleaseDir(t, t.TempDir()) // Directory exists but no manifest.json
 	recorder := httptest.NewRecorder()
 	ServeAgentDownload(recorder, httptest.NewRequest(http.MethodGet, "/agent/download/komari-agent-linux-amd64", nil))
 	if recorder.Code != http.StatusServiceUnavailable {

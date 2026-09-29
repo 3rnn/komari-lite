@@ -1,68 +1,68 @@
-# Visitor Audit RPC 使用说明
+# Visitor Audit RPC Guide
 
-本文档说明 `public:recordVisitorEvent` RPC2 接口的调用方式。该接口用于让主题前端把访客访问和前端操作记录写入 Komari 后端审计日志。
+This document explains how to call the `public:recordVisitorEvent` RPC2 method. Themes can use it to write visitor activity and frontend actions to the Komari backend audit log.
 
-## 接口概览
+## Overview
 
-- RPC 方法：`public:recordVisitorEvent`
-- RPC 路径：`/api/rpc2`
-- HTTP 方法：`POST`
-- 写入位置：现有审计日志表 `models.Log`
-- 管理端读取：复用现有 `admin:getLogs`
-- 日志类型：`msg_type = "visitor"`
-- 默认状态：关闭，需设置 `visitor_audit_enabled = true`
+- RPC method: `public:recordVisitorEvent`
+- RPC path: `/api/rpc2`
+- HTTP method: `POST`
+- Storage: existing audit log table `models.Log`
+- Admin access: existing `admin:getLogs` method
+- Log type: `msg_type = "visitor"`
+- Default: disabled; set `visitor_audit_enabled = true` to enable it
 
-该接口不会信任前端传入的 IP。来源 IP 和 User-Agent 由后端从请求上下文记录。
+The method does not trust an IP supplied by the frontend. The backend records the source IP and User-Agent from the request context.
 
-## 权限
+## Permissions
 
-`public:recordVisitorEvent` 属于 `public` 命名空间，访客可调用。
+`public:recordVisitorEvent` belongs to the `public` namespace and can be called by guests.
 
-私有站点模式下，该方法也在登录页白名单内，便于记录登录前/前台访问事件。
+It is also on the login-page allowlist in private-site mode so pre-login and public-facing activity can be recorded.
 
-这是有意保留的行为；总开关关闭时，白名单中的方法仍可调用，但不会写库。
+This is intentional: when the feature is disabled, the method remains callable but writes nothing to the database.
 
-## 启用
+## Enablement
 
-存量实例和新实例默认都不会开放匿名日志写入。管理员可通过
-`admin:editSettings` 将 `visitor_audit_enabled` 设为 `true`。公开设置
-`public:getPublicSettings` 也会返回这个字段，主题可据此决定是否上报。
+Anonymous log writes are disabled by default for both existing and new installations. An administrator can use
+`admin:editSettings` to set `visitor_audit_enabled` to `true`. The public setting returned by
+`public:getPublicSettings` includes this field so themes can decide whether to send events.
 
-未启用时接口返回 `status = "disabled"`。启用后，每个来源 IP 使用内存令牌桶限流：
-平均每分钟 30 次，允许短时突发 10 次；超限时返回 `status = "rate_limited"`，不写库。
+When disabled, the method returns `status = "disabled"`. When enabled, an in-memory token bucket limits each source IP:
+30 requests per minute on average, with a burst of 10. Exceeding the limit returns `status = "rate_limited"` without writing to the database.
 
-## 请求参数
+## Request Parameters
 
-| 参数 | 类型 | 必填 | 说明 |
+| Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
-| `event` | `string` | 是 | 事件名，例如 `page_view`、`node_open`、`search` |
-| `action` | `string` | 否 | `event` 的别名 |
-| `operation` | `string` | 否 | `event` 的别名 |
-| `path` | `string` | 否 | 前端路径，例如 `/`、`/instance/<uuid>` |
-| `route` | `string` | 否 | 前端路由名，例如 `home`、`instance-detail` |
-| `target` | `string` | 否 | 操作目标，例如节点 UUID、工具 key、按钮 key |
-| `detail` | `object` | 否 | 额外元数据，大小受限 |
+| `event` | `string` | Yes | Event name, such as `page_view`, `node_open`, or `search` |
+| `action` | `string` | No | Alias for `event` |
+| `operation` | `string` | No | Alias for `event` |
+| `path` | `string` | No | Frontend path, such as `/` or `/instance/<uuid>` |
+| `route` | `string` | No | Frontend route name, such as `home` or `instance-detail` |
+| `target` | `string` | No | Action target, such as a node UUID, tool key, or button key |
+| `detail` | `object` | No | Additional metadata; size-limited |
 
-`event`、`action`、`operation` 三者任选一个即可，优先级为：
+Supply any one of `event`, `action`, or `operation`, in this precedence order:
 
 ```text
 event > action > operation
 ```
 
-## 后端自动记录的信息
+## Information Recorded Automatically by the Backend
 
-| 字段 | 来源 |
+| Field | Source |
 | --- | --- |
-| IP | `rpc.ContextMeta.RemoteIP`，来自服务端 `c.ClientIP()` |
-| User-Agent | `rpc.ContextMeta.UserAgent`，来自请求头 |
-| 用户 UUID | 登录状态下使用 `rpc.ContextMeta.UserUUID`；访客为空 |
-| 时间 | 后端写入审计日志时生成 |
+| IP | `rpc.ContextMeta.RemoteIP`, from server-side `c.ClientIP()` |
+| User-Agent | `rpc.ContextMeta.UserAgent`, from the request header |
+| User UUID | `rpc.ContextMeta.UserUUID` when logged in; empty for guests |
+| Time | Generated when the backend writes the audit log entry |
 
-## 字段限制
+## Field Limits
 
-字符串字段按 Unicode 字符计数，`detail` 和最终 message 按序列化后的字节数计数。
+String fields are counted in Unicode characters; `detail` and the final message are measured in serialized bytes.
 
-| 字段 | 最大长度 |
+| Field | Maximum length |
 | --- | ---: |
 | `event` | 64 |
 | `path` | 512 |
@@ -70,9 +70,9 @@ event > action > operation
 | `target` | 128 |
 | User-Agent | 512 |
 | `detail` JSON | 2048 |
-| 最终日志 message | 4096 |
+| Final log message | 4096 |
 
-如果 `detail` 超过限制，不会完整保存，而会写入截断标记：
+If `detail` exceeds its limit, it is replaced with a truncation marker:
 
 ```json
 {
@@ -81,23 +81,23 @@ event > action > operation
 }
 ```
 
-## 事件名规范化
+## Event Name Normalization
 
-服务端会规范化事件名：
+The server normalizes event names:
 
-- 转小写
-- 空格转 `_`
-- 仅保留字母、数字、`_`、`-`、`:`、`.`
-- 最大长度 64
+- Convert to lowercase
+- Replace spaces with `_`
+- Keep only letters, digits, `_`, `-`, `:`, and `.`
+- Limit length to 64
 
-示例：
+For example:
 
 ```text
 Page View -> page_view
 node:open.detail -> node:open.detail
 ```
 
-## 请求示例：页面访问
+## Request Example: Page View
 
 ```bash
 curl -X POST http://localhost:25774/api/rpc2 \
@@ -117,7 +117,7 @@ curl -X POST http://localhost:25774/api/rpc2 \
   }'
 ```
 
-写入成功返回：
+A successful write returns:
 
 ```json
 {
@@ -129,9 +129,9 @@ curl -X POST http://localhost:25774/api/rpc2 \
 }
 ```
 
-`disabled` 和 `rate_limited` 也属于正常响应，不会返回 JSON-RPC 错误；主题上报不应影响主流程。
+`disabled` and `rate_limited` are also normal responses, not JSON-RPC errors; theme reporting should not interrupt normal operation.
 
-## 请求示例：打开节点详情
+## Request Example: Opening Node Details
 
 ```json
 {
@@ -150,7 +150,7 @@ curl -X POST http://localhost:25774/api/rpc2 \
 }
 ```
 
-## 请求示例：搜索
+## Request Example: Search
 
 ```json
 {
@@ -169,9 +169,9 @@ curl -X POST http://localhost:25774/api/rpc2 \
 }
 ```
 
-建议不要记录完整搜索关键词，避免把敏感内容写入审计日志。
+Avoid recording full search terms, which may expose sensitive information in the audit log.
 
-## 前端封装示例
+## Frontend Wrapper Example
 
 ```ts
 interface VisitorAuditEvent {
@@ -203,12 +203,12 @@ export async function recordVisitorEvent(event: VisitorAuditEvent): Promise<void
     })
   }
   catch {
-    // 审计上报不应影响用户正常浏览
+    // Audit reporting must not interrupt normal browsing
   }
 }
 ```
 
-## Vue Router 访问记录示例
+## Vue Router Page-Visit Example
 
 ```ts
 router.afterEach((to) => {
@@ -224,53 +224,53 @@ router.afterEach((to) => {
 })
 ```
 
-建议只记录 query key，不记录完整 query value，避免泄露 token 或敏感参数。
+Record query keys rather than full query values to avoid exposing tokens or other sensitive parameters.
 
-## 推荐事件名
+## Recommended Event Names
 
-| 场景 | event |
+| Scenario | event |
 | --- | --- |
-| 页面访问 | `page_view` |
-| 打开节点详情 | `node_open` |
-| 搜索 | `search` |
-| 切换分组 | `group_change` |
-| 切换视图模式 | `view_mode_change` |
-| 点击管理入口 | `admin_entry_click` |
-| 打开高级工具 | `home_tool_open` |
-| 审计日志刷新 | `audit_refresh` |
-| 审计日志翻页 | `audit_page_change` |
-| 导出 JSON | `export_json` |
-| 导出 CSV | `export_csv` |
-| WebRTC 自检开始 | `webrtc_check_start` |
-| WebRTC 自检完成 | `webrtc_check_done` |
+| Page view | `page_view` |
+| Open node details | `node_open` |
+| Search | `search` |
+| Change group | `group_change` |
+| Change view mode | `view_mode_change` |
+| Click admin entry | `admin_entry_click` |
+| Open advanced tools | `home_tool_open` |
+| Refresh audit log | `audit_refresh` |
+| Change audit log page | `audit_page_change` |
+| Export JSON | `export_json` |
+| Export CSV | `export_csv` |
+| Start WebRTC self-check | `webrtc_check_start` |
+| Finish WebRTC self-check | `webrtc_check_done` |
 
-## 审计日志保存形态
+## Audit Log Storage Format
 
-写入现有 `models.Log`：
+Writes to the existing `models.Log` table:
 
-| 字段 | 值 |
+| Field | Value |
 | --- | --- |
-| `ip` | 服务端看到的来源 IP |
-| `uuid` | 登录用户 UUID；访客为空 |
+| `ip` | Source IP as seen by the server |
+| `uuid` | Logged-in user's UUID; empty for guests |
 | `msg_type` | `visitor` |
 | `message` | `visitor event: {...}` |
-| `time` | 后端写入时间 |
+| `time` | Time written by the backend |
 
-示例 `message`：
+Example `message`:
 
 ```text
 visitor event: {"event":"page_view","path":"/","route":"home","user_agent":"Mozilla/5.0 ...","detail":{"theme":"glassmorphism"}}
 ```
 
-## 管理端读取
+## Reading Logs as an Admin
 
-复用现有接口：
+Use the existing method:
 
 ```text
 admin:getLogs
 ```
 
-请求示例：
+Example request:
 
 ```json
 {
@@ -285,43 +285,43 @@ admin:getLogs
 }
 ```
 
-`msg_type` 为可选的精确匹配过滤参数。传入 `visitor` 后，计数和分页都会在 SQL 查询层过滤，
-无需先拉取所有日志再由前端筛选。
+`msg_type` is an optional exact-match filter. With `visitor`, counting and pagination filter in SQL,
+so the frontend does not need to fetch every log entry before filtering.
 
-## 安全注意事项
+## Security Considerations
 
-### 不要从前端传 IP
+### Do Not Supply an IP from the Frontend
 
-前端 IP 不可信。该接口会自动使用服务端看到的来源 IP。
+Frontend-supplied IPs are untrusted. This method uses the source IP seen by the server.
 
-### 不要记录敏感值
+### Do Not Record Sensitive Values
 
-不建议记录：
+Avoid recording:
 
-- 密码
+- Passwords
 - token
 - cookie
-- 完整 URL query
-- 完整搜索关键词
-- 导出内容
-- WebSSH 命令内容
-- 剪贴板内容
+- Full URL query strings
+- Full search terms
+- Exported content
+- WebSSH command contents
+- Clipboard contents
 
-建议只记录：
+Record only:
 
-- 操作类型
-- 路由
-- 目标 ID
-- 结果数量
-- 布尔状态
-- 非敏感摘要
+- Action type
+- Route
+- Target ID
+- Result count
+- Boolean state
+- Non-sensitive summary
 
-### 上报不要阻塞主流程
+### Reporting Must Not Block Normal Operation
 
-前端调用建议使用：
+Frontend calls should use:
 
 ```ts
 void recordVisitorEvent(...)
 ```
 
-即使上报失败，也不影响页面功能。
+Reporting failures must not affect the page.

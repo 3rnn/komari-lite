@@ -8,9 +8,9 @@ import (
 	"github.com/komari-monitor/komari/pkg/rpc"
 )
 
-// privateSiteLoginWhitelist 私有站点模式下仍允许匿名访问的方法白名单。
-// 这些方法返回登录页渲染所需的元信息(站点配置、版本、当前登录态占位)。
-// 不在此白名单的 public:* 方法(如 getNodesInformation)会被私有站点拦截。
+// privateSiteLoginWhitelist contains methods accessible anonymously in private-site mode.
+// They provide the site settings, version, and login placeholder needed to render the login page.
+// Other public:* methods, such as getNodesInformation, are blocked in private-site mode.
 var privateSiteLoginWhitelist = map[string]bool{
 	"public:getMe":              true,
 	"public:getPublicSettings":  true,
@@ -18,9 +18,9 @@ var privateSiteLoginWhitelist = map[string]bool{
 	"public:recordVisitorEvent": true,
 }
 
-// Dispatch 是所有传输入口的统一分发点：私有站点检查 → 权限校验 → 执行方法。
-// ctx 携带可选的取消/超时；meta 为调用者身份元数据（Principal 为权威来源）。
-// 始终返回完整的 JsonRpcResponse（包含错误）。
+// Dispatch is the shared entry point for all transports: private-site check → authorization → method call.
+// ctx carries an optional cancel/timeout; meta is the caller identity metadata (Principal is the authoritative source).
+// Always return a full JsonRpcResponse with errors.
 func Dispatch(ctx context.Context, meta *rpc.ContextMeta, req *rpc.JsonRpcRequest) *rpc.JsonRpcResponse {
 	for _, disabled := range []string{"exec", "clipboard", "terminal", "remote", "docker", "xtermjs", "cloudflared", "selfupdate", "oidc", "oauth"} {
 		if strings.Contains(strings.ToLower(req.Method), disabled) {
@@ -33,7 +33,7 @@ func Dispatch(ctx context.Context, meta *rpc.ContextMeta, req *rpc.JsonRpcReques
 	if meta == nil {
 		meta = &rpc.ContextMeta{Principal: rpc.NewAnonymousPrincipal()}
 	}
-	// 保证 Principal 与 Permission 字段双向同步(后者用于向后兼容)。
+	// Keep Principal and Permission synchronized for backward compatibility.
 	if meta.Principal == nil {
 		if meta.Permission != "" {
 			meta.Principal = rpc.PrincipalFromRole(meta.Permission)
@@ -45,16 +45,16 @@ func Dispatch(ctx context.Context, meta *rpc.ContextMeta, req *rpc.JsonRpcReques
 		meta.Permission = meta.Principal.PrimaryRole()
 	}
 
-	// 私有站点：未认证访客一律拒绝，但放行登录页所需的元信息接口(见 issue #567)。
-	// 持有有效临时分享许可(temp_key)的匿名访客同样放行，使「临时分析」分享链接在私有站点下可用；
-	// 后续 CheckPrincipal 仍会将匿名主体限制在 public:*(guest 角色)范围内，admin 方法不受影响。
+	// In private-site mode, reject unauthenticated guests except for login-page metadata (see issue #567).
+	// Also allow guests with a valid temporary share (temp_key), so shared analysis links work in private-site mode;
+	// CheckPrincipal still restricts guests to public:* methods, never admin methods.
 	if meta.Principal.Type == rpc.PrincipalAnonymous && !privateSiteLoginWhitelist[req.Method] && !meta.TempShareValid {
 		if privateSite, _ := config.GetAs[bool](config.PrivateSiteKey); privateSite {
 			return rpc.ErrorResponse(req.ID, rpc.PermissionDenied, "Private site enabled, please login first", nil)
 		}
 	}
 
-	// 命名空间权限校验:基于 Principal 的能力集(集合成员语义)。
+	// Check namespace permissions using the Principal's capability set (set membership).
 	if !rpc.CheckPrincipal(meta.Principal, req.Method) {
 
 		return rpc.ErrorResponse(req.ID, rpc.PermissionDenied, "Permission denied", nil)
@@ -63,8 +63,8 @@ func Dispatch(ctx context.Context, meta *rpc.ContextMeta, req *rpc.JsonRpcReques
 	return rpc.CallWithContext(rpc.NewContextWithMeta(ctx, meta), req.ID, req.Method, req.Params)
 }
 
-// OnInternalRequest 内部调用 RPC 方法（如服务端代码代发请求），仅携带权限分组。
-// group: 调用者权限分组 (guest/client/admin)；method: "namespace:method"；params: 参数。
+// OnInternalRequest invokes an RPC method internally with a permission group.
+// group: caller role (guest/client/admin); method: "namespace:method"; params: arguments.
 func OnInternalRequest(ctx context.Context, group string, method string, params interface{}) *rpc.JsonRpcResponse {
 	meta := &rpc.ContextMeta{Permission: group}
 	req := &rpc.JsonRpcRequest{Version: rpc.RPC_VERSION, Method: method, Params: params}

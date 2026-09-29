@@ -15,7 +15,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// AddPingTask 创建延迟监测任务。defaultOn 表示新加入的服务器是否自动开启此监测。
+// AddPingTask creates a latency monitoring task. defaultOn indicates whether newly added servers automatically enable this monitoring.
 func AddPingTask(clients []string, defaultOn bool, name string, target, task_type string, interval int) (uint, error) {
 	taskID, err := addPingTask(dbcore.GetDBInstance(), clients, defaultOn, name, target, task_type, interval)
 	if err != nil {
@@ -109,7 +109,7 @@ func deletePingTaskRows(db *gorm.DB, ids []uint) error {
 	})
 }
 
-// EditPingTask 批量更新延迟监测任务配置。
+// EditPingTask updates latency monitoring task configurations in batches.
 func EditPingTask(tasks []*models.PingTask) error {
 	taskIDs := editedPingTaskIDs(tasks)
 	metricstore.BlockPingTaskWrites(taskIDs)
@@ -147,7 +147,7 @@ func editPingTasks(db *gorm.DB, tasks []*models.PingTask) ([]metricstore.PingAss
 				return err
 			}
 			task.Clients = normalizePingClients(task.Clients)
-			// 使用 map 显式更新，避免 GORM struct Updates 跳过 false/0/空切片等零值。
+			// Use map to update explicitly to avoid GORM struct Updates skipping zero values such as false/0/empty slices.
 			if err := tx.Model(&models.PingTask{}).Where("id = ?", task.Id).Updates(map[string]interface{}{
 				"name":        task.Name,
 				"clients":     task.Clients,
@@ -261,7 +261,7 @@ func removedPingTaskClients(previous, next models.StringArray) []string {
 	return removed
 }
 
-// normalizePingClients 保持 clients 字段序列化为 JSON 数组，避免空值变成 null。
+// normalizePingClients keeps the clients field serialized as a JSON array to avoid empty values becoming null.
 func normalizePingClients(clients models.StringArray) models.StringArray {
 	if clients == nil {
 		return models.StringArray{}
@@ -278,7 +278,7 @@ func GetAllPingTasks() ([]models.PingTask, error) {
 	return tasks, nil
 }
 
-// GetPingTasksByClient 获取指定服务器需要执行的延迟监测任务。
+// GetPingTasksByClient Gets the latency monitoring tasks that the specified server needs to perform.
 func GetPingTasksByClient(uuid string) []models.PingTask {
 	tasks, err := getPingTasksByClient(dbcore.GetDBInstance(), uuid)
 	if err != nil {
@@ -334,8 +334,8 @@ func updatePingTaskOrder(db *gorm.DB, order map[uint]int) error {
 	})
 }
 
-// ping 记录已完全迁移到 metric store（指标 ping.latency_ms），运行期读写全部走
-// metric store，旧 ping_records 表不再参与。
+// Ping records have been completely migrated to the metric store (metric ping.latency_ms), and all reads and writes during runtime are
+// metric store, the old ping_records table no longer participates.
 
 func SavePingRecord(record models.PingRecord) error {
 	if !utils.IsPingTaskAssigned(record.TaskId, record.Client) {
@@ -361,7 +361,7 @@ func ReloadPingSchedule() error {
 	return utils.ReloadPingSchedule(pingTasks)
 }
 
-// AddDefaultOnClientUUID 在新客户端注册后，把该 UUID 追加到所有 default_on=true 的任务的 clients 中（去重）。
+// AddDefaultOnClientUUID After the new client is registered, append the UUID to the clients of all tasks with default_on=true (remove duplication).
 func AddDefaultOnClientUUID(uuid string) error {
 	if uuid == "" {
 		return nil

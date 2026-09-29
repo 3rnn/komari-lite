@@ -31,39 +31,39 @@ func (j *JavaScriptSender) Init() error {
 		return errors.New("JavaScript script is empty")
 	}
 
-	// 创建 JavaScript 运行时
+	// Create the JavaScript runtime
 	j.vm = goja.New()
 
-	// 预编译一个 no-op 程序,用于驱动微任务队列
+	// Precompile a no-op program to drive the microtask queue
 	prog, errc := goja.Compile("noop.js", "void 0", false)
 	if errc == nil {
 		j.noopProgram = prog
 	}
 
-	// 设置 require 支持
+	// Set require support
 	new(require.Registry).Enable(j.vm)
 
-	// 注入全局对象和函数
+	// Inject global objects and functions
 	j.setupGlobals()
 
-	// 加载用户脚本
+	// Load user script
 	_, err := j.vm.RunString(j.Addition.Script)
 	if err != nil {
 		return fmt.Errorf("failed to load JavaScript script: %v", err)
 	}
 
-	// 验证 sendMessage 函数是否存在
+	// Verify that the sendMessage function exists
 	sendMessage := j.vm.Get("sendMessage")
 	if sendMessage == nil || goja.IsUndefined(sendMessage) {
 		return errors.New("sendMessage function not defined in script")
 	}
 
-	// 验证是否可调用
+	// Verify if callable
 	if _, ok := goja.AssertFunction(sendMessage); !ok {
 		return errors.New("sendMessage is not a function")
 	}
 
-	// sendEvent 函数是可选的,不强制要求存在
+	// The sendEvent function is optional and is not required to exist.
 
 	return nil
 }
@@ -82,13 +82,13 @@ func (j *JavaScriptSender) SendTextMessage(message, title string) error {
 		}
 	}
 
-	// 获取 sendMessage 函数
+	// Get sendMessage function
 	sendMessageFunc, ok := goja.AssertFunction(j.vm.Get("sendMessage"))
 	if !ok {
 		return errors.New("sendMessage is not a callable function")
 	}
 
-	// 调用 sendMessage 函数
+	// Call sendMessage function
 	resultChan := make(chan error, 1)
 	timeoutChan := time.After(30 * time.Second)
 
@@ -105,9 +105,9 @@ func (j *JavaScriptSender) SendTextMessage(message, title string) error {
 			return
 		}
 
-		// 处理 Promise 返回值
+		// Handling Promise return values
 		if promise, ok := result.Export().(*goja.Promise); ok {
-			// 等待 Promise 完成
+			// Wait for the Promise to complete
 			ticker := time.NewTicker(50 * time.Millisecond)
 			defer ticker.Stop()
 
@@ -117,12 +117,12 @@ func (j *JavaScriptSender) SendTextMessage(message, title string) error {
 					resultChan <- errors.New("JavaScript execution timeout")
 					return
 				case <-ticker.C:
-					// 运行微任务以处理 Promise 回调
+					// Run microtasks to process Promise callbacks
 					j.runMicrotasks()
 
 					state := promise.State()
 					if state == goja.PromiseStateFulfilled {
-						// Promise 成功完成,检查返回值
+						// Promise completed successfully, check the return value
 						promiseResult := promise.Result()
 						if !promiseResult.ToBoolean() {
 							resultChan <- errors.New("sendMessage returned false")
@@ -131,15 +131,15 @@ func (j *JavaScriptSender) SendTextMessage(message, title string) error {
 						}
 						return
 					} else if state == goja.PromiseStateRejected {
-						// Promise 被拒绝
+						// Promise rejected
 						resultChan <- fmt.Errorf("Promise rejected: %v", promise.Result())
 						return
 					}
-					// state == goja.PromiseStatePending, 继续等待
+					// state == goja.PromiseStatePending, continue to wait
 				}
 			}
 		} else {
-			// 处理布尔或其他返回值
+			// Handle boolean and other return values
 			if result.ToBoolean() {
 				resultChan <- nil
 			} else {
@@ -163,20 +163,20 @@ func (j *JavaScriptSender) SendEvent(event models.EventMessage) error {
 		}
 	}
 
-	// 检查是否定义了 sendEvent 函数
+	// Check if sendEvent function is defined
 	sendEventValue := j.vm.Get("sendEvent")
 	if sendEventValue == nil || goja.IsUndefined(sendEventValue) {
-		// 如果没有定义 sendEvent,则回退到使用 SendTextMessage
+		// If sendEvent is not defined, fallback to using SendTextMessage
 		return j.fallbackToTextMessage(event)
 	}
 
 	sendEventFunc, ok := goja.AssertFunction(sendEventValue)
 	if !ok {
-		// 如果 sendEvent 不是函数,回退到 SendTextMessage
+		// If sendEvent is not a function, fallback to SendTextMessage
 		return j.fallbackToTextMessage(event)
 	}
 
-	// 将 EventMessage 转换为 JavaScript 对象
+	// Convert EventMessage to a JavaScript object
 	eventJSON, err := json.Marshal(event)
 	if err != nil {
 		return fmt.Errorf("failed to marshal event: %v", err)
@@ -187,7 +187,7 @@ func (j *JavaScriptSender) SendEvent(event models.EventMessage) error {
 		return fmt.Errorf("failed to unmarshal event: %v", err)
 	}
 
-	// 调用 sendEvent 函数
+	// Call sendEvent function
 	resultChan := make(chan error, 1)
 	timeoutChan := time.After(30 * time.Second)
 
@@ -204,9 +204,9 @@ func (j *JavaScriptSender) SendEvent(event models.EventMessage) error {
 			return
 		}
 
-		// 处理 Promise 返回值
+		// Handling Promise return values
 		if promise, ok := result.Export().(*goja.Promise); ok {
-			// 等待 Promise 完成
+			// Wait for the Promise to complete
 			ticker := time.NewTicker(10 * time.Millisecond)
 			defer ticker.Stop()
 
@@ -216,12 +216,12 @@ func (j *JavaScriptSender) SendEvent(event models.EventMessage) error {
 					resultChan <- errors.New("JavaScript execution timeout")
 					return
 				case <-ticker.C:
-					// 运行微任务以处理 Promise 回调
+					// Run microtasks to process Promise callbacks
 					j.runMicrotasks()
 
 					state := promise.State()
 					if state == goja.PromiseStateFulfilled {
-						// Promise 成功完成,检查返回值
+						// Promise completed successfully, check the return value
 						promiseResult := promise.Result()
 						if !promiseResult.ToBoolean() {
 							resultChan <- errors.New("sendEvent returned false")
@@ -230,15 +230,15 @@ func (j *JavaScriptSender) SendEvent(event models.EventMessage) error {
 						}
 						return
 					} else if state == goja.PromiseStateRejected {
-						// Promise 被拒绝
+						// Promise rejected
 						resultChan <- fmt.Errorf("Promise rejected: %v", promise.Result())
 						return
 					}
-					// state == goja.PromiseStatePending, 继续等待
+					// state == goja.PromiseStatePending, continue to wait
 				}
 			}
 		} else {
-			// 处理布尔或其他返回值
+			// Handle boolean and other return values
 			if result.ToBoolean() {
 				resultChan <- nil
 			} else {
@@ -255,16 +255,16 @@ func (j *JavaScriptSender) SendEvent(event models.EventMessage) error {
 	}
 }
 
-// fallbackToTextMessage 当没有定义 sendEvent 时,回退到使用文本消息格式
+// fallbackToTextMessage When sendEvent is not defined, fallback to using the text message format
 func (j *JavaScriptSender) fallbackToTextMessage(event models.EventMessage) error {
-	// 构建简单的文本消息
+	// Build a simple text message
 	message := fmt.Sprintf("%s%s%s\nEvent: %s\nMessage: %s\nTime: %s",
 		event.Emoji, event.Emoji, event.Emoji,
 		event.Event,
 		event.Message,
 		event.Time.UTC().Format(time.RFC3339Nano))
 
-	// 添加客户端信息
+	// Add client information
 	if len(event.Clients) > 0 {
 		clientNames := make([]string, 0, len(event.Clients))
 		for _, c := range event.Clients {
@@ -285,7 +285,7 @@ func (j *JavaScriptSender) fallbackToTextMessage(event models.EventMessage) erro
 	return j.SendTextMessage(message, event.Event)
 }
 
-// runMicrotasks 安全地推动 goja 的微任务队列(例如 Promise 回调)
+// runMicrotasks safely pushes Goja's microtask queue (e.g. Promise callbacks)
 func (j *JavaScriptSender) runMicrotasks() {
 	if j.vm == nil {
 		return
@@ -294,12 +294,12 @@ func (j *JavaScriptSender) runMicrotasks() {
 		_, _ = j.vm.RunProgram(j.noopProgram)
 		return
 	}
-	// 兜底: 直接运行一段 no-op 代码
+	// Fallback: run a no-op program directly
 	_, _ = j.vm.RunString("void 0")
 }
 
 func (j *JavaScriptSender) setupGlobals() {
-	// 注入 console.log
+	// Inject console.log
 	console := j.vm.NewObject()
 	console.Set("log", func(call goja.FunctionCall) goja.Value {
 		var args []interface{}
@@ -322,13 +322,13 @@ func (j *JavaScriptSender) setupGlobals() {
 	})
 	j.vm.Set("console", console)
 
-	// 注入 fetch API
+	// Inject fetch API
 	j.vm.Set("fetch", j.createFetchFunction())
 
-	// 注入 XMLHttpRequest (xhr)
+	// Inject XMLHttpRequest (xhr)
 	j.vm.Set("XMLHttpRequest", j.createXHRConstructor())
 
-	// 注入 setTimeout
+	// Inject setTimeout
 	j.vm.Set("setTimeout", func(call goja.FunctionCall) goja.Value {
 		callback := call.Argument(0)
 		delay := call.Argument(1).ToInteger()
@@ -343,10 +343,10 @@ func (j *JavaScriptSender) setupGlobals() {
 		return goja.Undefined()
 	})
 
-	// 注入 Promise 构造函数
+	// Inject Promise constructor
 	j.vm.RunString(`
 		if (typeof Promise === 'undefined') {
-			// Promise polyfill 会由 goja 自动提供
+			// The Promise polyfill is provided automatically by goja
 		}
 	`)
 }
@@ -357,5 +357,5 @@ func init() {
 	})
 }
 
-// 确保实现了 IMessageSender 接口
+// Make sure you implement the IMessageSender interface
 var _ factory.IMessageSender = (*JavaScriptSender)(nil)

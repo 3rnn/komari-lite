@@ -15,7 +15,7 @@ import (
 )
 
 func GetClients(c *gin.Context) {
-	// 升级到ws
+	// Upgrade to ws
 	if !IsWebSocketUpgrade(c) {
 		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "error": "Require WebSocket upgrade"})
 		return
@@ -28,20 +28,20 @@ func GetClients(c *gin.Context) {
 	}
 	defer conn.Close()
 
-	// 初始化用户信息
+	// Initialize user information
 	var (
 		isLogin    = false
 		hiddenMap  = map[string]bool{}
 		session, _ = c.Cookie("session_token")
 	)
 
-	// 登录状态检查
+	// Login status check
 	_, err = accounts.GetUserBySession(session)
 	if err == nil {
 		isLogin = true
 	}
 
-	// 仅在未登录时需要 Hidden 信息做过滤
+	// Hidden information only needs to be filtered when not logged in
 	if !isLogin {
 		var hiddenClients []models.Client
 		db := dbcore.GetDBInstance()
@@ -51,11 +51,11 @@ func GetClients(c *gin.Context) {
 		}
 	}
 
-	// 请求
+	// Request
 	for {
 		var resp struct {
-			Online []string             `json:"online"` // 已建立连接的客户端uuid列表
-			Data   map[string]v1.Report `json:"data"`   // 最后上报的数据
+			Online []string             `json:"online"` // List of connected client uuids
+			Data   map[string]v1.Report `json:"data"`   // Last reported data
 		}
 
 		resp.Online = []string{}
@@ -68,7 +68,7 @@ func GetClients(c *gin.Context) {
 		message := string(data)
 
 		uuID := ""
-		if message != "get" { // 非请求全部内容
+		if message != "get" { // Not requesting all content
 			if strings.HasPrefix(message, "get ") {
 				uuID = strings.TrimSpace(strings.TrimPrefix(message, "get "))
 			} else {
@@ -77,7 +77,7 @@ func GetClients(c *gin.Context) {
 			}
 		}
 
-		// 在线客户端uuid列表（WebSocket 与非 WebSocket）
+		// List of online client uuids (WebSocket vs. non-WebSocket)
 		for _, key := range agent_runtime.GetAllOnlineUUIDs() {
 			if !isLogin && hiddenMap[key] {
 				continue
@@ -88,7 +88,7 @@ func GetClients(c *gin.Context) {
 			resp.Online = append(resp.Online, key)
 		}
 
-		//过往节点数据信息
+		//Past Node Data Information
 		calibrated, _ := trafficledger.CurrentCalibratedCycleUsages(
 			c.Request.Context(), dbcore.GetDBInstance(), time.Now().UTC(),
 		)
@@ -100,7 +100,7 @@ func GetClients(c *gin.Context) {
 				continue
 			}
 
-			report.UUID = "" // 不暴露 uuid
+			report.UUID = "" // Do not expose uuid
 			if report.CPU.Usage == 0 {
 				report.CPU.Usage = 0.01
 			}

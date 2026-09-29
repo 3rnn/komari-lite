@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 
-/** 面板当前提供的语言包（直接从目录发现，避免在测试里写死语言清单）。 */
+/** Discover offered locale bundles from the directory instead of hard-coding the list in tests. */
 export const AVAILABLE_LOCALES: string[] = readdirSync("src/i18n/locales")
   .filter((name) => name.endsWith(".json"))
   .map((name) => name.replace(/\.json$/, ""))

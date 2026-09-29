@@ -30,7 +30,7 @@ const ThemeManaged: React.FC = () => {
     refresh,
   } = usePublicInfo();
   const theme = publicInfo?.theme;
-  const themeSettings = publicInfo?.theme_settings || {}; // 当前值
+  const themeSettings = publicInfo?.theme_settings || {}; // Current settings.
   const { t, i18n } = useTranslation();
 
   const currentLanguage =
@@ -46,7 +46,7 @@ const ThemeManaged: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [firstLoading, setFirstLoading] = useState(true);
 
-  // 拉取主题配置
+  // Fetch the theme configuration.
   useEffect(() => {
     async function load() {
       if (publicInfoLoading || (!publicInfo && !publicInfoError)) {
@@ -91,7 +91,7 @@ const ThemeManaged: React.FC = () => {
         }
         const ds = configuration.data as ThemeFieldBase[];
         setFields(ds);
-        // 初始值：优先 publicInfo.theme_settings，其次 default
+        // Initialize from publicInfo.theme_settings, falling back to the field default.
         const init: Record<string, any> = {};
         ds.forEach((f) => {
           if (f.type !== "title" && f.key) {
@@ -117,12 +117,12 @@ const ThemeManaged: React.FC = () => {
   };
 
   const payload = useMemo(() => {
-    // 全量：对所有字段（非 title）输出当前值
+    // Include all non-title fields in the payload.
     const obj: Record<string, any> = {};
     fields.forEach((f) => {
       if (f.type === "title" || !f.key) return;
       const current = values[f.key];
-      // 直接使用当前值，undefined 时才用默认值
+      // Use the current value, and the default only when undefined.
       if (current !== undefined) {
         obj[f.key] = current;
       } else if (f.default !== undefined) {
@@ -136,8 +136,8 @@ const ThemeManaged: React.FC = () => {
 
   const saveAll = async () => {
     if (!theme) return;
-    console.log("保存前的 values:", values);
-    console.log("保存前的 payload:", payload);
+    console.log("Values before saving:", values);
+    console.log("Payload before saving:", payload);
     setSaving(true);
     try {
       const resp = await fetch(
@@ -153,7 +153,7 @@ const ThemeManaged: React.FC = () => {
         throw new Error(d.message || `HTTP ${resp.status}`);
       }
       toast.success(t("settings.settings_saved"));
-      // 刷新 publicInfo 以反映最新设置
+      // Refresh publicInfo to reflect the saved settings.
       refresh();
     } catch (e: any) {
       toast.error(`${t("settings.settings_save_failed")}: ${e.message || e}`);
@@ -169,7 +169,7 @@ const ThemeManaged: React.FC = () => {
       className="km-page-admin-theme-managed p-0 md:p-4"
     >
       <Flex justify="between" align="center" gap="3" wrap="wrap">
-        <AdminPageTitle description={t("theme.manage_description", "调整当前主题提供的显示和功能选项。")}> 
+        <AdminPageTitle description={t("theme.manage_description", "Adjust the display and feature options provided by the current theme.")}>
           {theme
             ? t("theme.manage_with_name", {
                 name: themeDisplayName,

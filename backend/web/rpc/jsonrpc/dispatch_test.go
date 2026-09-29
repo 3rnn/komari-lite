@@ -2,8 +2,8 @@ package jsonrpc
 
 import "testing"
 
-// TestPrivateSiteLoginWhitelist 守卫 issue #567:私有站点模式下,登录页渲染所需的
-// 元信息接口必须始终在白名单中,否则匿名用户无法看到登录框。
+// TestPrivateSiteLoginWhitelist guards issue #567: login-page metadata must remain accessible
+// in private-site mode, or guests cannot see the login form.
 func TestPrivateSiteLoginWhitelist(t *testing.T) {
 	required := []string{
 		"public:getMe",
@@ -17,7 +17,7 @@ func TestPrivateSiteLoginWhitelist(t *testing.T) {
 		}
 	}
 
-	// 节点列表等数据接口不应在白名单(应被私有站点拦截)。
+	// Data interfaces such as node lists should not be whitelisted (should be blocked by private sites).
 	mustBlocked := []string{
 		"public:getNodesInformation",
 		"public:getRecordsByUUID",

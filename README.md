@@ -2,13 +2,13 @@
 
 A monitoring-focused, source-only fork of Komari. The repository is ready for public GitHub hosting: it contains **no** production database, user accounts, Agent tokens, TLS certificates, credentials, backups, release binaries, or inherited Git history.
 
-[中文说明见 `README.zh-CN.md`](README.zh-CN.md)
+[English migration notice at `README.zh-CN.md`](README.zh-CN.md)
 
 ## What this fork provides
 
 - Nodes, live/historical metrics, Ping tasks, alerting, audit log, login and 2FA.
 - A fixed local Glass public dashboard with Simplified Chinese and English support.
-- A monitoring-only Agent distributed by the panel itself, rather than GitHub.
+- A monitoring-only Agent installed from the GitHub Release matching the panel version.
 - Native systemd deployment support.
 
 It intentionally excludes remote terminal/control/command execution, Cloudflare tunnel management, self-update/version checks, theme market/lifecycle actions, Nezha, reverse-route checks, and other UI languages.

@@ -8,15 +8,15 @@ import (
 	"time"
 )
 
-// IPAPIService 使用 ip-api.com 服务实现 GeoIPService 接口。
+// IPAPIService implements the GeoIPService interface using the ip-api.com service.
 type IPAPIService struct {
 	Client *http.Client
 }
 
-// ipAPIResponse 定义了 ip-api.com 服务返回的 JSON 响应的结构。
+// ipAPIResponse defines the structure of the JSON response returned by the ip-api.com service.
 type ipAPIResponse struct {
 	Status      string  `json:"status"`
-	Message     string  `json:"message"` // 当 status 为 fail 时出现
+	Message     string  `json:"message"` // Appears when status is fail
 	Country     string  `json:"country"`
 	CountryCode string  `json:"countryCode"`
 	Region      string  `json:"region"`
@@ -36,18 +36,18 @@ func (s *IPAPIService) Name() string {
 	return "ip-api.com"
 }
 
-// NewIPAPIService 创建并返回一个 IPAPIService 的新实例。
+// NewIPAPIService Creates and returns a new instance of IPAPIService.
 func NewIPAPIService() (*IPAPIService, error) {
 	return &IPAPIService{
 		Client: &http.Client{
-			Timeout: 5 * time.Second, // 设置请求超时
+			Timeout: 5 * time.Second, // Set request timeout
 		},
 	}, nil
 }
 
-// GetGeoInfo 使用 ip-api.com 服务检索给定 IP 地址的地理位置信息。
+// GetGeoInfo uses the ip-api.com service to retrieve geolocation information for a given IP address.
 func (s *IPAPIService) GetGeoInfo(ip net.IP) (*GeoInfo, error) {
-	// API URL, 使用 fields 参数来仅请求需要的字段
+	// API URL, use the fields parameter to request only the required fields
 	apiURL := fmt.Sprintf("http://ip-api.com/json/%s?fields=status,message,country,countryCode", ip.String())
 
 	resp, err := s.Client.Get(apiURL)
@@ -71,14 +71,14 @@ func (s *IPAPIService) GetGeoInfo(ip net.IP) (*GeoInfo, error) {
 	}, nil
 }
 
-// UpdateDatabase 对于 ip-api.com 是一个空操作，因为它是一个 Web 服务。
+// UpdateDatabase is a no-op for ip-api.com since it is a web service.
 func (s *IPAPIService) UpdateDatabase() error {
-	// 无需执行任何操作，因为数据由外部服务提供
+	// No action is required as the data is provided by an external service
 	return nil
 }
 
-// Close 对于 ip-api.com 是一个空操作，因为没有需要关闭的持久连接。
+// Close is a no-op for ip-api.com since there are no persistent connections that need to be closed.
 func (s *IPAPIService) Close() error {
-	// 无需执行任何操作
+	// No action required
 	return nil
 }

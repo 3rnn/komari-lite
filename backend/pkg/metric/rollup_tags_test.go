@@ -12,9 +12,9 @@ import (
 // but with different tags must become two independent rollup series, and a tag
 // filter must return that tag's own value rather than a cross-tag merge.
 //
-// TestRollupKeepsTagSeriesSeparate 是针对 rollup 曾丢失标签维度这一问题的
-// 回归测试：同一个指标、实体和桶内带有不同标签的两个点，必须成为两条独立的
-// rollup 序列；标签过滤必须返回该标签自己的值，而不是跨标签合并结果。
+// TestRollupKeepsTagSeriesSeparate is designed to address the problem that rollup has lost tag dimensions.
+// Regression testing: Two points with different labels in the same metric, entity, and bucket must become two independent
+// rollup sequence; tag filtering must return the tag's own value rather than merging results across tags.
 func TestRollupKeepsTagSeriesSeparate(t *testing.T) {
 	ctx := context.Background()
 	policy := RollupPolicy{Tiers: []RollupTier{{Interval: time.Minute, Retention: 24 * time.Hour}}}
@@ -109,9 +109,9 @@ func TestRollupKeepsTagSeriesSeparate(t *testing.T) {
 // answerable from that tag's surviving rollup series (and not contaminated by
 // the other tag).
 //
-// TestRollupTagPercentileSurvivesRetention 验证核心 TSDB 特性在每个标签上
-// 仍然成立：原始点删除后，按标签过滤的百分位仍能从该标签保留下来的 rollup 序列
-// 回答，并且不会被另一个标签污染。
+// TestRollupTagPercentileSurvivesRetention verifies core TSDB attributes on each tag
+// Still holds: after the original point is deleted, the percentile filtered by the label can still be retained from the rollup sequence of the label
+// Answer and not be tainted by another label.
 func TestRollupTagPercentileSurvivesRetention(t *testing.T) {
 	ctx := context.Background()
 	policy := RollupPolicy{
@@ -175,8 +175,8 @@ func TestRollupTagPercentileSurvivesRetention(t *testing.T) {
 // TestSeriesTagFilterRoutesPerTag checks the auto-routing read path honors tags
 // on both the raw branch (recent) and the rollup branch (old).
 //
-// TestSeriesTagFilterRoutesPerTag 检查自动路由读取路径在原始分支（近期数据）和
-// rollup 分支（旧数据）上都遵守标签。
+// TestSeriesTagFilterRoutesPerTag checks the auto-route read paths on the original branch (recent data) and
+// Labels are respected on rollup branches (old data).
 func TestSeriesTagFilterRoutesPerTag(t *testing.T) {
 	ctx := context.Background()
 	policy := RollupPolicy{
@@ -235,8 +235,8 @@ func TestSeriesTagFilterRoutesPerTag(t *testing.T) {
 // TestDeleteSeriesRemovesTaggedTaskAcrossAgents verifies a task_id tag can be
 // deleted across every agent, including stored rollups.
 //
-// TestDeleteSeriesRemovesTaggedTaskAcrossAgents 验证可以跨所有 agent 删除某个
-// task_id 标签，包括已存储的 rollup。
+// TestDeleteSeriesRemovesTaggedTaskAcrossAgents Verifies that a certain item can be deleted across all agents
+// task_id tag, including stored rollup.
 func TestDeleteSeriesRemovesTaggedTaskAcrossAgents(t *testing.T) {
 	ctx := context.Background()
 	policy := RollupPolicy{
@@ -305,7 +305,7 @@ func TestDeleteSeriesRemovesTaggedTaskAcrossAgents(t *testing.T) {
 
 // TestDeleteMetricRemovesRollups verifies metric deletion clears rollup rows.
 //
-// TestDeleteMetricRemovesRollups 验证删除指标会清理 rollup 行。
+// TestDeleteMetricRemovesRollups verifies that removing metrics cleans up rollup rows.
 func TestDeleteMetricRemovesRollups(t *testing.T) {
 	ctx := context.Background()
 	s := newRollupStore(t, RollupPolicy{
@@ -337,8 +337,8 @@ func TestDeleteMetricRemovesRollups(t *testing.T) {
 // TestTagsFingerprintStable verifies equal tag maps fingerprint identically
 // regardless of construction order, and different maps differ.
 //
-// TestTagsFingerprintStable 验证相同标签 map 无论构造顺序如何都会生成相同指纹，
-// 而不同 map 会得到不同指纹。
+// TestTagsFingerprintStable verifies that the same tag map produces the same fingerprint regardless of the order of construction,
+// Different maps will get different fingerprints.
 func TestTagsFingerprintStable(t *testing.T) {
 	a := map[string]string{"region": "ap", "device_index": "3"}
 	b := map[string]string{"device_index": "3", "region": "ap"}

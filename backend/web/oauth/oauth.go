@@ -26,7 +26,7 @@ func CurrentProvider() factory.IOidcProvider {
 	return currentProvider
 }
 
-// Shutdown 销毁当前 OAuth provider，释放其持有的资源。供关闭流程调用。
+// Shutdown releases the current OAuth provider and its resources during server shutdown.
 func Shutdown() error {
 	mu.Lock()
 	defer mu.Unlock()
@@ -69,7 +69,7 @@ func Initialize() error {
 			if _, err := database.GetOidcConfigByName(provider.GetName()); err == nil {
 				continue
 			}
-			// 如果数据库中没有该提供者的配置，则保存默认配置
+			// If there is no configuration for the provider in the database, save the default configuration
 			config := provider.GetConfiguration()
 			configBytes, err := json.Marshal(config)
 			if err != nil {
@@ -92,7 +92,7 @@ func Initialize() error {
 	}
 	provider, err := database.GetOidcConfigByName(cfg)
 	if err != nil {
-		// 如果没有找到配置，使用github provider
+		// If the configuration is not found, use the github provider
 		LoadProvider("github", "{}")
 		return nil
 	}

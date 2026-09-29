@@ -14,7 +14,7 @@ import (
 
 type ConfigItem struct {
 	Key   string `gorm:"primaryKey;column:key;type:text"`
-	Value string `gorm:"column:value;type:text"` // 存 JSON 字符串
+	Value string `gorm:"column:value;type:text"` // Save JSON string
 }
 
 func (ConfigItem) TableName() string {
@@ -31,7 +31,7 @@ var (
 	}
 )
 
-// GetAs 获取并转换为指定类型 (泛型)，支持数值类型自动转换
+// GetAs obtains and converts to a specified type (generic), supporting automatic conversion of numerical types
 func GetAs[T any](key string, defaul ...any) (T, error) {
 	var t T
 	var item ConfigItem
@@ -39,12 +39,12 @@ func GetAs[T any](key string, defaul ...any) (T, error) {
 	err := db.First(&item, "key = ?", key).Error
 	if err != nil {
 		if len(defaul) > 0 {
-			// 尝试直接类型断言
+			// Try direct type assertion
 			if v, ok := defaul[0].(T); ok {
 				err = Set(key, v)
 				return v, err
 			}
-			// 尝试类型转换
+			// Try type conversion
 			val := reflect.ValueOf(&t).Elem()
 			if err := convertAndSet(defaul[0], val); err != nil {
 				return t, fmt.Errorf("default value type mismatch: expected %T, got %T", t, defaul[0])
@@ -55,9 +55,9 @@ func GetAs[T any](key string, defaul ...any) (T, error) {
 		return t, err
 	}
 
-	// 先尝试直接反序列化
+	// Try deserializing directly first
 	if err = json.Unmarshal([]byte(item.Value), &t); err != nil {
-		// 尝试通用解析后转换
+		// Try universal parsing post-conversion
 		var generic any
 		if err := json.Unmarshal([]byte(item.Value), &generic); err != nil {
 			return t, err
@@ -70,9 +70,9 @@ func GetAs[T any](key string, defaul ...any) (T, error) {
 	return t, nil
 }
 
-// GetMany 获取多个配置项，keys 为 map[key]defaultValue
-// 如果 defaultValue 为 nil，则数据库不存在时不写入
-// 如果 defaultValue 不为 nil，则数据库不存在时写入默认值
+// GetMany gets multiple configuration items, keys are map[key]defaultValue
+// If defaultValue is nil, no writing is done if the database does not exist
+// If defaultValue is not nil, the default value is written if the database does not exist
 func GetMany(keys map[string]any) (map[string]any, error) {
 	var items []ConfigItem
 	result := make(map[string]any)
@@ -96,13 +96,13 @@ func GetMany(keys map[string]any) (map[string]any, error) {
 		}
 	}
 
-	// 收集需要写入数据库的默认值
+	// Collect default values that need to be written to the database
 	var toInsert []ConfigItem
 	for k, def := range keys {
 		if _, found := foundKeys[k]; !found {
 			if def != nil {
 				result[k] = def
-				// 序列化后加入待写入列表
+				// After serialization, add to the list to be written.
 				jsonBytes, err := json.Marshal(def)
 				if err != nil {
 					logger.Warn("config", "marshal default value failed", "key", k, "error", err)
@@ -116,7 +116,7 @@ func GetMany(keys map[string]any) (map[string]any, error) {
 		}
 	}
 
-	// 批量写入默认值到数据库
+	// Batch write default values to database
 	if len(toInsert) > 0 {
 		if err := db.Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "key"}},
@@ -129,9 +129,9 @@ func GetMany(keys map[string]any) (map[string]any, error) {
 	return result, nil
 }
 
-// GetManyAs 将多个配置项映射到一个结构体中，json tag 作为 Key
-// 支持 default tag 作为默认值，如果数据库中不存在且有 default tag 则写入数据库
-// 没有 default tag 的字段使用零值，不写入数据库
+// GetManyAs maps multiple configuration items into a structure, with json tag as Key
+// Support default tag as the default value. If it does not exist in the database and there is a default tag, it will be written to the database.
+// Fields without default tag use zero value and are not written to the database.
 func GetManyAs[T any]() (*T, error) {
 	var t T
 	val := reflect.ValueOf(&t).Elem()
@@ -153,14 +153,14 @@ func GetManyAs[T any]() (*T, error) {
 		if jsonTag == "" || jsonTag == "-" {
 			continue
 		}
-		// 解析 json tag，处理 "key,omitempty" 格式
+		// Parse json tag and process "key,omitempty" format
 		key := strings.Split(jsonTag, ",")[0]
 		if key == "" || key == "-" {
 			continue
 		}
 
 		defaultTag := field.Tag.Get("default")
-		// 检查是否显式定义了 default tag (即使值为空)
+		// Check if default tag is explicitly defined (even if the value is empty)
 		_, hasDefault := field.Tag.Lookup("default")
 
 		fields = append(fields, fieldInfo{
@@ -181,13 +181,13 @@ func GetManyAs[T any]() (*T, error) {
 		return nil, err
 	}
 
-	// 建立数据库中存在的 key 映射
+	// Establish key mapping that exists in the database
 	foundItems := make(map[string]string) // key -> value
 	for _, item := range items {
 		foundItems[item.Key] = item.Value
 	}
 
-	// 需要写入数据库的新配置项
+	// New configuration items that need to be written to the database
 	var toInsert []ConfigItem
 
 	for _, fi := range fields {
@@ -197,17 +197,17 @@ func GetManyAs[T any]() (*T, error) {
 		}
 
 		if dbValue, found := foundItems[fi.key]; found {
-			// 数据库中存在，使用数据库值
+			// Exists in the database, use the database value
 			if err := unmarshalToField(dbValue, fieldVal); err != nil {
 				logger.Warn("config", "unmarshal config failed", "key", fi.key, "error", err)
 			}
 		} else if fi.hasDefault {
-			// 数据库中不存在，但有 default tag，解析默认值并写入数据库
+			// It does not exist in the database, but there is a default tag. The default value is parsed and written to the database.
 			if err := parseDefaultToField(fi.defaultVal, fieldVal); err != nil {
 				logger.Warn("config", "parse default value failed", "key", fi.key, "error", err)
 				continue
 			}
-			// 序列化后写入数据库
+			// Write to database after serialization
 			jsonBytes, err := json.Marshal(fieldVal.Interface())
 			if err != nil {
 				logger.Warn("config", "marshal default value failed", "key", fi.key, "error", err)
@@ -218,10 +218,10 @@ func GetManyAs[T any]() (*T, error) {
 				Value: string(jsonBytes),
 			})
 		}
-		// 没有 default tag 且数据库中不存在，保持零值，不写入数据库
+		// If there is no default tag and it does not exist in the database, keep the value zero and do not write it to the database.
 	}
 
-	// 批量写入默认值到数据库
+	// Batch write default values to database
 	if len(toInsert) > 0 {
 		if err := db.Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "key"}},
@@ -234,11 +234,11 @@ func GetManyAs[T any]() (*T, error) {
 	return &t, nil
 }
 
-// unmarshalToField 将 JSON 字符串反序列化到字段，支持数值类型转换
+// unmarshalToField deserializes JSON strings into fields, supporting numeric type conversion
 func unmarshalToField(jsonStr string, fieldVal reflect.Value) error {
 	target := reflect.New(fieldVal.Type()).Interface()
 	if err := json.Unmarshal([]byte(jsonStr), target); err != nil {
-		// 尝试通用解析后转换
+		// Try universal parsing post-conversion
 		var generic any
 		if err := json.Unmarshal([]byte(jsonStr), &generic); err != nil {
 			return err
@@ -249,7 +249,7 @@ func unmarshalToField(jsonStr string, fieldVal reflect.Value) error {
 	return nil
 }
 
-// parseDefaultToField 解析 default tag 值到字段
+// parseDefaultToField parses the default tag value into the field
 func parseDefaultToField(defaultVal string, fieldVal reflect.Value) error {
 	kind := fieldVal.Kind()
 
@@ -262,7 +262,7 @@ func parseDefaultToField(defaultVal string, fieldVal reflect.Value) error {
 		var v int64
 		if defaultVal != "" {
 			if _, err := fmt.Sscanf(defaultVal, "%d", &v); err != nil {
-				// 尝试解析浮点数后转换
+				// Try converting after parsing a floating point number
 				var f float64
 				if _, err := fmt.Sscanf(defaultVal, "%f", &f); err != nil {
 					return err
@@ -292,9 +292,9 @@ func parseDefaultToField(defaultVal string, fieldVal reflect.Value) error {
 		}
 		fieldVal.SetFloat(v)
 	default:
-		// 对于复杂类型，尝试 JSON 解析
+		// For complex types, try JSON parsing
 		if defaultVal == "" {
-			return nil // 保持零值
+			return nil // keep zero value
 		}
 		target := reflect.New(fieldVal.Type()).Interface()
 		if err := json.Unmarshal([]byte(defaultVal), target); err != nil {
@@ -305,7 +305,7 @@ func parseDefaultToField(defaultVal string, fieldVal reflect.Value) error {
 	return nil
 }
 
-// convertAndSet 通用类型转换并设置字段值
+// convertAndSet Generic type conversion and set field value
 func convertAndSet(val any, fieldVal reflect.Value) error {
 	if val == nil {
 		return nil
@@ -314,19 +314,19 @@ func convertAndSet(val any, fieldVal reflect.Value) error {
 	targetType := fieldVal.Type()
 	v := reflect.ValueOf(val)
 
-	// 直接类型匹配
+	// direct type matching
 	if v.Type().AssignableTo(targetType) {
 		fieldVal.Set(v)
 		return nil
 	}
 
-	// 类型可转换
+	// type convertible
 	if v.Type().ConvertibleTo(targetType) {
 		fieldVal.Set(v.Convert(targetType))
 		return nil
 	}
 
-	// 数值类型特殊处理 (JSON 数字默认解析为 float64)
+	// Special handling of numerical types (JSON numbers are parsed as float64 by default)
 	if f, ok := val.(float64); ok {
 		switch fieldVal.Kind() {
 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
@@ -341,7 +341,7 @@ func convertAndSet(val any, fieldVal reflect.Value) error {
 		}
 	}
 
-	// JSON 回环转换
+	// JSON loopback conversion
 	b, err := json.Marshal(val)
 	if err != nil {
 		return err
@@ -370,7 +370,7 @@ func GetAll() (map[string]any, error) {
 	return result, nil
 }
 
-// Set 设置单个配置
+// Set sets a single configuration
 func Set(key string, value any) error {
 	oldVal := map[string]any{}
 	{

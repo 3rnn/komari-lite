@@ -5,7 +5,6 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation } from "react-router-dom";
 import ColorSwitch from "../ColorSwitch";
-import LanguageSwitch from "../Language";
 import ThemeSwitch from "../ThemeSwitch";
 import KomariLiteBrand from "../KomariLiteBrand";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -21,7 +20,7 @@ import {
 import { useSettings } from "@/lib/api";
 import { preloadAdminRoute } from "@/routes";
 
-// 将JSON配置转换为类型安全的菜单项数组 (基础静态菜单)
+// Convert JSON configuration into type-safe menu items (base static menu).
 const parsedMenuConfig = menuConfig as {
   menu: MenuItem[];
   footer?: MenuItem[];
@@ -45,7 +44,7 @@ interface AdminPanelBarProps {
 const AdminPanelBar = ({ content }: AdminPanelBarProps) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [openSubMenus, setOpenSubMenus] = useState<{ [key: string]: boolean }>({
-    // 默认所有子菜单关闭
+    // Start with all submenus closed.
   });
   const isMobile = useIsMobile();
   const ishttps = window.location.protocol === "https:";
@@ -187,14 +186,14 @@ const AdminPanelBar = ({ content }: AdminPanelBarProps) => {
     return () => window.removeEventListener("resize", handleResize);
   }, [isMobile]);
 
-  // 根据路径自动展开子菜单（包含动态扩展项）
+  // Expand submenus for the current path, including dynamically added items.
   useEffect(() => {
     setOpenSubMenus((current) =>
       syncSubMenuForLocation(current, menuItems, location.pathname),
     );
   }, [location.pathname, menuItems]);
 
-  // 侧边栏动画变体
+  // Sidebar animation variants.
   const sidebarVariants = reduceMotion
     ? {
         open: { x: 0, opacity: 1, transition: { duration: 0 } },
@@ -236,7 +235,7 @@ const AdminPanelBar = ({ content }: AdminPanelBarProps) => {
         },
       } as const;
 
-  // 内容区域动画变体
+  // Content animation variants.
   const contentVariants = {
     open: {
       opacity: 1,
@@ -403,7 +402,7 @@ const AdminPanelBar = ({ content }: AdminPanelBarProps) => {
           md: sidebarOpen
             ? `${DESKTOP_SIDEBAR_WIDTH}px 1fr`
             : "0px 1fr",
-        }} // 动态调整网格列
+        }} // Adjust the grid columns dynamically.
         rows={{
           initial: "auto minmax(0, 1fr)",
           md: "auto minmax(0, 1fr)",
@@ -467,7 +466,6 @@ const AdminPanelBar = ({ content }: AdminPanelBarProps) => {
             >
               <ThemeSwitch />
               <ColorSwitch />
-              <LanguageSwitch />
               <IconButton variant="soft" color="orange" onClick={logout}>
                 <ExitIcon />
               </IconButton>
@@ -481,7 +479,7 @@ const AdminPanelBar = ({ content }: AdminPanelBarProps) => {
             <motion.button
               key="mobile-sidebar-backdrop"
               type="button"
-              aria-label={t("close", "关闭导航")}
+              aria-label={t("close", "Close")}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -528,11 +526,11 @@ const AdminPanelBar = ({ content }: AdminPanelBarProps) => {
                 minWidth: isMobile ? "100%" : `${DESKTOP_SIDEBAR_WIDTH}px`,
               }}
             >
-              {/* 关闭按钮 */}
+              {/* Close button. */}
               <IconButton
                 variant="soft"
                 data-testid="mobile-sidebar-close"
-                aria-label={t("close", "关闭导航")}
+                aria-label={t("close", "Close")}
                 style={{
                   display: isMobile ? "flex" : "none",
                   margin: "8px 0px 0px 8px",
@@ -541,7 +539,7 @@ const AdminPanelBar = ({ content }: AdminPanelBarProps) => {
               >
                 <Cross1Icon />
               </IconButton>
-              {/* 侧边连链接 */}
+              {/* Sidebar links. */}
               <Flex
                 direction="column"
                 gap="1"
@@ -622,7 +620,7 @@ const AdminPanelBar = ({ content }: AdminPanelBarProps) => {
 
 export default AdminPanelBar;
 
-// 侧边栏项目组件
+// Sidebar item component.
 const SidebarItem = ({
   to,
   onClick,

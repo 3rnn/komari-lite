@@ -23,12 +23,12 @@ func (t *TelegramSender) GetConfiguration() factory.Configuration {
 }
 
 func (t *TelegramSender) Init() error {
-	// 初始化逻辑，如果需要的话
+	// Initialization logic, if needed
 	return nil
 }
 
 func (t *TelegramSender) Destroy() error {
-	// 清理逻辑，如果需要的话
+	// Clean up logic if needed
 	return nil
 }
 
@@ -88,5 +88,5 @@ func init() {
 	})
 }
 
-// 确保实现了 IMessageSender 接口
+// Make sure you implement the IMessageSender interface
 var _ factory.IMessageSender = (*TelegramSender)(nil)

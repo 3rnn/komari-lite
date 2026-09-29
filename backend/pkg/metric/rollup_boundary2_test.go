@@ -19,9 +19,9 @@ import (
 // there, dropping both boundary points (count=1, the stale rollup half only).
 // Serving raw from the aligned cutoff fixes it (count=2).
 //
-// TestSeriesHybridKeepsUncompactedRawNearCutoff 验证混合读取不会丢失落在
-// （最细对齐后的）原始 cutoff 与下一个桶边界之间的 raw 点，包括上次 compact 之后
-// 才写入的点。
+// TestSeriesHybridKeepsUncompactedRawNearCutoff Verifies that hybrid reads do not lose falling
+// The raw point between the original cutoff (after the thinnest alignment) and the next bucket boundary, including after the last compact
+// Just write the point.
 func TestSeriesHybridKeepsUncompactedRawNearCutoff(t *testing.T) {
 	ctx := context.Background()
 	policy := RollupPolicy{
@@ -85,8 +85,8 @@ func TestSeriesHybridKeepsUncompactedRawNearCutoff(t *testing.T) {
 // The old entry gate required End strictly AFTER the cutoff, so this fell through
 // to the pure-rollup path and returned the cutoff point's bucket empty.
 //
-// TestSeriesHybridEndEqualsCutoff 验证 End 恰好等于原始 cutoff 的查询仍会包含
-// 落在 cutoff 上的 raw 点，而不是返回空。
+// TestSeriesHybridEndEqualsCutoff verifies that a query with End exactly equal to the original cutoff will still contain
+// Raw points falling on cutoff instead of returning null.
 func TestSeriesHybridEndEqualsCutoff(t *testing.T) {
 	ctx := context.Background()
 	policy := RollupPolicy{

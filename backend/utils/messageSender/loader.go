@@ -37,7 +37,7 @@ func GetProviderConfiguration(name string) (map[string]interface{}, error) {
 	provider := constructor()
 	config := provider.GetConfiguration()
 
-	// 将配置转换为map
+	// Convert configuration to map
 	configBytes, err := json.Marshal(config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal configuration: %w", err)

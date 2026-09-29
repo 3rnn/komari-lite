@@ -27,7 +27,7 @@ func (g *Github) GetConfiguration() factory.Configuration {
 func (g *Github) GetAuthorizationURL(_ string) (string, string) {
 	state := utils.GenerateRandomString(16)
 
-	// 构建GitHub OAuth授权URL
+	// Build the GitHub OAuth authorization URL.
 	authURL := fmt.Sprintf(
 		"https://github.com/login/oauth/authorize?client_id=%s&state=%s&scope=user:email",
 		url.QueryEscape(g.Addition.ClientId),
@@ -39,7 +39,7 @@ func (g *Github) GetAuthorizationURL(_ string) (string, string) {
 func (g *Github) OnCallback(ctx *gin.Context, state string, query map[string]string, _ string) (factory.OidcCallback, error) {
 	code := query["code"]
 
-	// 验证state防止CSRF攻击
+	// Validate state against CSRF attacks
 	// state, _ := c.Cookie("oauth_state")
 	if g.stateCache == nil {
 		return factory.OidcCallback{}, fmt.Errorf("state cache not initialized")
@@ -51,13 +51,13 @@ func (g *Github) OnCallback(ctx *gin.Context, state string, query map[string]str
 		return factory.OidcCallback{}, fmt.Errorf("invalid state")
 	}
 
-	// 获取code
+	// Get code
 	//code := c.Query("code")
 	if code == "" {
 		return factory.OidcCallback{}, fmt.Errorf("no code provided")
 	}
 
-	// 获取访问令牌
+	// Request an access token.
 	tokenURL := "https://github.com/login/oauth/access_token"
 	data := url.Values{
 		"client_id":     {g.Addition.ClientId},
@@ -85,7 +85,7 @@ func (g *Github) OnCallback(ctx *gin.Context, state string, query map[string]str
 		return factory.OidcCallback{}, fmt.Errorf("failed to parse access token response: %s", utils.DataMasking(err.Error(), []string{g.Addition.ClientSecret, g.Addition.ClientId}))
 	}
 
-	// 获取用户信息
+	// Get User Information
 	userReq, _ := http.NewRequest("GET", "https://api.github.com/user", nil)
 	userReq.Header.Set("Authorization", "Bearer "+tokenResp.AccessToken)
 	userReq.Header.Set("Accept", "application/json")

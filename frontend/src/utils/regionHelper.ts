@@ -1,604 +1,604 @@
-// 地区emoji到名称的映射
+// Map region emojis to names.
 export const emojiToRegionMap: Record<string, { en: string; zh: string; aliases: string[] }> = {
   '🇭🇰': {
     en: 'Hong Kong',
-    zh: '香港',
-    aliases: ['hk', 'hongkong', 'hong kong', '香港', 'HK']
+    zh: 'Hong Kong',
+    aliases: ['hk', 'hongkong', 'hong kong', '\u9999\u6e2f', 'HK']
   },
   '🇨🇳': {
     en: 'China',
-    zh: '中国',
-    aliases: ['cn', 'china', '中国', '中华人民共和国', 'prc', 'CN']
+    zh: 'China',
+    aliases: ['cn', 'china', '\u4e2d\u56fd', '\u4e2d\u534e\u4eba\u6c11\u5171\u548c\u56fd', 'prc', 'CN']
   },
   '🇺🇸': {
     en: 'United States',
-    zh: '美国',
-    aliases: ['us', 'usa', 'united states', 'america', '美国', '美利坚', 'US', 'USA']
+    zh: 'United States',
+    aliases: ['us', 'usa', 'united states', 'america', '\u7f8e\u56fd', '\u7f8e\u5229\u575a', 'US', 'USA']
   },
   '🇯🇵': {
     en: 'Japan',
-    zh: '日本',
-    aliases: ['jp', 'japan', '日本', 'JP']
+    zh: 'Japan',
+    aliases: ['jp', 'japan', '\u65e5\u672c', 'JP']
   },
   '🇰🇷': {
     en: 'South Korea',
-    zh: '韩国',
-    aliases: ['kr', 'korea', 'south korea', '韩国', '南韩', 'KR']
+    zh: 'South Korea',
+    aliases: ['kr', 'korea', 'south korea', '\u97e9\u56fd', '\u5357\u97e9', 'KR']
   },
   '🇸🇬': {
     en: 'Singapore',
-    zh: '新加坡',
-    aliases: ['sg', 'singapore', '新加坡', 'SG']
+    zh: 'Singapore',
+    aliases: ['sg', 'singapore', '\u65b0\u52a0\u5761', 'SG']
   },
   '🇹🇼': {
     en: 'Taiwan',
-    zh: '台湾',
-    aliases: ['tw', 'taiwan', '台湾', '台灣', 'TW']
+    zh: 'Taiwan',
+    aliases: ['tw', 'taiwan', '\u53f0\u6e7e', '\u53f0\u7063', 'TW']
   },
   '🇬🇧': {
     en: 'United Kingdom',
-    zh: '英国',
-    aliases: ['gb', 'uk', 'united kingdom', 'britain', '英国', '英國', 'GB', 'UK']
+    zh: 'United Kingdom',
+    aliases: ['gb', 'uk', 'united kingdom', 'britain', '\u82f1\u56fd', '\u82f1\u570b', 'GB', 'UK']
   },
   '🇩🇪': {
     en: 'Germany',
-    zh: '德国',
-    aliases: ['de', 'germany', 'deutschland', '德国', '德國', 'DE']
+    zh: 'Germany',
+    aliases: ['de', 'germany', 'deutschland', '\u5fb7\u56fd', '\u5fb7\u570b', 'DE']
   },
   '🇫🇷': {
     en: 'France',
-    zh: '法国',
-    aliases: ['fr', 'france', '法国', '法國', 'FR']
+    zh: 'France',
+    aliases: ['fr', 'france', '\u6cd5\u56fd', '\u6cd5\u570b', 'FR']
   },
   '🇨🇦': {
     en: 'Canada',
-    zh: '加拿大',
-    aliases: ['ca', 'canada', '加拿大', 'CA']
+    zh: 'Canada',
+    aliases: ['ca', 'canada', '\u52a0\u62ff\u5927', 'CA']
   },
   '🇦🇺': {
     en: 'Australia',
-    zh: '澳大利亚',
-    aliases: ['au', 'australia', '澳大利亚', '澳洲', 'AU']
+    zh: 'Australia',
+    aliases: ['au', 'australia', '\u6fb3\u5927\u5229\u4e9a', '\u6fb3\u6d32', 'AU']
   },
   '🇷🇺': {
     en: 'Russia',
-    zh: '俄罗斯',
-    aliases: ['ru', 'russia', '俄罗斯', '俄國', 'RU']
+    zh: 'Russia',
+    aliases: ['ru', 'russia', '\u4fc4\u7f57\u65af', '\u4fc4\u570b', 'RU']
   },
   '🇮🇳': {
     en: 'India',
-    zh: '印度',
-    aliases: ['in', 'india', '印度', 'IN']
+    zh: 'India',
+    aliases: ['in', 'india', '\u5370\u5ea6', 'IN']
   },
   '🇧🇷': {
     en: 'Brazil',
-    zh: '巴西',
-    aliases: ['br', 'brazil', '巴西', 'BR']
+    zh: 'Brazil',
+    aliases: ['br', 'brazil', '\u5df4\u897f', 'BR']
   },
   '🇳🇱': {
     en: 'Netherlands',
-    zh: '荷兰',
-    aliases: ['nl', 'netherlands', 'holland', '荷兰', '荷蘭', 'NL']
+    zh: 'Netherlands',
+    aliases: ['nl', 'netherlands', 'holland', '\u8377\u5170', '\u8377\u862d', 'NL']
   },
   '🇮🇹': {
     en: 'Italy',
-    zh: '意大利',
-    aliases: ['it', 'italy', '意大利', 'IT']
+    zh: 'Italy',
+    aliases: ['it', 'italy', '\u610f\u5927\u5229', 'IT']
   },
   '🇪🇸': {
     en: 'Spain',
-    zh: '西班牙',
-    aliases: ['es', 'spain', '西班牙', 'ES']
+    zh: 'Spain',
+    aliases: ['es', 'spain', '\u897f\u73ed\u7259', 'ES']
   },
   '🇸🇪': {
     en: 'Sweden',
-    zh: '瑞典',
-    aliases: ['se', 'sweden', '瑞典', 'SE']
+    zh: 'Sweden',
+    aliases: ['se', 'sweden', '\u745e\u5178', 'SE']
   },
   '🇳🇴': {
     en: 'Norway',
-    zh: '挪威',
-    aliases: ['no', 'norway', '挪威', 'NO']
+    zh: 'Norway',
+    aliases: ['no', 'norway', '\u632a\u5a01', 'NO']
   },
   '🇫🇮': {
     en: 'Finland',
-    zh: '芬兰',
-    aliases: ['fi', 'finland', '芬兰', '芬蘭', 'FI']
+    zh: 'Finland',
+    aliases: ['fi', 'finland', '\u82ac\u5170', '\u82ac\u862d', 'FI']
   },
   '🇨🇭': {
     en: 'Switzerland',
-    zh: '瑞士',
-    aliases: ['ch', 'switzerland', '瑞士', 'CH']
+    zh: 'Switzerland',
+    aliases: ['ch', 'switzerland', '\u745e\u58eb', 'CH']
   },
   '🇦🇹': {
     en: 'Austria',
-    zh: '奥地利',
-    aliases: ['at', 'austria', '奥地利', '奧地利', 'AT']
+    zh: 'Austria',
+    aliases: ['at', 'austria', '\u5965\u5730\u5229', '\u5967\u5730\u5229', 'AT']
   },
   '🇧🇪': {
     en: 'Belgium',
-    zh: '比利时',
-    aliases: ['be', 'belgium', '比利时', '比利時', 'BE']
+    zh: 'Belgium',
+    aliases: ['be', 'belgium', '\u6bd4\u5229\u65f6', '\u6bd4\u5229\u6642', 'BE']
   },
   '🇵🇹': {
     en: 'Portugal',
-    zh: '葡萄牙',
-    aliases: ['pt', 'portugal', '葡萄牙', 'PT']
+    zh: 'Portugal',
+    aliases: ['pt', 'portugal', '\u8461\u8404\u7259', 'PT']
   },
   '🇬🇷': {
     en: 'Greece',
-    zh: '希腊',
-    aliases: ['gr', 'greece', '希腊', '希臘', 'GR']
+    zh: 'Greece',
+    aliases: ['gr', 'greece', '\u5e0c\u814a', '\u5e0c\u81d8', 'GR']
   },
   '🇹🇷': {
     en: 'Turkey',
-    zh: '土耳其',
-    aliases: ['tr', 'turkey', '土耳其', 'TR']
+    zh: 'Turkey',
+    aliases: ['tr', 'turkey', '\u571f\u8033\u5176', 'TR']
   },
   '🇵🇱': {
     en: 'Poland',
-    zh: '波兰',
-    aliases: ['pl', 'poland', '波兰', '波蘭', 'PL']
+    zh: 'Poland',
+    aliases: ['pl', 'poland', '\u6ce2\u5170', '\u6ce2\u862d', 'PL']
   },
   '🇨🇿': {
     en: 'Czech Republic',
-    zh: '捷克',
-    aliases: ['cz', 'czech', 'czech republic', '捷克', 'CZ']
+    zh: 'Czech Republic',
+    aliases: ['cz', 'czech', 'czech republic', '\u6377\u514b', 'CZ']
   },
   '🇭🇺': {
     en: 'Hungary',
-    zh: '匈牙利',
-    aliases: ['hu', 'hungary', '匈牙利', 'HU']
+    zh: 'Hungary',
+    aliases: ['hu', 'hungary', '\u5308\u7259\u5229', 'HU']
   },
   '🇷🇴': {
     en: 'Romania',
-    zh: '罗马尼亚',
-    aliases: ['ro', 'romania', '罗马尼亚', '羅馬尼亞', 'RO']
+    zh: 'Romania',
+    aliases: ['ro', 'romania', '\u7f57\u9a6c\u5c3c\u4e9a', '\u7f85\u99ac\u5c3c\u4e9e', 'RO']
   },
   '🇧🇬': {
     en: 'Bulgaria',
-    zh: '保加利亚',
-    aliases: ['bg', 'bulgaria', '保加利亚', '保加利亞', 'BG']
+    zh: 'Bulgaria',
+    aliases: ['bg', 'bulgaria', '\u4fdd\u52a0\u5229\u4e9a', '\u4fdd\u52a0\u5229\u4e9e', 'BG']
   },
   '🇭🇷': {
     en: 'Croatia',
-    zh: '克罗地亚',
-    aliases: ['hr', 'croatia', '克罗地亚', '克羅地亞', 'HR']
+    zh: 'Croatia',
+    aliases: ['hr', 'croatia', '\u514b\u7f57\u5730\u4e9a', '\u514b\u7f85\u5730\u4e9e', 'HR']
   },
   '🇸🇮': {
     en: 'Slovenia',
-    zh: '斯洛文尼亚',
-    aliases: ['si', 'slovenia', '斯洛文尼亚', '斯洛文尼亞', 'SI']
+    zh: 'Slovenia',
+    aliases: ['si', 'slovenia', '\u65af\u6d1b\u6587\u5c3c\u4e9a', '\u65af\u6d1b\u6587\u5c3c\u4e9e', 'SI']
   },
   '🇸🇰': {
     en: 'Slovakia',
-    zh: '斯洛伐克',
-    aliases: ['sk', 'slovakia', '斯洛伐克', 'SK']
+    zh: 'Slovakia',
+    aliases: ['sk', 'slovakia', '\u65af\u6d1b\u4f10\u514b', 'SK']
   },
   '🇱🇻': {
     en: 'Latvia',
-    zh: '拉脱维亚',
-    aliases: ['lv', 'latvia', '拉脱维亚', '拉脫維亞', 'LV']
+    zh: 'Latvia',
+    aliases: ['lv', 'latvia', '\u62c9\u8131\u7ef4\u4e9a', '\u62c9\u812b\u7dad\u4e9e', 'LV']
   },
   '🇱🇹': {
     en: 'Lithuania',
-    zh: '立陶宛',
-    aliases: ['lt', 'lithuania', '立陶宛', 'LT']
+    zh: 'Lithuania',
+    aliases: ['lt', 'lithuania', '\u7acb\u9676\u5b9b', 'LT']
   },
   '🇪🇪': {
     en: 'Estonia',
-    zh: '爱沙尼亚',
-    aliases: ['ee', 'estonia', '爱沙尼亚', '愛沙尼亞', 'EE']
+    zh: 'Estonia',
+    aliases: ['ee', 'estonia', '\u7231\u6c99\u5c3c\u4e9a', '\u611b\u6c99\u5c3c\u4e9e', 'EE']
   },
   '🇲🇽': {
     en: 'Mexico',
-    zh: '墨西哥',
-    aliases: ['mx', 'mexico', '墨西哥', 'MX']
+    zh: 'Mexico',
+    aliases: ['mx', 'mexico', '\u58a8\u897f\u54e5', 'MX']
   },
   '🇦🇷': {
     en: 'Argentina',
-    zh: '阿根廷',
-    aliases: ['ar', 'argentina', '阿根廷', 'AR']
+    zh: 'Argentina',
+    aliases: ['ar', 'argentina', '\u963f\u6839\u5ef7', 'AR']
   },
   '🇨🇱': {
     en: 'Chile',
-    zh: '智利',
-    aliases: ['cl', 'chile', '智利', 'CL']
+    zh: 'Chile',
+    aliases: ['cl', 'chile', '\u667a\u5229', 'CL']
   },
   '🇨🇴': {
     en: 'Colombia',
-    zh: '哥伦比亚',
-    aliases: ['co', 'colombia', '哥伦比亚', '哥倫比亞', 'CO']
+    zh: 'Colombia',
+    aliases: ['co', 'colombia', '\u54e5\u4f26\u6bd4\u4e9a', '\u54e5\u502b\u6bd4\u4e9e', 'CO']
   },
   '🇵🇪': {
     en: 'Peru',
-    zh: '秘鲁',
-    aliases: ['pe', 'peru', '秘鲁', '秘魯', 'PE']
+    zh: 'Peru',
+    aliases: ['pe', 'peru', '\u79d8\u9c81', '\u79d8\u9b6f', 'PE']
   },
   '🇻🇪': {
     en: 'Venezuela',
-    zh: '委内瑞拉',
-    aliases: ['ve', 'venezuela', '委内瑞拉', '委內瑞拉', 'VE']
+    zh: 'Venezuela',
+    aliases: ['ve', 'venezuela', '\u59d4\u5185\u745e\u62c9', '\u59d4\u5167\u745e\u62c9', 'VE']
   },
   '🇺🇾': {
     en: 'Uruguay',
-    zh: '乌拉圭',
-    aliases: ['uy', 'uruguay', '乌拉圭', '烏拉圭', 'UY']
+    zh: 'Uruguay',
+    aliases: ['uy', 'uruguay', '\u4e4c\u62c9\u572d', '\u70cf\u62c9\u572d', 'UY']
   },
   '🇪🇨': {
     en: 'Ecuador',
-    zh: '厄瓜多尔',
-    aliases: ['ec', 'ecuador', '厄瓜多尔', '厄瓜多爾', 'EC']
+    zh: 'Ecuador',
+    aliases: ['ec', 'ecuador', '\u5384\u74dc\u591a\u5c14', '\u5384\u74dc\u591a\u723e', 'EC']
   },
   '🇧🇴': {
     en: 'Bolivia',
-    zh: '玻利维亚',
-    aliases: ['bo', 'bolivia', '玻利维亚', '玻利維亞', 'BO']
+    zh: 'Bolivia',
+    aliases: ['bo', 'bolivia', '\u73bb\u5229\u7ef4\u4e9a', '\u73bb\u5229\u7dad\u4e9e', 'BO']
   },
   '🇵🇾': {
     en: 'Paraguay',
-    zh: '巴拉圭',
-    aliases: ['py', 'paraguay', '巴拉圭', 'PY']
+    zh: 'Paraguay',
+    aliases: ['py', 'paraguay', '\u5df4\u62c9\u572d', 'PY']
   },
   '🇬🇾': {
     en: 'Guyana',
-    zh: '圭亚那',
-    aliases: ['gy', 'guyana', '圭亚那', '圭亞那', 'GY']
+    zh: 'Guyana',
+    aliases: ['gy', 'guyana', '\u572d\u4e9a\u90a3', '\u572d\u4e9e\u90a3', 'GY']
   },
   '🇸🇷': {
     en: 'Suriname',
-    zh: '苏里南',
-    aliases: ['sr', 'suriname', '苏里南', '蘇里南', 'SR']
+    zh: 'Suriname',
+    aliases: ['sr', 'suriname', '\u82cf\u91cc\u5357', '\u8607\u91cc\u5357', 'SR']
   },
   '🇫🇰': {
     en: 'Falkland Islands',
-    zh: '福克兰群岛',
-    aliases: ['fk', 'falkland', '福克兰', '福克蘭', 'FK']
+    zh: 'Falkland Islands',
+    aliases: ['fk', 'falkland', '\u798f\u514b\u5170', '\u798f\u514b\u862d', 'FK']
   },
   '🇬🇫': {
     en: 'French Guiana',
-    zh: '法属圭亚那',
-    aliases: ['gf', 'french guiana', '法属圭亚那', '法屬圭亞那', 'GF']
+    zh: 'French Guiana',
+    aliases: ['gf', 'french guiana', '\u6cd5\u5c5e\u572d\u4e9a\u90a3', '\u6cd5\u5c6c\u572d\u4e9e\u90a3', 'GF']
   },
   '🇵🇦': {
     en: 'Panama',
-    zh: '巴拿马',
-    aliases: ['pa', 'panama', '巴拿马', '巴拿馬', 'PA']
+    zh: 'Panama',
+    aliases: ['pa', 'panama', '\u5df4\u62ff\u9a6c', '\u5df4\u62ff\u99ac', 'PA']
   },
   '🇨🇷': {
     en: 'Costa Rica',
-    zh: '哥斯达黎加',
-    aliases: ['cr', 'costa rica', '哥斯达黎加', '哥斯達黎加', 'CR']
+    zh: 'Costa Rica',
+    aliases: ['cr', 'costa rica', '\u54e5\u65af\u8fbe\u9ece\u52a0', '\u54e5\u65af\u9054\u9ece\u52a0', 'CR']
   },
   '🇳🇮': {
     en: 'Nicaragua',
-    zh: '尼加拉瓜',
-    aliases: ['ni', 'nicaragua', '尼加拉瓜', 'NI']
+    zh: 'Nicaragua',
+    aliases: ['ni', 'nicaragua', '\u5c3c\u52a0\u62c9\u74dc', 'NI']
   },
   '🇭🇳': {
     en: 'Honduras',
-    zh: '洪都拉斯',
-    aliases: ['hn', 'honduras', '洪都拉斯', 'HN']
+    zh: 'Honduras',
+    aliases: ['hn', 'honduras', '\u6d2a\u90fd\u62c9\u65af', 'HN']
   },
   '🇬🇹': {
     en: 'Guatemala',
-    zh: '危地马拉',
-    aliases: ['gt', 'guatemala', '危地马拉', '危地馬拉', 'GT']
+    zh: 'Guatemala',
+    aliases: ['gt', 'guatemala', '\u5371\u5730\u9a6c\u62c9', '\u5371\u5730\u99ac\u62c9', 'GT']
   },
   '🇧🇿': {
     en: 'Belize',
-    zh: '伯利兹',
-    aliases: ['bz', 'belize', '伯利兹', '伯利茲', 'BZ']
+    zh: 'Belize',
+    aliases: ['bz', 'belize', '\u4f2f\u5229\u5179', '\u4f2f\u5229\u8332', 'BZ']
   },
   '🇸🇻': {
     en: 'El Salvador',
-    zh: '萨尔瓦多',
-    aliases: ['sv', 'el salvador', '萨尔瓦多', '薩爾瓦多', 'SV']
+    zh: 'El Salvador',
+    aliases: ['sv', 'el salvador', '\u8428\u5c14\u74e6\u591a', '\u85a9\u723e\u74e6\u591a', 'SV']
   },
   '🇯🇲': {
     en: 'Jamaica',
-    zh: '牙买加',
-    aliases: ['jm', 'jamaica', '牙买加', '牙買加', 'JM']
+    zh: 'Jamaica',
+    aliases: ['jm', 'jamaica', '\u7259\u4e70\u52a0', '\u7259\u8cb7\u52a0', 'JM']
   },
   '🇨🇺': {
     en: 'Cuba',
-    zh: '古巴',
-    aliases: ['cu', 'cuba', '古巴', 'CU']
+    zh: 'Cuba',
+    aliases: ['cu', 'cuba', '\u53e4\u5df4', 'CU']
   },
   '🇩🇴': {
     en: 'Dominican Republic',
-    zh: '多明尼加',
-    aliases: ['do', 'dominican', '多明尼加', 'DO']
+    zh: 'Dominican Republic',
+    aliases: ['do', 'dominican', '\u591a\u660e\u5c3c\u52a0', 'DO']
   },
   '🇭🇹': {
     en: 'Haiti',
-    zh: '海地',
-    aliases: ['ht', 'haiti', '海地', 'HT']
+    zh: 'Haiti',
+    aliases: ['ht', 'haiti', '\u6d77\u5730', 'HT']
   },
   '🇧🇸': {
     en: 'Bahamas',
-    zh: '巴哈马',
-    aliases: ['bs', 'bahamas', '巴哈马', '巴哈馬', 'BS']
+    zh: 'Bahamas',
+    aliases: ['bs', 'bahamas', '\u5df4\u54c8\u9a6c', '\u5df4\u54c8\u99ac', 'BS']
   },
   '🇧🇧': {
     en: 'Barbados',
-    zh: '巴巴多斯',
-    aliases: ['bb', 'barbados', '巴巴多斯', 'BB']
+    zh: 'Barbados',
+    aliases: ['bb', 'barbados', '\u5df4\u5df4\u591a\u65af', 'BB']
   },
   '🇹🇹': {
     en: 'Trinidad and Tobago',
-    zh: '特立尼达和多巴哥',
-    aliases: ['tt', 'trinidad', '特立尼达', '特立尼達', 'TT']
+    zh: 'Trinidad and Tobago',
+    aliases: ['tt', 'trinidad', '\u7279\u7acb\u5c3c\u8fbe', '\u7279\u7acb\u5c3c\u9054', 'TT']
   },
   '🇵🇭': {
     en: 'Philippines',
-    zh: '菲律宾',
-    aliases: ['ph', 'philippines', '菲律宾', '菲律賓', 'PH']
+    zh: 'Philippines',
+    aliases: ['ph', 'philippines', '\u83f2\u5f8b\u5bbe', '\u83f2\u5f8b\u8cd3', 'PH']
   },
   '🇹🇭': {
     en: 'Thailand',
-    zh: '泰国',
-    aliases: ['th', 'thailand', '泰国', '泰國', 'TH']
+    zh: 'Thailand',
+    aliases: ['th', 'thailand', '\u6cf0\u56fd', '\u6cf0\u570b', 'TH']
   },
   '🇻🇳': {
     en: 'Vietnam',
-    zh: '越南',
-    aliases: ['vn', 'vietnam', '越南', 'VN']
+    zh: 'Vietnam',
+    aliases: ['vn', 'vietnam', '\u8d8a\u5357', 'VN']
   },
   '🇲🇾': {
     en: 'Malaysia',
-    zh: '马来西亚',
-    aliases: ['my', 'malaysia', '马来西亚', '馬來西亞', 'MY']
+    zh: 'Malaysia',
+    aliases: ['my', 'malaysia', '\u9a6c\u6765\u897f\u4e9a', '\u99ac\u4f86\u897f\u4e9e', 'MY']
   },
   '🇮🇩': {
     en: 'Indonesia',
-    zh: '印度尼西亚',
-    aliases: ['id', 'indonesia', '印度尼西亚', '印尼', 'ID']
+    zh: 'Indonesia',
+    aliases: ['id', 'indonesia', '\u5370\u5ea6\u5c3c\u897f\u4e9a', '\u5370\u5c3c', 'ID']
   },
   '🇱🇦': {
     en: 'Laos',
-    zh: '老挝',
-    aliases: ['la', 'laos', '老挝', '老撾', 'LA']
+    zh: 'Laos',
+    aliases: ['la', 'laos', '\u8001\u631d', '\u8001\u64be', 'LA']
   },
   '🇰🇭': {
     en: 'Cambodia',
-    zh: '柬埔寨',
-    aliases: ['kh', 'cambodia', '柬埔寨', 'KH']
+    zh: 'Cambodia',
+    aliases: ['kh', 'cambodia', '\u67ec\u57d4\u5be8', 'KH']
   },
   '🇲🇲': {
     en: 'Myanmar',
-    zh: '缅甸',
-    aliases: ['mm', 'myanmar', 'burma', '缅甸', '緬甸', 'MM']
+    zh: 'Myanmar',
+    aliases: ['mm', 'myanmar', 'burma', '\u7f05\u7538', '\u7dec\u7538', 'MM']
   },
   '🇧🇳': {
     en: 'Brunei',
-    zh: '文莱',
-    aliases: ['bn', 'brunei', '文莱', '汶萊', 'BN']
+    zh: 'Brunei',
+    aliases: ['bn', 'brunei', '\u6587\u83b1', '\u6c76\u840a', 'BN']
   },
   '🇪🇬': {
     en: 'Egypt',
-    zh: '埃及',
-    aliases: ['eg', 'egypt', '埃及', 'EG']
+    zh: 'Egypt',
+    aliases: ['eg', 'egypt', '\u57c3\u53ca', 'EG']
   },
   '🇿🇦': {
     en: 'South Africa',
-    zh: '南非',
-    aliases: ['za', 'south africa', '南非', 'ZA']
+    zh: 'South Africa',
+    aliases: ['za', 'south africa', '\u5357\u975e', 'ZA']
   },
   '🇳🇬': {
     en: 'Nigeria',
-    zh: '尼日利亚',
-    aliases: ['ng', 'nigeria', '尼日利亚', '尼日利亞', 'NG']
+    zh: 'Nigeria',
+    aliases: ['ng', 'nigeria', '\u5c3c\u65e5\u5229\u4e9a', '\u5c3c\u65e5\u5229\u4e9e', 'NG']
   },
   '🇰🇪': {
     en: 'Kenya',
-    zh: '肯尼亚',
-    aliases: ['ke', 'kenya', '肯尼亚', '肯亞', 'KE']
+    zh: 'Kenya',
+    aliases: ['ke', 'kenya', '\u80af\u5c3c\u4e9a', '\u80af\u4e9e', 'KE']
   },
   '🇪🇹': {
     en: 'Ethiopia',
-    zh: '埃塞俄比亚',
-    aliases: ['et', 'ethiopia', '埃塞俄比亚', '埃塞俄比亞', 'ET']
+    zh: 'Ethiopia',
+    aliases: ['et', 'ethiopia', '\u57c3\u585e\u4fc4\u6bd4\u4e9a', '\u57c3\u585e\u4fc4\u6bd4\u4e9e', 'ET']
   },
   '🇬🇭': {
     en: 'Ghana',
-    zh: '加纳',
-    aliases: ['gh', 'ghana', '加纳', '迦納', 'GH']
+    zh: 'Ghana',
+    aliases: ['gh', 'ghana', '\u52a0\u7eb3', '\u8fe6\u7d0d', 'GH']
   },
   '🇺🇬': {
     en: 'Uganda',
-    zh: '乌干达',
-    aliases: ['ug', 'uganda', '乌干达', '烏干達', 'UG']
+    zh: 'Uganda',
+    aliases: ['ug', 'uganda', '\u4e4c\u5e72\u8fbe', '\u70cf\u5e72\u9054', 'UG']
   },
   '🇹🇿': {
     en: 'Tanzania',
-    zh: '坦桑尼亚',
-    aliases: ['tz', 'tanzania', '坦桑尼亚', '坦尚尼亞', 'TZ']
+    zh: 'Tanzania',
+    aliases: ['tz', 'tanzania', '\u5766\u6851\u5c3c\u4e9a', '\u5766\u5c1a\u5c3c\u4e9e', 'TZ']
   },
   '🇷🇼': {
     en: 'Rwanda',
-    zh: '卢旺达',
-    aliases: ['rw', 'rwanda', '卢旺达', '盧旺達', 'RW']
+    zh: 'Rwanda',
+    aliases: ['rw', 'rwanda', '\u5362\u65fa\u8fbe', '\u76e7\u65fa\u9054', 'RW']
   },
   '🇿🇼': {
     en: 'Zimbabwe',
-    zh: '津巴布韦',
-    aliases: ['zw', 'zimbabwe', '津巴布韦', '辛巴威', 'ZW']
+    zh: 'Zimbabwe',
+    aliases: ['zw', 'zimbabwe', '\u6d25\u5df4\u5e03\u97e6', '\u8f9b\u5df4\u5a01', 'ZW']
   },
   '🇿🇲': {
     en: 'Zambia',
-    zh: '赞比亚',
-    aliases: ['zm', 'zambia', '赞比亚', '尚比亞', 'ZM']
+    zh: 'Zambia',
+    aliases: ['zm', 'zambia', '\u8d5e\u6bd4\u4e9a', '\u5c1a\u6bd4\u4e9e', 'ZM']
   },
   '🇧🇼': {
     en: 'Botswana',
-    zh: '博茨瓦纳',
-    aliases: ['bw', 'botswana', '博茨瓦纳', '波札那', 'BW']
+    zh: 'Botswana',
+    aliases: ['bw', 'botswana', '\u535a\u8328\u74e6\u7eb3', '\u6ce2\u672d\u90a3', 'BW']
   },
   '🇳🇦': {
     en: 'Namibia',
-    zh: '纳米比亚',
-    aliases: ['na', 'namibia', '纳米比亚', '納米比亞', 'NA']
+    zh: 'Namibia',
+    aliases: ['na', 'namibia', '\u7eb3\u7c73\u6bd4\u4e9a', '\u7d0d\u7c73\u6bd4\u4e9e', 'NA']
   },
   '🇲🇦': {
     en: 'Morocco',
-    zh: '摩洛哥',
-    aliases: ['ma', 'morocco', '摩洛哥', 'MA']
+    zh: 'Morocco',
+    aliases: ['ma', 'morocco', '\u6469\u6d1b\u54e5', 'MA']
   },
   '🇩🇿': {
     en: 'Algeria',
-    zh: '阿尔及利亚',
-    aliases: ['dz', 'algeria', '阿尔及利亚', '阿爾及利亞', 'DZ']
+    zh: 'Algeria',
+    aliases: ['dz', 'algeria', '\u963f\u5c14\u53ca\u5229\u4e9a', '\u963f\u723e\u53ca\u5229\u4e9e', 'DZ']
   },
   '🇹🇳': {
     en: 'Tunisia',
-    zh: '突尼斯',
-    aliases: ['tn', 'tunisia', '突尼斯', 'TN']
+    zh: 'Tunisia',
+    aliases: ['tn', 'tunisia', '\u7a81\u5c3c\u65af', 'TN']
   },
   '🇱🇾': {
     en: 'Libya',
-    zh: '利比亚',
-    aliases: ['ly', 'libya', '利比亚', '利比亞', 'LY']
+    zh: 'Libya',
+    aliases: ['ly', 'libya', '\u5229\u6bd4\u4e9a', '\u5229\u6bd4\u4e9e', 'LY']
   },
   '🇸🇩': {
     en: 'Sudan',
-    zh: '苏丹',
-    aliases: ['sd', 'sudan', '苏丹', '蘇丹', 'SD']
+    zh: 'Sudan',
+    aliases: ['sd', 'sudan', '\u82cf\u4e39', '\u8607\u4e39', 'SD']
   },
   '🇸🇸': {
     en: 'South Sudan',
-    zh: '南苏丹',
-    aliases: ['ss', 'south sudan', '南苏丹', '南蘇丹', 'SS']
+    zh: 'South Sudan',
+    aliases: ['ss', 'south sudan', '\u5357\u82cf\u4e39', '\u5357\u8607\u4e39', 'SS']
   },
   '🇨🇩': {
     en: 'Democratic Republic of Congo',
-    zh: '刚果民主共和国',
-    aliases: ['cd', 'congo', 'drc', '刚果', '剛果', 'CD']
+    zh: 'Democratic Republic of Congo',
+    aliases: ['cd', 'congo', 'drc', '\u521a\u679c', '\u525b\u679c', 'CD']
   },
   '🇨🇬': {
     en: 'Republic of Congo',
-    zh: '刚果共和国',
-    aliases: ['cg', 'congo', '刚果', '剛果', 'CG']
+    zh: 'Republic of Congo',
+    aliases: ['cg', 'congo', '\u521a\u679c', '\u525b\u679c', 'CG']
   },
   '🇨🇫': {
     en: 'Central African Republic',
-    zh: '中非共和国',
-    aliases: ['cf', 'central african', '中非', 'CF']
+    zh: 'Central African Republic',
+    aliases: ['cf', 'central african', '\u4e2d\u975e', 'CF']
   },
   '🇨🇲': {
     en: 'Cameroon',
-    zh: '喀麦隆',
-    aliases: ['cm', 'cameroon', '喀麦隆', '喀麥隆', 'CM']
+    zh: 'Cameroon',
+    aliases: ['cm', 'cameroon', '\u5580\u9ea6\u9686', '\u5580\u9ea5\u9686', 'CM']
   },
   '🇹🇩': {
     en: 'Chad',
-    zh: '乍得',
-    aliases: ['td', 'chad', '乍得', 'TD']
+    zh: 'Chad',
+    aliases: ['td', 'chad', '\u4e4d\u5f97', 'TD']
   },
   '🇳🇪': {
     en: 'Niger',
-    zh: '尼日尔',
-    aliases: ['ne', 'niger', '尼日尔', '尼日爾', 'NE']
+    zh: 'Niger',
+    aliases: ['ne', 'niger', '\u5c3c\u65e5\u5c14', '\u5c3c\u65e5\u723e', 'NE']
   },
   '🇲🇱': {
     en: 'Mali',
-    zh: '马里',
-    aliases: ['ml', 'mali', '马里', '馬利', 'ML']
+    zh: 'Mali',
+    aliases: ['ml', 'mali', '\u9a6c\u91cc', '\u99ac\u5229', 'ML']
   },
   '🇧🇫': {
     en: 'Burkina Faso',
-    zh: '布基纳法索',
-    aliases: ['bf', 'burkina', '布基纳法索', '布吉納法索', 'BF']
+    zh: 'Burkina Faso',
+    aliases: ['bf', 'burkina', '\u5e03\u57fa\u7eb3\u6cd5\u7d22', '\u5e03\u5409\u7d0d\u6cd5\u7d22', 'BF']
   },
   '🇸🇳': {
     en: 'Senegal',
-    zh: '塞内加尔',
-    aliases: ['sn', 'senegal', '塞内加尔', '塞內加爾', 'SN']
+    zh: 'Senegal',
+    aliases: ['sn', 'senegal', '\u585e\u5185\u52a0\u5c14', '\u585e\u5167\u52a0\u723e', 'SN']
   },
   '🇬🇲': {
     en: 'Gambia',
-    zh: '冈比亚',
-    aliases: ['gm', 'gambia', '冈比亚', '甘比亞', 'GM']
+    zh: 'Gambia',
+    aliases: ['gm', 'gambia', '\u5188\u6bd4\u4e9a', '\u7518\u6bd4\u4e9e', 'GM']
   },
   '🇬🇼': {
     en: 'Guinea-Bissau',
-    zh: '几内亚比绍',
-    aliases: ['gw', 'guinea-bissau', '几内亚比绍', '幾內亞比索', 'GW']
+    zh: 'Guinea-Bissau',
+    aliases: ['gw', 'guinea-bissau', '\u51e0\u5185\u4e9a\u6bd4\u7ecd', '\u5e7e\u5167\u4e9e\u6bd4\u7d22', 'GW']
   },
   '🇬🇳': {
     en: 'Guinea',
-    zh: '几内亚',
-    aliases: ['gn', 'guinea', '几内亚', '幾內亞', 'GN']
+    zh: 'Guinea',
+    aliases: ['gn', 'guinea', '\u51e0\u5185\u4e9a', '\u5e7e\u5167\u4e9e', 'GN']
   },
   '🇸🇱': {
     en: 'Sierra Leone',
-    zh: '塞拉利昂',
-    aliases: ['sl', 'sierra leone', '塞拉利昂', 'SL']
+    zh: 'Sierra Leone',
+    aliases: ['sl', 'sierra leone', '\u585e\u62c9\u5229\u6602', 'SL']
   },
   '🇱🇷': {
     en: 'Liberia',
-    zh: '利比里亚',
-    aliases: ['lr', 'liberia', '利比里亚', '賴比瑞亞', 'LR']
+    zh: 'Liberia',
+    aliases: ['lr', 'liberia', '\u5229\u6bd4\u91cc\u4e9a', '\u8cf4\u6bd4\u745e\u4e9e', 'LR']
   },
   '🇨🇮': {
     en: 'Ivory Coast',
-    zh: '科特迪瓦',
-    aliases: ['ci', 'ivory coast', '科特迪瓦', '象牙海岸', 'CI']
+    zh: 'Ivory Coast',
+    aliases: ['ci', 'ivory coast', '\u79d1\u7279\u8fea\u74e6', '\u8c61\u7259\u6d77\u5cb8', 'CI']
   },
   '🇹🇬': {
     en: 'Togo',
-    zh: '多哥',
-    aliases: ['tg', 'togo', '多哥', 'TG']
+    zh: 'Togo',
+    aliases: ['tg', 'togo', '\u591a\u54e5', 'TG']
   },
   '🇧🇯': {
     en: 'Benin',
-    zh: '贝宁',
-    aliases: ['bj', 'benin', '贝宁', '貝寧', 'BJ']
+    zh: 'Benin',
+    aliases: ['bj', 'benin', '\u8d1d\u5b81', '\u8c9d\u5be7', 'BJ']
   }
 };
 
 /**
- * 检查地区emoji是否匹配搜索词
- * @param regionEmoji 地区emoji（如：🇭🇰）
- * @param searchTerm 搜索词
- * @returns 是否匹配
+ * Check whether a region emoji matches a search term.
+ * @param regionEmoji Region emoji (e.g. 🇭🇰).
+ * @param searchTerm Search term.
+ * @returns Whether the region matches.
  */
 export const isRegionMatch = (regionEmoji: string, searchTerm: string): boolean => {
   const lowerSearchTerm = searchTerm.toLowerCase().trim();
   
-  // 直接匹配emoji
+  // Match the emoji directly.
   if (regionEmoji === searchTerm) {
     return true;
   }
   
-  // 从映射表中查找
+  // Look up the emoji in the region map.
   const regionInfo = emojiToRegionMap[regionEmoji];
   if (!regionInfo) {
-    // 如果映射表中没有，则只进行简单的包含匹配
+    // Without a map entry, only try a simple substring match.
     return regionEmoji.toLowerCase().includes(lowerSearchTerm);
   }
   
-  // 检查英文名称
+  // Check the English name.
   if (regionInfo.en.toLowerCase().includes(lowerSearchTerm)) {
     return true;
   }
   
-  // 检查中文名称
+  // Check the legacy-language name.
   if (regionInfo.zh.includes(lowerSearchTerm)) {
     return true;
   }
   
-  // 检查别名
+  // Check aliases, including encoded legacy names.
   return regionInfo.aliases.some(alias => 
     alias.toLowerCase().includes(lowerSearchTerm)
   );
 };
 
 /**
- * 获取地区的显示名称
- * @param regionEmoji 地区emoji
- * @param language 语言 ('en' | 'zh')
- * @returns 地区名称
+ * Get the region's display name.
+ * @param regionEmoji Region emoji.
+ * @param language Language code ('en' | 'zh').
+ * @returns Region name.
  */
 export const getRegionDisplayName = (regionEmoji: string, language: 'en' | 'zh' = 'zh'): string => {
   const regionInfo = emojiToRegionMap[regionEmoji];
@@ -633,8 +633,8 @@ export const getRegionCode = (region?: string | null): string => {
 };
 
 /**
- * 获取所有支持的地区emoji列表
- * @returns 地区emoji数组
+ * Get all supported region emojis.
+ * @returns Array of region emojis.
  */
 export const getSupportedRegions = (): string[] => {
   return Object.keys(emojiToRegionMap);

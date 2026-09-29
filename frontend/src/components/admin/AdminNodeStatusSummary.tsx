@@ -24,19 +24,19 @@ export default function AdminNodeStatusSummary({
   const offline = Math.max(0, total - online);
   const items = [
     {
-      label: t("admin.nodeTable.allNodes", "全部节点"),
+      label: t("admin.nodeTable.allNodes", "All servers"),
       count: total,
       color: "var(--accent-9)",
       filter: "all" as const,
     },
     {
-      label: t("nodeCard.online", "在线"),
+      label: t("nodeCard.online", "Online"),
       count: available ? online : "--",
       color: "var(--green-9)",
       filter: "online" as const,
     },
     {
-      label: t("nodeCard.offline", "离线"),
+      label: t("nodeCard.offline", "Offline"),
       count: available ? offline : "--",
       color: "var(--red-9)",
       filter: "offline" as const,

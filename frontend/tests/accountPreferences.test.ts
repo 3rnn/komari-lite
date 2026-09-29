@@ -8,7 +8,7 @@ import {
 } from "../src/utils/adminAuth.ts";
 
 test("normalizes supported administrator language and color preferences", () => {
-  // 面板只保留英文与简体中文：港台与日文/印尼文偏好统一回落到简体中文或空
+  // English and Simplified Chinese remain the available locales; historical regional preferences retain their fallback.
   assert.equal(normalizeAccountPreferenceLanguage("zh_HK"), "zh-CN");
   assert.equal(normalizeAccountPreferenceLanguage("zh_TW"), "zh-CN");
   assert.equal(normalizeAccountPreferenceLanguage("ja_JP"), "");

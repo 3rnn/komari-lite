@@ -7,7 +7,7 @@ import (
 
 // Migrate creates the tables and indexes used by the metric store.
 //
-// Migrate 创建 metric 包需要的表和索引。
+// Migrate creates the tables and indexes required by the metric package.
 func (s *Store) Migrate(ctx context.Context) error {
 	if err := s.ensureOpen(); err != nil {
 		return err

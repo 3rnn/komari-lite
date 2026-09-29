@@ -15,21 +15,21 @@ const (
 
 // Theme represents a komari theme information
 type Theme struct {
-	Name          any           `json:"name"`          // 主题名称，支持字符串或多语言对象
-	Short         string        `json:"short"`         // 短名称，用作文件夹名
-	Description   any           `json:"description"`   // 主题描述，支持字符串或多语言对象
-	Version       string        `json:"version"`       // 版本号
-	Author        any           `json:"author"`        // 作者，支持字符串或多语言对象
-	URL           string        `json:"url"`           // 主题URL
-	Preview       string        `json:"preview"`       // 预览图片相对路径
-	Configuration Configuration `json:"configuration"` // 声明配置项
+	Name          any           `json:"name"`          // Theme name, supports string or multilingual object
+	Short         string        `json:"short"`         // Short name, used as folder name
+	Description   any           `json:"description"`   // Topic description, supports string or multilingual object
+	Version       string        `json:"version"`       // version number
+	Author        any           `json:"author"`        // Author, supports string or multilingual objects
+	URL           string        `json:"url"`           // Topic URL
+	Preview       string        `json:"preview"`       // Preview image relative path
+	Configuration Configuration `json:"configuration"` // Declare configuration items
 }
 
 type Configuration struct {
 	Type string `json:"type"` // managed raw redirect
-	Icon string `json:"icon"` // 图标
+	Icon string `json:"icon"` // icon
 	Name any    `json:"name"`
-	Data any    `json:"data"` // 配置数据
+	Data any    `json:"data"` // Configuration data
 }
 
 type ManagedThemeConfigurationItem struct {
@@ -98,16 +98,16 @@ func (t Theme) ValidateConfiguration() error {
 	case ThemeConfigurationRaw:
 		html, ok := t.RawHTML()
 		if !ok || strings.TrimSpace(html) == "" {
-			return fmt.Errorf("raw 类型主题需要在 configuration.data 中提供 HTML 字符串")
+			return fmt.Errorf("Raw themes require an HTML string in configuration.data")
 		}
 		return nil
 	case ThemeConfigurationRedirect:
 		if _, ok := t.RedirectTarget(); !ok {
-			return fmt.Errorf("redirect 类型主题需要在 configuration.data 中提供站内相对路径")
+			return fmt.Errorf("Redirect themes require a site-relative path in configuration.data")
 		}
 		return nil
 	default:
-		return fmt.Errorf("不支持的主题类型: %s", t.Configuration.Type)
+		return fmt.Errorf("Unsupported theme type: %s", t.Configuration.Type)
 	}
 }
 

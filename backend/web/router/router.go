@@ -13,8 +13,8 @@ import (
 
 // Register binds all HTTP, WebSocket, JSON-RPC and static frontend routes.
 //
-// 设计：JSON 类接口统一经声明式路由桥 jsonRpc.Bind 绑定到对应 RPC2 方法，
-// 不再有 per-resource gin handler 层。仅二进制/流/重定向/特殊鉴权类接口保留为 REST handler。
+// JSON endpoints bind directly to RPC2 methods through the declarative jsonRpc.Bind bridge.
+// Only binary, streaming, redirect, and special-authorization endpoints retain REST handlers.
 func Register(r *gin.Engine) {
 	r.Use(liteRoutes)
 	r.Any("/ping", func(c *gin.Context) {
@@ -30,26 +30,26 @@ func Register(r *gin.Engine) {
 	})
 }
 
-// registerPublicRoutes 公开路由。JSON 读接口经 Bind 绑定到 public: 命名空间方法。
+// registerPublicRoutes sets up public routes, binding JSON reads to public:* RPC methods.
 func registerPublicRoutes(r *gin.Engine) {
 	installweb.RegisterCompleted(r)
 
-	// Agent 安装脚本和二进制均经面板分发；目标机不再直接访问 GitHub。
+	// Agent installation scripts and binaries are distributed through the panel; the target machine no longer has direct access to GitHub.
 	r.GET("/agent/install.sh", func(c *gin.Context) { public_api.ServeAgentInstaller(c.Writer, c.Request) })
 	r.GET("/agent/install.ps1", func(c *gin.Context) { public_api.ServeAgentInstaller(c.Writer, c.Request) })
 	r.GET("/agent/download/:artifact", func(c *gin.Context) { public_api.ServeAgentDownload(c.Writer, c.Request) })
 
-	// 非 JSON / 特殊流程，保留 REST handler。
+	// Keep REST handlers for non-JSON or special workflows.
 	r.POST("/api/login", public_api.Login)
 	r.GET("/api/logout", public_api.Logout)
 	r.GET("/api/oauth", public_api.OAuth)
 	r.GET("/api/oauth_callback", public_api.OAuthCallback)
 	r.GET("/api/mjpeg_live", public_api.MjpegLiveHandler)
-	// /api/clients 是 WebSocket 端点（客户端发 "get"/"get <uuid>" 拉取在线列表与最新上报），
-	// 非 JSON-RPC，保留为 WS handler。
+	// /api/clients is a WebSocket endpoint: clients send "get" or "get <uuid>" for online nodes and latest reports.
+	// It is not JSON-RPC, so keep its WebSocket handler.
 	r.GET("/api/clients", api.GetClients)
 
-	// JSON 接口 -> RPC2。
+	// Bind JSON endpoints to RPC2.
 	r.GET("/api/me", jsonRpc.Bind("public:getMe", jsonRpc.WithRaw()))
 	r.GET("/api/nodes", jsonRpc.Bind("public:getNodesInformation"))
 	r.GET("/api/public", jsonRpc.Bind("public:getPublicSettings"))
@@ -59,39 +59,39 @@ func registerPublicRoutes(r *gin.Engine) {
 	r.GET("/api/records/ping", jsonRpc.Bind("public:getPingRecords", jsonRpc.WithQuery("uuid", "task_id", "hours")))
 	r.GET("/api/task/ping", jsonRpc.Bind("public:getPublicPingTasks"))
 
-	// JSON-RPC 直连入口。
+	// Direct JSON-RPC entry point.
 	r.GET("/api/rpc2", jsonRpc.OnRpcRequest)
 	r.POST("/api/rpc2", jsonRpc.OnRpcRequest)
 }
 
-// registerAgentRoutes agent（客户端）上报与拉取路由。
+// registerAgentRoutes sets up agent report and polling routes.
 func registerAgentRoutes(r *gin.Engine) {
-	// AutoDiscovery 注册使用独立的 Authorization key 鉴权，保留 REST handler。
+	// AutoDiscovery registration uses a separate Authorization key authentication, preserving the rest handler.
 	r.POST("/api/clients/register", client.RegisterClient)
 
 	tokenAuthorized := r.Group("/api/clients", api.RequireRole(api.RoleAdmin, api.RoleClient))
 	{
-		// 上报类（WS / 原始流 / 兼容协议）保留 REST handler。
+		// Keep REST handlers for reports over WebSocket, raw streams, and legacy protocols.
 		tokenAuthorized.GET("/report", client.WebSocketReport)
 		tokenAuthorized.POST("/uploadBasicInfo", client.UploadBasicInfo)
 		tokenAuthorized.POST("/report", client.UploadReport)
 		tokenAuthorized.GET("/v2/rpc", client.WebSocketV2RPC)
 		tokenAuthorized.POST("/v2/rpc", client.UploadV2RPC)
 
-		// JSON 接口 -> RPC2 (client: 命名空间)。
+		// Bind JSON endpoints to RPC2 (client:* namespace).
 		tokenAuthorized.GET("/ping/tasks", jsonRpc.Bind("client:getPingTasks", jsonRpc.WithRaw()))
 		tokenAuthorized.POST("/ping/result", jsonRpc.Bind("client:uploadPingResult", jsonRpc.WithRaw()))
 	}
 }
 
-// registerAdminRoutes 管理员路由。除二进制/流类外全部经 Bind 绑定到 admin: 命名空间方法。
+// registerAdminRoutes binds admin JSON endpoints to admin:* RPC methods; binary/streaming endpoints remain REST.
 func registerAdminRoutes(r *gin.Engine) {
 	g := r.Group("/api/admin", api.RequireRole(api.RoleAdmin))
 	g.GET("/dashboard", jsonRpc.Bind("admin:getDashboard", jsonRpc.WithQuery("sections", "limit"), jsonRpc.WithRaw()))
 	g.GET("/dashboard/charts", jsonRpc.Bind("admin:getDashboardCharts", jsonRpc.WithQuery("sections", "limit"), jsonRpc.WithRaw()))
 	g.GET("/dashboard/alerts", jsonRpc.Bind("admin:getDashboardAlertItems", jsonRpc.WithQuery("kind"), jsonRpc.WithRaw()))
 
-	// --- 二进制/流/重定向类，保留 REST handler ---
+	// --- Keep REST handlers for binary, streaming, and redirect endpoints ---
 	g.GET("/download/backup", admin.DownloadBackup)
 	uploadHandler := admin.NewArchiveUploadHandler()
 	uploadGroup := g.Group("/upload")
@@ -111,13 +111,13 @@ func registerAdminRoutes(r *gin.Engine) {
 	g.POST("/settings/https", admin.UpdateHTTPSSettings)
 	g.POST("/settings/https/reload", admin.ReloadHTTPSCertificate)
 
-	// 精简版固定当前本地 Glass 主题；仅保留其显示参数设置，不再暴露主题安装、导入、切换、删除或上游更新能力。
+	// Lite uses the fixed local Glass theme and exposes only display settings, not theme installation, import, switching, deletion, or upstream updates.
 	theme := g.Group("/theme")
 	{
 		theme.POST("/settings", admin.UpdateThemeSettings)
 	}
 
-	// 2FA 含二维码 PNG / 敏感操作，保留 REST handler。
+	// 2FA contains QR code PNG/sensitive operation, keep rest handler.
 	twoFactor := g.Group("/2fa")
 	{
 		twoFactor.GET("/generate", admin.Generate2FA)
@@ -125,14 +125,14 @@ func registerAdminRoutes(r *gin.Engine) {
 		twoFactor.POST("/disable", api.RequireSensitive2FA(), admin.Disable2FA)
 	}
 
-	// oauth2 绑定走重定向，保留 REST handler。
+	// OAuth2 account binding uses a redirect, so keep its REST handler.
 	oauth2 := g.Group("/oauth2")
 	{
 		oauth2.GET("/bind", admin.BindingExternalAccount)
 		oauth2.POST("/unbind", admin.UnbindExternalAccount)
 	}
 
-	// --- 以下全部 JSON -> RPC2 ---
+	// --- Bind all remaining JSON endpoints to RPC2 ---
 
 	// settings
 	settings := g.Group("/settings")
