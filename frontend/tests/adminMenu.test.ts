@@ -93,6 +93,60 @@ test("keeps the admin navigation in the intended groups", () => {
   assert.equal(allPaths(menuConfig.footer).includes("/admin/about"), false);
 });
 
+test("uses concise sidebar labels without shortening page titles", () => {
+  const expected = new Map([
+    ["/admin/notifications", "Notifications"],
+    ["/admin/settings/notification", "Channels"],
+    ["/admin/notification/ping-loss", "Latency Alerts"],
+    ["/admin/appearance", "Appearance"],
+    ["/admin/theme_managed", "Theme"],
+    ["/admin/settings", "Settings"],
+    ["/admin/settings/dashboard", "Dashboard"],
+    ["/admin/settings/metrics", "Storage"],
+    ["/admin/settings/account-security", "Account"],
+  ]);
+
+  const items = new Map<string, MenuItem>();
+  const collect = (menu: MenuItem[]) => {
+    for (const item of menu) {
+      items.set(item.path, item);
+      collect(item.children ?? []);
+    }
+  };
+  collect([...menuConfig.menu, ...menuConfig.footer]);
+
+  for (const locale of ["en", "zh_CN"]) {
+    const messages = JSON.parse(
+      readFileSync(new URL(`../src/i18n/locales/${locale}.json`, import.meta.url), "utf8"),
+    ) as Record<string, unknown>;
+    const translate = (key: string) =>
+      key.split(".").reduce<unknown>(
+        (value, part) => (value as Record<string, unknown>)?.[part],
+        messages,
+      );
+
+    for (const [path, item] of items) {
+      const label = item.rawLabel ?? translate(item.labelKey);
+      assert.equal(typeof label, "string", `${locale}: ${path} is missing its label`);
+      if (typeof label !== "string") continue;
+      assert.ok(label.length <= 14, `${locale}: ${path} wraps with ${label}`);
+      if (expected.has(path)) assert.equal(label, expected.get(path));
+    }
+    assert.equal(translate("notification.ping_loss.title"), "Latency Monitoring");
+    assert.equal(translate("settings.dashboard.title"), "Dashboard configuration");
+    assert.equal(translate("theme.title"), "Theme Management");
+    assert.equal(translate("navigation.account_security"), "Account & Security");
+  }
+});
+
+test("gives sidebar labels room while keeping the mobile page visible", () => {
+  assert.match(adminPanelSource, /const DESKTOP_SIDEBAR_WIDTH = 232;/);
+  assert.match(
+    adminPanelSource,
+    /const MOBILE_SIDEBAR_WIDTH = "min\(280px, calc\(100vw - 56px\)\)";/,
+  );
+});
+
 test("places dynamic theme configuration inside the appearance group", () => {
   const dynamicTheme: MenuItem = {
     labelKey: "Current theme settings",

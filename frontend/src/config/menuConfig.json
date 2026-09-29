@@ -48,7 +48,7 @@
           "icon": "BarChart2"
         },
         {
-          "labelKey": "notification.ping_loss.title",
+          "labelKey": "navigation.latency_alerts",
           "path": "/admin/notification/ping-loss",
           "icon": "WifiOff"
         },
@@ -65,7 +65,7 @@
       "icon": "Palette",
       "children": [
         {
-          "labelKey": "theme.title",
+          "labelKey": "navigation.theme",
           "path": "/admin/theme_managed",
           "icon": "Palette"
         }
@@ -82,7 +82,7 @@
           "icon": "Home"
         },
         {
-          "labelKey": "settings.dashboard.title",
+          "labelKey": "navigation.dashboard_settings",
           "path": "/admin/settings/dashboard",
           "icon": "LayoutDashboard"
         },
@@ -92,7 +92,7 @@
           "icon": "Database"
         },
         {
-          "labelKey": "navigation.account_security",
+          "labelKey": "navigation.account_menu",
           "path": "/admin/settings/account-security",
           "icon": "UserCircle"
         },

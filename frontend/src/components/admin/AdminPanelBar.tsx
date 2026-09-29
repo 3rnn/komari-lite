@@ -27,8 +27,8 @@ const parsedMenuConfig = menuConfig as {
 };
 const baseMenuItems = parsedMenuConfig.menu;
 const footerMenuItems = parsedMenuConfig.footer ?? [];
-const DESKTOP_SIDEBAR_WIDTH = 212;
-const MOBILE_SIDEBAR_WIDTH = "clamp(184px, 42vw, 244px)";
+const DESKTOP_SIDEBAR_WIDTH = 232;
+const MOBILE_SIDEBAR_WIDTH = "min(280px, calc(100vw - 56px))";
 const MOBILE_SIDEBAR_OPEN_TRANSITION = {
   duration: 0.22,
   ease: [0.22, 1, 0.36, 1],

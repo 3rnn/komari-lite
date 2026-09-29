@@ -23,7 +23,7 @@ test("admin branding keeps Lite smaller and green on desktop and mobile", () => 
 });
 
 test("mobile navigation uses a partial overlay without hiding the page", () => {
-  assert.match(source, /const MOBILE_SIDEBAR_WIDTH = "clamp\(184px, 42vw, 244px\)"/);
+  assert.match(source, /const MOBILE_SIDEBAR_WIDTH = "min\(280px, calc\(100vw - 56px\)\)"/);
   assert.match(source, /open:\s*\{\s*x: 0,/);
   assert.match(source, /closed:\s*\{\s*x: "-100%",/);
   assert.match(

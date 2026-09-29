@@ -613,14 +613,18 @@
     "title": "Logs"
   },
   "navigation": {
+    "account_menu": "Account",
     "account_security": "Account & Security",
-    "appearance": "Appearance & Themes",
-    "data_storage": "Data & Storage",
+    "appearance": "Appearance",
+    "dashboard_settings": "Dashboard",
+    "data_storage": "Storage",
+    "latency_alerts": "Latency Alerts",
     "monitoring": "Monitoring",
-    "notification_channels": "Notification Channels",
-    "notifications": "Notifications & Alerts",
+    "notification_channels": "Channels",
+    "notifications": "Notifications",
     "open": "Open navigation",
-    "system_settings": "System Settings"
+    "system_settings": "Settings",
+    "theme": "Theme"
   },
   "network_speed": "Network Speed",
   "nodeCard": {
