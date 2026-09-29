@@ -1,0 +1,1 @@
+import{a3 as t,a8 as a,O as s}from"./entry-index-wB-EYsvS.js";function n(){return t.jsx(a,{direction:"column",gap:"4",className:"p-0 md:p-4",children:t.jsx(s,{})})}export{n as default};
