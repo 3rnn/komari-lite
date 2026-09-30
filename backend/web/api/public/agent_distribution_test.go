@@ -12,7 +12,7 @@ import (
 	"testing"
 )
 
-func TestAgentInstallerIsServedByPanelWithoutGitHubURLs(t *testing.T) {
+func TestAgentInstallerAcceptsExplicitReleaseSourceWithoutLatest(t *testing.T) {
 	for _, path := range []string{"/agent/install.sh", "/agent/install.ps1"} {
 		recorder := httptest.NewRecorder()
 		request := httptest.NewRequest(http.MethodGet, path, nil)
@@ -21,11 +21,11 @@ func TestAgentInstallerIsServedByPanelWithoutGitHubURLs(t *testing.T) {
 			t.Fatalf("GET %s status=%d", path, recorder.Code)
 		}
 		body := recorder.Body.String()
-		if !strings.Contains(body, "/agent/download/") {
-			t.Fatalf("GET %s does not download the Agent from the panel", path)
+		if !strings.Contains(body, "--install-source") {
+			t.Fatalf("GET %s does not require an explicit download source", path)
 		}
-		if strings.Contains(body, "github.com") || strings.Contains(body, "api.github.com") {
-			t.Fatalf("GET %s still exposes a GitHub download URL", path)
+		if strings.Contains(body, "/latest/") {
+			t.Fatalf("GET %s includes a moving latest download URL", path)
 		}
 	}
 }
