@@ -26,7 +26,7 @@ test("deployment settings are restored and saved per node", () => {
 
 test("one-click Agent commands download the installer and matching Agent from GitHub", () => {
   assert.match(source, /--install-source/);
-  assert.match(source, /const agentReleaseVersion = "1\.0\.5";/);
+  assert.match(source, /const agentReleaseVersion = "1\.0\.6";/);
   assert.match(
     source,
     /const agentReleaseSource = `https:\/\/github\.com\/3rnn\/komari-lite\/releases\/download\/v\$\{agentReleaseVersion\}`;/,

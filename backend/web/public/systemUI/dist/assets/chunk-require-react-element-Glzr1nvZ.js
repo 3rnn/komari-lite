@@ -1,0 +1,1 @@
+import{ai as r}from"./entry-index-DBJRt46z.js";const i=e=>{if(!r.isValidElement(e))throw Error(`Expected a single React Element child, but got: ${r.Children.toArray(e).map(t=>typeof t=="object"&&"type"in t&&typeof t.type=="string"?t.type:typeof t).join(", ")}`);return e};export{i as a};

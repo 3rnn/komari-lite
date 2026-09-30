@@ -95,8 +95,8 @@ CGO_ENABLED=0 go build -trimpath -ldflags '-s -w' -o komari-agent .
 Build artifacts for all 14 platforms and generate the panel distribution manifest:
 
 ```bash
-./scripts/build-agent-release.sh 1.0.5
-# Creates release/agent-1.0.5/: 14 artifacts + manifest.json + SHA256SUMS.txt
+./scripts/build-agent-release.sh 1.0.6
+# Creates release/agent-1.0.6/: 14 artifacts + manifest.json + SHA256SUMS.txt
 ```
 
 Upload all 14 `komari-agent-*` artifacts to the GitHub Release matching the panel version. The one-click installer downloads the platform-specific artifact from that release.

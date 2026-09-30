@@ -129,7 +129,7 @@ const PREVIOUS_PAGE_DROP_ID = "admin-node-previous-page";
 const NEXT_PAGE_DROP_ID = "admin-node-next-page";
 // Bump this with the panel and Agent version at every release. Keeping it local
 // makes the downloaded artifact deterministic even for traditional deployments.
-const agentReleaseVersion = "1.0.5";
+const agentReleaseVersion = "1.0.6";
 const agentReleaseSource = `https://github.com/3rnn/komari-lite/releases/download/v${agentReleaseVersion}`;
 const agentInstallerSource = `${agentReleaseSource}/install`;
 
@@ -404,6 +404,7 @@ const AutoDiscoverySection = ({
       "--disable-web-ssh",
       "--disable-auto-update",
       "--install-source", agentReleaseSource,
+      "--install-version", agentReleaseVersion,
     ];
 
     const scriptUrl =
@@ -1695,7 +1696,7 @@ function GenerateCommandButton({ node, settings }: { node: NodeDetail, settings:
   const generateCommand = () => {
     const host = resolveAgentSource(settings?.script_domain).host;
     const token = node.token || "";
-    let args = ["-e", host, "-t", token, "--disable-web-ssh", "--disable-auto-update", "--install-source", agentReleaseSource];
+    let args = ["-e", host, "-t", token, "--disable-web-ssh", "--disable-auto-update", "--install-source", agentReleaseSource, "--install-version", agentReleaseVersion];
     // Installation security policy: disable remote control and auto-updates; reject insecure certificates.
     if (installOptions.memoryIncludeCache) {
       args.push("--memory-include-cache");

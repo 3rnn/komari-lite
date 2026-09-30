@@ -39,7 +39,7 @@ log_config() {
 service_name="komari-agent"
 target_dir="/opt/komari"
 install_source=""
-install_version="" # retained for CLI compatibility; panel controls the served version
+install_version="" # the panel's one-click command supplies the pinned release version
  
 
 # Detect OS
@@ -136,7 +136,7 @@ log_config "  Binary arguments: ${GREEN}$komari_args${NC}"
 if [ -n "$install_version" ]; then
     log_config "  Specified agent version: ${GREEN}$install_version${NC}"
 else
-    log_config "  Agent version: ${GREEN}Latest${NC}"
+    log_config "  Agent version: ${GREEN}panel-managed${NC}"
 fi
 echo ""
 
@@ -286,19 +286,16 @@ case $arch in
 esac
 log_info "Detected OS: ${GREEN}$os_name${NC}, Architecture: ${GREEN}$arch${NC}"
 
-version_to_install="latest"
 if [ -n "$install_version" ]; then
-    log_info "Attempting to install specified version: ${GREEN}$install_version${NC}"
-    version_to_install="$install_version"
+    log_info "Installing pinned version: ${GREEN}$install_version${NC}"
 else
-    log_info "No version specified, installing the latest version."
+    log_info "No version specified; using the explicitly configured Agent source."
 fi
 
-# Construct the Agent download URL. The target machine downloads only from the
-# Komari panel; the panel owns/caches the upstream artifact.
+# Construct the Agent download URL from the explicitly configured release source.
 file_name="komari-agent-${os_name}-${arch}"
 if [ -z "$install_source" ]; then
-    log_error "Missing --install-source (expected: https://panel.example/agent/download/)"
+    log_error "Missing --install-source (expected: a pinned GitHub release URL)"
     exit 1
 fi
 download_url="${install_source}/${file_name}"
@@ -307,7 +304,7 @@ log_step "Creating installation directory: ${GREEN}$target_dir${NC}"
 mkdir -p "$target_dir"
 
 # Download binary
-log_step "Downloading $file_name from the Komari panel..."
+log_step "Downloading $file_name from the pinned release..."
 log_info "URL: ${CYAN}$download_url${NC}"
 if ! curl --fail --show-error -L -o "$komari_agent_path" "$download_url"; then
     log_error "Download failed"

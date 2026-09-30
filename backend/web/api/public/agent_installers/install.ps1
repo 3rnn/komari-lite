@@ -162,7 +162,7 @@ Log-Config "Agent arguments: $($KomariArgs -join ' ')"
 if ($InstallVersion -ne "") {
     Log-Config "Specified agent version: $InstallVersion"
 } else {
-    Log-Config "Agent version: Latest"
+    Log-Config "Agent version: panel-managed"
 }
 
 # Paths
@@ -204,11 +204,10 @@ function Uninstall-Previous {
 }
 Uninstall-Previous
 
-# Agent binaries are served by this Komari panel. The target machine never
-# contacts an external source for the Agent package.
+# Agent binaries come from the explicitly configured release source.
 $BinaryName = "komari-agent-windows-$arch.exe"
 if ([string]::IsNullOrWhiteSpace($InstallSource)) {
-    Log-Error "Missing --install-source (expected: https://panel.example/agent/download/)"
+    Log-Error "Missing --install-source (expected: a pinned GitHub release URL)"
     exit 1
 }
 $versionToInstall = if ($InstallVersion) { $InstallVersion } else { "panel-managed" }

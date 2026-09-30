@@ -60,10 +60,10 @@ The Agent has no remote-control, terminal, command-execution, MCP, or self-updat
 ```bash
 cd komari-lite
 chmod +x scripts/build-agent-release.sh
-./scripts/build-agent-release.sh 1.0.5
+./scripts/build-agent-release.sh 1.0.6
 ```
 
-Output is written to `release/agent-1.0.5/`:
+Output is written to `release/agent-1.0.6/`:
 
 - 14 `komari-agent-<os>-<arch>` artifacts;
 - `manifest.json` with the release version and SHA-256 for every artifact;
@@ -72,7 +72,7 @@ Output is written to `release/agent-1.0.5/`:
 The release directory is intentionally ignored by Git. Verify it before deployment:
 
 ```bash
-cd release/agent-1.0.5
+cd release/agent-1.0.6
 sha256sum -c SHA256SUMS.txt
 ```
 
@@ -141,7 +141,7 @@ Install/start Caddy according to its official documentation. The panel stays pri
 
 ### Agent downloads
 
-One-click deployment downloads the installer from the panel, then pins the Agent binary to the GitHub Release tag matching that panel version. A traditional deployment therefore only needs the panel binary; it does **not** need a `data/agent-release/` directory.
+One-click deployment downloads both the installer and Agent binary from the explicit GitHub Release tag matching the panel version; it never follows `latest`. A traditional deployment therefore only needs the panel binary; it does **not** need a `data/agent-release/` directory.
 
 Before publishing a panel version, upload all 14 `komari-agent-*` artifacts to the same GitHub Release tag. The installer downloads the platform-matched artifact from:
 
