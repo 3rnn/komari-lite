@@ -2,6 +2,10 @@ import type { MenuItem } from "@/types/menu";
 
 export const APPEARANCE_MENU_PATH = "/admin/appearance";
 
+export function isAdminMenuPathActive(pathname: string, path: string): boolean {
+  return pathname === path || (path !== "/admin" && pathname.startsWith(`${path}/`));
+}
+
 export function buildAdminMenuItems(
   baseItems: MenuItem[],
   themeItems: MenuItem[],
@@ -30,8 +34,7 @@ export function syncSubMenuForLocation(
 ): Record<string, boolean> {
   const activeGroup = items.find((item) =>
     item.children?.some(
-      (child) =>
-        pathname === child.path || pathname.startsWith(`${child.path}/`),
+      (child) => isAdminMenuPathActive(pathname, child.path),
     ),
   );
 

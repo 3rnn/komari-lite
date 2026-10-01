@@ -14,9 +14,10 @@ test("new visitors start with the dark jade Komari palette without removing appe
 });
 
 test("shared visual tokens distinguish background, surface, border and muted text in both modes", () => {
-  for (const token of ["--km-canvas", "--km-sidebar", "--km-panel", "--km-panel-raised", "--km-border", "--km-muted", "--km-accent", "--km-radius"]) {
+  for (const token of ["--km-canvas", "--km-sidebar", "--km-panel", "--km-panel-raised", "--km-border", "--km-muted", "--km-nav-accent", "--km-radius"]) {
     assert.ok(css.includes(`${token}:`), `missing ${token}`);
   }
+  assert.match(css, /--km-nav-accent:\s*var\(--accent-11\)/);
   assert.match(css, /\.dark\s*\{[^}]*--km-canvas:\s*#[0-9a-f]{6}/s);
   assert.match(css, /:root\s*\{[^}]*--km-canvas:\s*#[0-9a-f]{6}/s);
   assert.match(css, /\.km-panel\s*\{[^}]*background:\s*var\(--km-panel\);[^}]*border:\s*1px solid var\(--km-border\)/s);

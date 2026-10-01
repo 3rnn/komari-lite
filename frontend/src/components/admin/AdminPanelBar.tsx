@@ -14,6 +14,7 @@ import { iconMap } from "../../utils/iconHelper";
 import { ChevronDownIcon } from "@radix-ui/react-icons";
 import { TablerMenu2 } from "../Icones/Tabler";
 import {
+  isAdminMenuPathActive,
   syncSubMenuForLocation,
   toggleSingleSubMenu,
 } from "@/utils/adminMenu";
@@ -261,7 +262,6 @@ const AdminPanelBar = ({ content }: AdminPanelBarProps) => {
     icon: string,
     labelKey: string,
     className?: string,
-    active?: boolean,
   ) => {
     const link = /^(https?:\/\/|\/|\.\/|\.\.\/)/.test(icon);
     if (link) {
@@ -273,8 +273,6 @@ const AdminPanelBar = ({ content }: AdminPanelBarProps) => {
             width: 16,
             height: 16,
             objectFit: "contain",
-            opacity: active ? 1 : 0.7,
-            filter: active ? "none" : "grayscale(20%)",
           }}
           className={className}
           loading="lazy"
@@ -286,9 +284,6 @@ const AdminPanelBar = ({ content }: AdminPanelBarProps) => {
       return (
         <Icon
           className={className}
-          style={{
-            color: active ? "var(--accent-10)" : "var(--gray11)",
-          }}
         />
       );
     }
@@ -300,7 +295,7 @@ const AdminPanelBar = ({ content }: AdminPanelBarProps) => {
           height: 16,
           display: "inline-block",
           borderRadius: 4,
-          background: "var(--accent-8)",
+          background: "currentColor",
         }}
       />
     );
@@ -310,6 +305,9 @@ const AdminPanelBar = ({ content }: AdminPanelBarProps) => {
     items.map((item) => {
       const isOpen = openSubMenus[item.path];
       if (item.children?.length) {
+        const groupActive = item.children.some((child) =>
+          isAdminMenuPathActive(location.pathname, child.path),
+        );
         const submenu = (
           <Flex direction="column" className="ml-4 gap-1">
             {item.children.map((child) => (
@@ -333,9 +331,11 @@ const AdminPanelBar = ({ content }: AdminPanelBarProps) => {
 
         return (
           <div key={item.path}>
-            <Flex
-              className="p-2 gap-2 border-l-[4px] border-transparent cursor-pointer hover:bg-accent-3 rounded-md"
-              align="center"
+            <button
+              type="button"
+              className="km-admin-nav-item km-admin-nav-row flex w-full items-center gap-2 p-2 text-left"
+              data-active={groupActive ? "true" : undefined}
+              aria-expanded={Boolean(isOpen)}
               onClick={() => {
                 setOpenSubMenus((current) =>
                   toggleSingleSubMenu(current, item.path),
@@ -356,8 +356,10 @@ const AdminPanelBar = ({ content }: AdminPanelBarProps) => {
                   transition: "transform 0.2s",
                 }}
               />
-            </Flex>
+            </button>
             <motion.div
+              inert={!isOpen}
+              aria-hidden={!isOpen}
               initial={{ height: 0, opacity: 0 }}
               animate={
                 isOpen
@@ -643,8 +645,7 @@ const SidebarItem = ({
   const isActive =
     !isExternalLink &&
     to !== "/" &&
-    (location.pathname === to ||
-      (to !== "/admin" && location.pathname.startsWith(to)));
+    isAdminMenuPathActive(location.pathname, to);
   const openInNewTab = newTab === true || (isExternalLink && newTab !== false);
   const preload = () => {
     if (!isExternalLink && !reloadDocument) void preloadAdminRoute(to);
@@ -660,24 +661,8 @@ const SidebarItem = ({
         rel={openInNewTab ? "noopener noreferrer" : undefined}
         className="km-admin-nav-item group"
       >
-        <Flex
-          className="p-2 gap-2 h-full"
-          align="center"
-          style={{
-            borderLeft: "2px solid transparent",
-            borderRadius: "var(--km-radius)",
-            backgroundColor: "transparent",
-            color: "inherit",
-            transition: "background-color 0.2s, border-color 0.2s",
-          }}
-        >
-          <span
-            style={{
-              color: "inherit",
-              opacity: 0.7,
-            }}
-            className="flex w-4 h-5 items-center justify-center"
-          >
+        <Flex className="km-admin-nav-row p-2 gap-2 h-full" align="center">
+          <span className="km-admin-nav-icon flex w-4 h-5 items-center justify-center">
             {icon}
           </span>
           <Text className="text-xs font-medium uppercase tracking-[0.08em]" weight="medium" style={{ flex: 1 }}>
@@ -697,27 +682,10 @@ const SidebarItem = ({
       onClick={onClick}
       className="km-admin-nav-item group"
       data-active={isActive ? "true" : undefined}
+      aria-current={isActive ? "page" : undefined}
     >
-      <Flex
-        className="p-2 gap-2"
-        align="center"
-        style={{
-          borderLeft: isActive
-            ? "2px solid var(--km-accent)"
-            : "2px solid transparent",
-          borderRadius: "var(--km-radius)",
-          backgroundColor: isActive ? "var(--km-panel-raised)" : "transparent",
-          color: isActive ? "var(--foreground)" : "inherit",
-          transition: "background-color 0.2s, border-color 0.2s",
-        }}
-      >
-        <span
-          style={{
-            color: isActive ? "var(--km-accent)" : "inherit",
-            opacity: isActive ? 1 : 0.7,
-          }}
-          className="flex w-4 h-5 items-center justify-center"
-        >
+      <Flex className="km-admin-nav-row p-2 gap-2" align="center">
+        <span className="km-admin-nav-icon flex w-4 h-5 items-center justify-center">
           {icon}
         </span>
         <Text

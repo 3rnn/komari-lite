@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   APPEARANCE_MENU_PATH,
   buildAdminMenuItems,
+  isAdminMenuPathActive,
   syncSubMenuForLocation,
   toggleSingleSubMenu,
 } from "../src/utils/adminMenu.ts";
@@ -199,6 +200,33 @@ test("keeps the monitoring group open across rapid standalone navigation", () =>
   }
 });
 
+test("navigation highlights the exact route or a nested route, not a sibling prefix", () => {
+  assert.equal(isAdminMenuPathActive("/admin/ping", "/admin/ping"), true);
+  assert.equal(isAdminMenuPathActive("/admin/ping/history", "/admin/ping"), true);
+  assert.equal(isAdminMenuPathActive("/admin/ping-history", "/admin/ping"), false);
+  assert.equal(isAdminMenuPathActive("/admin/settings", "/admin"), false);
+  assert.equal(isAdminMenuPathActive("/admin", "/admin"), true);
+});
+
+test("sidebar groups and links share the same focusable navigation surface", () => {
+  assert.match(adminPanelSource, /<button\s+type="button"\s+className="km-admin-nav-item km-admin-nav-row/);
+  assert.match(adminPanelSource, /aria-expanded=\{Boolean\(isOpen\)\}/);
+  assert.match(adminPanelSource, /data-active=\{groupActive \? "true" : undefined\}/);
+  assert.match(adminPanelSource, /className="km-admin-nav-item group"/);
+  assert.match(globalCssSource, /\.km-admin-nav-item:is\(:hover, :focus-visible\)/);
+  assert.match(globalCssSource, /\.km-admin-nav-row\s*\{[^}]*border-left: 2px solid transparent/);
+  assert.match(globalCssSource, /\.km-admin-nav-item\[data-active="true"\] \.km-admin-nav-row,[^}]*border-color: var\(--km-nav-accent\)/);
+  assert.match(globalCssSource, /--km-nav-accent: var\(--accent-11\)/);
+  assert.doesNotMatch(adminPanelSource, /hover:bg-accent-3/);
+  assert.doesNotMatch(adminPanelSource, /var\(--gray11\)/);
+});
+
+test("admin floating menus use one quiet surface and legible selection states", () => {
+  assert.match(globalCssSource, /:is\(\.rt-SelectContent, \.rt-DropdownMenuContent, \.rt-PopoverContent, \.admin-select-or-input-content\)\s*\{[^}]*background: var\(--km-panel\)/);
+  assert.match(globalCssSource, /\.admin-select-or-input-content \[role="option"\]\[aria-selected="true"\]\s*\{[^}]*background: var\(--accent-a4\)/);
+  assert.doesNotMatch(selectOrInputSource, /bg-accent-9 text-\[var\(--accent-contrast\)\]/);
+});
+
 test("does not match a sibling route that only shares a child prefix", () => {
   const monitoringOpen = { "/admin/monitoring": true };
 
@@ -236,12 +264,13 @@ test("mobile and desktop submenus share the original motion collapse", () => {
   assert.doesNotMatch(globalCssSource, /\.km-admin-mobile-submenu/);
   assert.match(
     adminPanelSource,
-    /<motion\.div\s+initial=\{\{ height: 0, opacity: 0 \}\}[\s\S]*height: "auto", opacity: 1/,
+    /<motion\.div\s+inert=\{!isOpen\}\s+aria-hidden=\{!isOpen\}\s+initial=\{\{ height: 0, opacity: 0 \}\}[\s\S]*height: "auto", opacity: 1/,
   );
   assert.match(
     adminPanelSource,
     /transition=\{reduceMotion \? \{ duration: 0 \} : \{ duration: 0\.14 \}\}/,
   );
+  assert.match(adminPanelSource, /<motion\.div\s+inert=\{!isOpen\}\s+aria-hidden=\{!isOpen\}/);
 });
 
 test("system UI routes do not embed the legacy public dashboard", () => {
@@ -339,11 +368,11 @@ test("admin floating controls and switches animate consistently", () => {
   assert.match(selectOrInputSource, /admin-select-or-input-content/);
   assert.match(selectOrInputSource, /data-state=\{open \? "open" : "closed"\}/);
   assert.match(selectOrInputSource, /FLOATING_CONTENT_EXIT_MS = 140/);
-  assert.match(selectOrInputSource, /bg-accent-9 text-\[var\(--accent-contrast\)\]/);
-  assert.match(selectOrInputSource, /hover:bg-accent hover:text-accent-foreground/);
+  assert.match(selectOrInputSource, /bg-\[var\(--accent-a4\)\] text-foreground/);
+  assert.match(selectOrInputSource, /hover:bg-\[var\(--accent-a3\)\] hover:text-foreground/);
   assert.match(selectOrInputSource, /text-sm font-normal outline-hidden/);
   assert.doesNotMatch(selectOrInputSource, /text-sm font-semibold outline-hidden/);
-  assert.match(selectOrInputSource, /rounded-md border bg-accent-1[\s\S]*shadow-md/);
+  assert.doesNotMatch(selectOrInputSource, /rounded-md border bg-accent-1[\s\S]*shadow-md/);
   assert.match(globalCssSource, /\.rt-SwitchThumb[\s\S]*transform 180ms/);
   assert.match(globalCssSource, /\.rt-SwitchThumb\[data-state="checked"\][\s\S]*scale\(0\.92\)/);
   assert.match(globalCssSource, /data-reduce-motion="true"[\s\S]*\.rt-SelectContent/);

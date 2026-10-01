@@ -5,6 +5,12 @@ import test from "node:test";
 
 const dist = new URL("../../backend/web/public/bundledThemes/Glass/dist/", import.meta.url);
 const html = readFileSync(new URL("index.html", dist), "utf8");
+const visualSource = readFileSync(new URL("../script/glass-visual.css", import.meta.url), "utf8");
+const rule = (selector) => {
+  const match = visualSource.match(new RegExp(`${selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\{([^}]*)\\}`));
+  assert.ok(match, `missing ${selector} override`);
+  return match[1];
+};
 
 test("Glass HTML loads one content-fingerprinted visual stylesheet after upstream CSS", () => {
   const matches = [...html.matchAll(/glass-visual-([a-f0-9]{8})\.css/g)];
@@ -29,11 +35,32 @@ test("Glass dark surfaces use opaque deep teal and quiet rectangular outlines", 
   const [, hash] = [...html.matchAll(/glass-visual-([a-f0-9]{8})\.css/g)][0] ?? [];
   assert.ok(hash);
   const css = readFileSync(new URL(`glass-visual-${hash}.css`, dist), "utf8");
-  assert.match(css, /\.dark\s*\{[^}]*--background:\s*#071f21\b/);
-  assert.match(css, /\.dark\s*\{[^}]*--node-card-bg:\s*#0b292a\b/);
+  assert.match(css, /\.dark\s*\{[^}]*--background:\s*#072a28\b/);
+  assert.match(css, /\.dark\s*\{[^}]*--node-card-bg:\s*#0a302d\b/);
   assert.match(css, /\.node-card\s*\{[^}]*border-radius:\s*4px\b[^}]*box-shadow:\s*none/);
   assert.match(css, /\.glass-panel\s*\{[^}]*box-shadow:\s*none/);
   assert.match(css, /html\[data-blur=on\] \.glass-panel,\s*html\[data-blur=off\] \.glass-panel\s*\{[^}]*backdrop-filter:\s*none/);
   assert.match(css, /\.node-data-panel\s*\{[^}]*border:\s*1px solid var\(--border\)/);
   assert.match(css, /@media \(max-width:\s*640px\)/);
+});
+
+test("public Glass palette aligns with admin canvas, panels and primary in both modes", () => {
+  assert.match(rule(":root"), /--primary:\s*#146b58\b/);
+  assert.match(rule(":root"), /--ring:\s*#146b58\b/);
+  assert.match(rule(".dark"), /--background:\s*#072a28\b/);
+  assert.match(rule(".dark"), /--card-solid:\s*#0a302d\b/);
+  assert.match(rule(".dark"), /--node-card-bg:\s*#0a302d\b/);
+  assert.match(rule(".dark"), /--primary:\s*#77dcb3\b/);
+  assert.match(rule(".dark"), /--primary-foreground:\s*#072a28\b/);
+  assert.match(rule(".dark"), /--ring:\s*#77dcb3\b/);
+});
+
+test("header icon and segmented controls have opaque hover, selected and keyboard focus states", () => {
+  assert.match(rule(".icon-btn:hover"), /background:\s*var\(--glass-control\)/);
+  assert.match(rule(".segment-btn:hover"), /background:\s*var\(--node-card-hover\)/);
+  assert.match(rule(".segment-btn-active"), /background:\s*var\(--primary\)/);
+  assert.match(rule(".segment-btn-active"), /color:\s*var\(--primary-foreground\)/);
+  assert.match(rule(".segment-btn-active:hover"), /background:\s*var\(--primary\)/);
+  assert.match(rule(".segment-btn:focus-visible"), /outline:\s*2px solid var\(--ring\)/);
+  assert.match(rule(".icon-btn:focus-visible"), /outline:\s*2px solid var\(--ring\)/);
 });

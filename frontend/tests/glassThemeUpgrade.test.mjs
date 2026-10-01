@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chownSync, copyFileSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chownSync, copyFileSync, cpSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -12,6 +12,12 @@ const prefix = "backend/web/public/bundledThemes/Glass/";
 const fixturePrefix = "frontend/tests/fixtures/glass-vendor/";
 const v109FixturePrefix = "frontend/tests/fixtures/glass-v109/";
 const v1010FixturePrefix = "frontend/tests/fixtures/glass-v1010/";
+const priorFixturePrefix = "frontend/tests/fixtures/glass-v1012/";
+const priorHashes = new Map([
+  ["komari-theme.json", "022143c717a12cf44e5af525bd61cf596ace4ef1415914d2ee71a65e42a2d284"],
+  ["dist/index.html", "abb776b0255d54da4b5a8f8b0a34054c8e797b48e18fb029bf51ede40263674c"],
+  ["dist/_next/static/chunks/3859ru-36ef0bd8.js", "36ef0bd863581ea218f5c4d2a183145132a780792c07d46dc97276d27345f9ea"],
+]);
 const files = ["komari-theme.json", "dist/index.html", "dist/_next/static/chunks/3859ru-aa5bf30a.js", "dist/_next/static/chunks/1j6ltxvh3a3zn.css"];
 // A pinned vendor fixture must survive this change becoming HEAD; git show HEAD
 // would start reading the upgraded theme after the release commit.
@@ -28,7 +34,16 @@ function fixture(t) {
   writeFileSync(join(root, "user-note.txt"), "retain me");
   return { parent, root };
 }
-const run = (root, apply = false) => spawnSync(process.execPath, [script, "--theme-dir", root, ...(apply ? ["--apply"] : [])], { encoding: "utf8" });
+const run = (root, apply = false, preload = null, scriptPath = script) => spawnSync(process.execPath, [...(preload ? ["--import", preload] : []), scriptPath, "--theme-dir", root, ...(apply ? ["--apply"] : [])], { encoding: "utf8" });
+
+test("migration stages an immutable, fingerprint-checked source snapshot", () => {
+  const migration = readFileSync(script, "utf8");
+  assert.match(migration, /const replacementFiles = new Map\(/);
+  assert.match(migration, /digest\(replacementFiles\.get\(chunkPath\)\)\.slice\(0, 8\)/);
+  assert.match(migration, /digest\(replacementFiles\.get\(cssPath\)\)\.slice\(0, 8\)/);
+  assert.match(migration, /writeFileSync\(join\(stage, relative\), replacementFiles\.get\(relative\)\)/);
+  assert.doesNotMatch(migration, /expectedStage\.set\(relative, digest\(readFileSync\(join\(source, relative\)\)\)\)/);
+});
 const legacyBootstrap = (html) => html.replace(/\|\|(\\*)"dark\1"/g, (_match, escapes) => `||${escapes}"system${escapes}"`);
 const legacyManifest = () => readFileSync(join(repo, v109FixturePrefix, "komari-theme.json"), "utf8")
   .replace('"default": "dark"', '"default": "system"');
@@ -82,6 +97,7 @@ test("pinned v1.0.9 installed Glass is accepted without any write", (t) => {
     copyFileSync(join(repo, v109FixturePrefix, name), join(root, name));
   }
   copyFileSync(join(bundled, "dist/_next/static/chunks/3859ru-1c261694.js"), join(root, "dist/_next/static/chunks/3859ru-1c261694.js"));
+  copyFileSync(join(bundled, "dist/glass-visual-fc179bf5.css"), join(root, "dist/glass-visual-fc179bf5.css"));
   const result = run(root);
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /eligible.*true/);
@@ -96,6 +112,7 @@ test("v1.0.10 single-selection Glass upgrades to multi-selection without losing 
     copyFileSync(join(repo, v1010FixturePrefix, name), join(root, name));
   }
   copyFileSync(join(bundled, "dist/_next/static/chunks/3859ru-0b886112.js"), join(root, "dist/_next/static/chunks/3859ru-0b886112.js"));
+  copyFileSync(join(bundled, "dist/glass-visual-fc179bf5.css"), join(root, "dist/glass-visual-fc179bf5.css"));
   const dry = run(root);
   assert.equal(dry.status, 0, dry.stderr);
   assert.deepEqual(readdirSync(parent), ["Glass"]);
@@ -153,3 +170,141 @@ test("customized installed Glass is rejected without changing or backing up anyt
   assert.deepEqual(readdirSync(parent), ["Glass"]);
   assert.equal(readFileSync(join(root, "dist/index.html"), "utf8"), "customized");
 });
+
+function currentInstalledFixture(t) {
+  const { parent, root } = fixture(t);
+  for (const [path, expected] of priorHashes) {
+    // The prior manifest/HTML are immutable fixtures; the content-hashed old
+    // chunk remains a pinned, tracked asset alongside the newer chunks.
+    const bytes = readFileSync(join(repo, path.startsWith("dist/_next/") ? prefix : priorFixturePrefix, path));
+    assert.equal(createHash("sha256").update(bytes).digest("hex"), expected, `pinned prior ${path}`);
+    const target = join(root, path);
+    mkdirSync(join(target, ".."), { recursive: true });
+    writeFileSync(target, bytes);
+  }
+  copyFileSync(join(repo, prefix, "dist/glass-visual-fc179bf5.css"), join(root, "dist/glass-visual-fc179bf5.css"));
+  return { parent, root };
+}
+
+test("customized installed visual CSS is rejected before any theme migration", (t) => {
+  const { parent, root } = currentInstalledFixture(t);
+  const css = join(root, "dist/glass-visual-fc179bf5.css");
+  writeFileSync(css, "custom theme CSS");
+  const result = run(root, true);
+  assert.notEqual(result.status, 0);
+  assert.deepEqual(readdirSync(parent), ["Glass"]);
+  assert.equal(readFileSync(css, "utf8"), "custom theme CSS");
+});
+
+test("a conflicting new visual stylesheet is not overwritten", (t) => {
+  const { parent, root } = currentInstalledFixture(t);
+  const current = readFileSync(join(repo, prefix, "dist/index.html"), "utf8");
+  const [newName] = current.match(/glass-visual-[a-f0-9]{8}\.css/g) ?? [];
+  assert.ok(newName);
+  const conflict = join(root, "dist", newName);
+  writeFileSync(conflict, "user custom CSS at destination");
+  const result = run(root, true);
+  assert.notEqual(result.status, 0);
+  assert.deepEqual(readdirSync(parent), ["Glass"]);
+  assert.equal(readFileSync(conflict, "utf8"), "user custom CSS at destination");
+});
+
+test("a conflicting new node-card chunk is not overwritten", (t) => {
+  const { parent, root } = fixture(t);
+  const bundled = join(repo, prefix);
+  for (const name of ["komari-theme.json", "dist/index.html"]) {
+    copyFileSync(join(repo, v1010FixturePrefix, name), join(root, name));
+  }
+  copyFileSync(join(bundled, "dist/_next/static/chunks/3859ru-0b886112.js"), join(root, "dist/_next/static/chunks/3859ru-0b886112.js"));
+  copyFileSync(join(bundled, "dist/glass-visual-fc179bf5.css"), join(root, "dist/glass-visual-fc179bf5.css"));
+  const newIndex = readFileSync(join(bundled, "dist/index.html"), "utf8");
+  const [newName] = newIndex.match(/3859ru-[a-f0-9]{8}\.js/g) ?? [];
+  assert.ok(newName);
+  const conflict = join(root, "dist/_next/static/chunks", newName);
+  writeFileSync(conflict, "user custom JS at destination");
+  const result = run(root, true);
+  assert.notEqual(result.status, 0);
+  assert.deepEqual(readdirSync(parent), ["Glass"]);
+  assert.equal(readFileSync(conflict, "utf8"), "user custom JS at destination");
+});
+
+test("a concurrent change after copying cannot pass the pinned theme validation", (t) => {
+  const { parent, root } = currentInstalledFixture(t);
+  const hook = join(parent, "race-hook.mjs");
+  writeFileSync(hook, `import fs from "node:fs";
+import { join } from "node:path";
+import { syncBuiltinESMExports } from "node:module";
+const copy = fs.cpSync;
+fs.cpSync = (...args) => {
+  const result = copy(...args);
+  fs.writeFileSync(join(args[0], "dist/index.html"), "changed during staging");
+  return result;
+};
+syncBuiltinESMExports();
+`);
+  const result = run(root, true, hook);
+  assert.notEqual(result.status, 0);
+  assert.deepEqual(readdirSync(parent).sort(), ["Glass", "race-hook.mjs"]);
+  assert.equal(readFileSync(join(root, "dist/index.html"), "utf8"), "changed during staging");
+});
+
+test("a changed bundled asset during staging cannot bypass its original fingerprint", (t) => {
+  const { parent, root } = currentInstalledFixture(t);
+  const isolated = join(parent, "isolated");
+  const isolatedScript = join(isolated, "frontend/script/upgrade-glass-theme.mjs");
+  const isolatedBundle = join(isolated, prefix);
+  mkdirSync(join(isolatedScript, ".."), { recursive: true });
+  copyFileSync(script, isolatedScript);
+  cpSync(join(repo, prefix), isolatedBundle, { recursive: true });
+  const index = readFileSync(join(isolatedBundle, "dist/index.html"), "utf8");
+  const [name] = index.match(/glass-visual-[a-f0-9]{8}\.css/g) ?? [];
+  assert.ok(name);
+  const sourceCss = join(isolatedBundle, "dist", name);
+  const validatedCss = readFileSync(sourceCss);
+  const hook = join(parent, "source-race-hook.mjs");
+  writeFileSync(hook, `import fs from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
+const copy = fs.cpSync;
+fs.cpSync = (...args) => {
+  const result = copy(...args);
+  fs.writeFileSync(${JSON.stringify(sourceCss)}, "changed source after fingerprint validation");
+  return result;
+};
+syncBuiltinESMExports();
+`);
+  const originalIndex = readFileSync(join(root, "dist/index.html"));
+  const result = run(root, true, hook, isolatedScript);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(readdirSync(parent).some((name) => name.startsWith("Glass.backup-")), true);
+  assert.notDeepEqual(readFileSync(join(root, "dist/index.html")), originalIndex);
+  assert.deepEqual(readFileSync(join(root, "dist", name)), validatedCss);
+  assert.equal(readFileSync(sourceCss, "utf8"), "changed source after fingerprint validation");
+});
+
+test("exact prior installed Glass accepts dry-run and upgrades while preserving backup and unrelated files", (t) => {
+  const { parent, root } = currentInstalledFixture(t);
+  const dry = run(root);
+  assert.equal(dry.status, 0, dry.stderr);
+  assert.deepEqual(readdirSync(parent), ["Glass"]);
+  const result = run(root, true);
+  assert.equal(result.status, 0, result.stderr);
+  const backup = join(parent, readdirSync(parent).find((name) => name.startsWith("Glass.backup-")));
+  for (const [path, expected] of priorHashes) {
+    assert.equal(createHash("sha256").update(readFileSync(join(backup, path))).digest("hex"), expected);
+  }
+  assert.equal(readFileSync(join(root, "user-note.txt"), "utf8"), "retain me");
+  assert.deepEqual(readFileSync(join(root, "dist/index.html")), readFileSync(join(repo, prefix, "dist/index.html")));
+});
+
+for (const changed of priorHashes.keys()) {
+  test(`customized prior Glass ${changed} is rejected without writes`, (t) => {
+    const { parent, root } = currentInstalledFixture(t);
+    writeFileSync(join(root, changed), "customized");
+    const result = run(root, true);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /differs from all pinned versions/);
+    assert.deepEqual(readdirSync(parent), ["Glass"]);
+    assert.equal(readFileSync(join(root, changed), "utf8"), "customized");
+    assert.equal(readFileSync(join(root, "user-note.txt"), "utf8"), "retain me");
+  });
+}
