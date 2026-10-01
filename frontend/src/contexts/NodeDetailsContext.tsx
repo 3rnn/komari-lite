@@ -21,6 +21,7 @@ export type NodeDetail = {
   disk_total: number;
   version: string;
   display_ping_task_id: number;
+  display_ping_task_ids: number[];
   deployment_status?: "" | "saved" | "sent" | "applied" | "failed";
   weight: number;
   price: number;

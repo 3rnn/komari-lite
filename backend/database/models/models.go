@@ -33,7 +33,8 @@ type Client struct {
 	DiskTotal              int64      `json:"disk_total" gorm:"type:bigint"`
 	Version                string     `json:"version,omitempty" gorm:"type:varchar(100)"`
 	Weight                 int        `json:"weight" gorm:"type:int"`
-	DisplayPingTaskID      uint       `json:"display_ping_task_id" gorm:"type:int;not null;default:0"` // Public node-card task; 0 follows theme defaults.
+	DisplayPingTaskID      uint       `json:"display_ping_task_id" gorm:"type:int;not null;default:0"`      // Public node-card task; 0 follows theme defaults.
+	DisplayPingTaskIDs     UintArray  `json:"display_ping_task_ids" gorm:"type:text;not null;default:'[]'"` // Ordered public display selections; empty falls back to the legacy scalar.
 	Price                  float64    `json:"price"`
 	BillingCycle           int        `json:"billing_cycle"`
 	AutoRenewal            bool       `json:"auto_renewal" gorm:"default:false"` // Whether to renew automatically
@@ -143,6 +144,36 @@ type GPURecord struct {
 // StringArray represents a slice of strings stored as JSON in the database
 // StringArray String slice type stored as JSON
 type StringArray []string
+
+// UintArray persists ordered task identifiers as a JSON array.
+type UintArray []uint
+
+func (a *UintArray) Scan(value interface{}) error {
+	var raw []byte
+	switch v := value.(type) {
+	case nil:
+		*a = UintArray{}
+		return nil
+	case []byte:
+		raw = v
+	case string:
+		raw = []byte(v)
+	default:
+		return fmt.Errorf("failed to scan UintArray: unsupported value type %T", value)
+	}
+	if len(raw) == 0 {
+		*a = UintArray{}
+		return nil
+	}
+	return json.Unmarshal(raw, a)
+}
+
+func (a UintArray) Value() (driver.Value, error) {
+	if a == nil {
+		a = UintArray{}
+	}
+	return json.Marshal(a)
+}
 
 func (sa *StringArray) Scan(value interface{}) error {
 	var bytes []byte

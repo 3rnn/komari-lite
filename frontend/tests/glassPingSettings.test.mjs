@@ -33,6 +33,7 @@ test("admin exposes a toggle between a single selected task and separate assigne
   assert.match(field.help.en, /each assigned task/i);
   assert.match(field.help.en, /one selected task/i);
   assert.match(field.help.en, /per-server Public Display selection overrides/i);
+  assert.match(field.help.en, /multiple selected/i);
   assert.doesNotMatch(field.help.en, /aggregate/i);
 });
 

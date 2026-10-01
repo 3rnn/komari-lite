@@ -25,11 +25,14 @@ test("node cards use the tested per-task model instead of averaging different ta
   assert.match(code, /v\.selectedName\?`Latency/);
 });
 
-test("node cards apply the server display ID before choosing multi-task or single-task panels", () => {
+test("node cards apply the server display IDs before choosing multi-task or single-task panels", () => {
   assert.match(code, /function resolveNodePingSelection\(/);
-  assert.match(code, /resolveNodePingSelection\(r,n,e\.display_ping_task_id\)/);
+  assert.match(code, /resolveNodePingSelection\(r,n,e\.display_ping_task_ids,e\.display_ping_task_id\)/);
   assert.match(code, /r=selection\.showAll;n=selection/);
-  assert.match(code, /Number\.isSafeInteger\(displayId\) && displayId > 0/);
+  assert.match(code, /selectPingTaskData\(i\.history\.tasks,i\.history\.records,Boolean\(n\?\.showAll\),n\?\.preferredId,rd,n\?\.displayIds,n\?\.fallbackShowAll,n\?\.fallbackPreferredId\)/);
+  assert.match(code, /r=v\.showAll\?\?r;let g=/);
+  assert.match(code, /r\?\(0,L\.jsx\)\(rI,\{rows:v\.tasks/);
+  assert.match(code, /showAll:t\.showAll/);
 });
 
 test("per-task panels and cards use content-driven height and compact rows", () => {

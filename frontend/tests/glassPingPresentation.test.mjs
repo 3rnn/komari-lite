@@ -60,28 +60,66 @@ test("same-named tasks remain distinct by task ID", () => {
 });
 
 test("a positive server display ID overrides global multi-task mode", () => {
-  const selection = resolveNodePingSelection(true, { preferredId: 1 }, 2);
-  assert.deepEqual(selection, { showAll: false, preferredId: 2 });
-  const view = selectPingTaskData(tasks, [sample(1, 30, 1), sample(2, 80, 3)], selection.showAll, selection.preferredId, makeHistory);
+  const selection = resolveNodePingSelection(true, { preferredId: 1 }, [], 2);
+  assert.deepEqual(selection, { showAll: false, preferredId: 2, displayIds: [2] });
+  const view = selectPingTaskData(tasks, [sample(1, 30, 1), sample(2, 80, 3)], selection.showAll, selection.preferredId, makeHistory, selection.displayIds);
   assert.equal(view.selected.id, 2);
   assert.equal(view.selected.avgLatency, 80);
   assert.deepEqual(view.rows, []);
 });
 
 test("zero server display ID retains the theme's multi-task or single-task setting", () => {
-  assert.deepEqual(resolveNodePingSelection(true, { preferredId: 1 }, 0), { showAll: true, preferredId: 1 });
-  assert.deepEqual(resolveNodePingSelection(false, { preferredId: 2 }, 0), { showAll: false, preferredId: 2 });
+  assert.deepEqual(resolveNodePingSelection(true, { preferredId: 1 }, [], 0), { showAll: true, preferredId: 1 });
+  assert.deepEqual(resolveNodePingSelection(false, { preferredId: 2 }, [], 0), { showAll: false, preferredId: 2 });
 });
 
 test("an unassigned server display ID falls back to first assigned task, not record averages", () => {
-  const selection = resolveNodePingSelection(true, { preferredId: 1 }, 99);
-  const view = selectPingTaskData(tasks, [sample(2, 80, 3), sample(99, 1, 4)], selection.showAll, selection.preferredId, makeHistory);
+  const selection = resolveNodePingSelection(true, { preferredId: 1 }, [], 99);
+  const view = selectPingTaskData(tasks, [sample(2, 80, 3), sample(99, 1, 4)], selection.showAll, selection.preferredId, makeHistory, selection.displayIds);
   assert.equal(view.selected.id, 1);
   assert.equal(view.selected.avgLatency, null);
   assert.deepEqual(view.rows, []);
 });
 
 test("server display override preserves carrier probe selection", () => {
-  const selection = resolveNodePingSelection(true, { preferredId: 1, telecom: "CT", unicom: "CU", mobile: "CM" }, 2);
-  assert.deepEqual(selection, { showAll: false, preferredId: 2, telecom: "CT", unicom: "CU", mobile: "CM" });
+  const selection = resolveNodePingSelection(true, { preferredId: 1, telecom: "CT", unicom: "CU", mobile: "CM" }, [2], 0);
+  assert.deepEqual(selection, { showAll: false, preferredId: 2, displayIds: [2], telecom: "CT", unicom: "CU", mobile: "CM" });
+});
+
+test("multiple selected probes render only their own rows even if the theme defaults to single", () => {
+  const selection = resolveNodePingSelection(false, { preferredId: 1, telecom: "CT" }, [1, 3], 1);
+  assert.deepEqual(selection, { showAll: true, preferredId: 1, displayIds: [1, 3], fallbackShowAll: false, fallbackPreferredId: 1, telecom: "CT" });
+  const view = selectPingTaskData(tasks, [sample(1, 30, 1), sample(2, 80, 2), sample(3, -1, 3)], selection.showAll, selection.preferredId, makeHistory, selection.displayIds);
+  assert.deepEqual(view.rows.map((row) => [row.id, row.avgLatency, row.loss]), [[1, 30, 0], [3, null, 100]]);
+  assert.equal(view.selected, null);
+});
+
+test("stale multi-selection IDs do not cause an empty public card", () => {
+  const selection = resolveNodePingSelection(false, { preferredId: 2 }, [999], 0);
+  const view = selectPingTaskData(tasks, [], selection.showAll, selection.preferredId, makeHistory, selection.displayIds);
+  assert.equal(view.selected?.id, 1);
+});
+
+test("all-stale multi-selection uses the theme's single-card task rather than every assigned task", () => {
+  const selection = resolveNodePingSelection(false, { preferredId: 2 }, [999, 1000], 0);
+  const view = selectPingTaskData(tasks, [sample(1, 30, 1), sample(2, 80, 2)], selection.showAll, selection.preferredId, makeHistory, selection.displayIds, selection.fallbackShowAll, selection.fallbackPreferredId);
+  assert.equal(view.showAll, false);
+  assert.deepEqual(view.rows, []);
+  assert.equal(view.selected?.id, 2);
+  assert.equal(view.selected?.avgLatency, 80);
+});
+
+test("all-stale multi-selection retains the theme's multi-card layout", () => {
+  const selection = resolveNodePingSelection(true, { preferredId: 2 }, [999, 1000], 0);
+  const view = selectPingTaskData(tasks, [], selection.showAll, selection.preferredId, makeHistory, selection.displayIds, selection.fallbackShowAll, selection.fallbackPreferredId);
+  assert.equal(view.showAll, true);
+  assert.deepEqual(view.rows.map((row) => row.id), [1, 2, 3]);
+  assert.equal(view.selected, null);
+});
+
+test("partially stale multi-selection displays only assigned IDs", () => {
+  const selection = resolveNodePingSelection(false, { preferredId: 2 }, [999, 1, 3], 0);
+  const view = selectPingTaskData(tasks, [], selection.showAll, selection.preferredId, makeHistory, selection.displayIds, selection.fallbackShowAll, selection.fallbackPreferredId);
+  assert.equal(view.showAll, true);
+  assert.deepEqual(view.rows.map((row) => row.id), [1, 3]);
 });

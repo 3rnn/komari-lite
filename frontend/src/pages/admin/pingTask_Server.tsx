@@ -9,8 +9,9 @@ import {
 } from "@/components/ui/table";
 import { useNodeDetails } from "@/contexts/NodeDetailsContext";
 import { type PingTask } from "@/contexts/PingTaskContext";
-import { assignedDisplayTasks, resolveDisplayPingTaskId } from "@/utils/pingDisplaySelection";
-import { Button, Dialog, Flex, IconButton, Select } from "@radix-ui/themes";
+import { assignedDisplayTasks, resolveDisplayPingTaskIds } from "@/utils/pingDisplaySelection";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Button, Dialog, Flex, IconButton } from "@radix-ui/themes";
 import { MoreHorizontal } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
@@ -61,7 +62,8 @@ export const ServerView = ({
                 key={node.uuid}
                 nodeUuid={node.uuid}
                 nodeName={node.name}
-                displayPingTaskID={node.display_ping_task_id || 0}
+                displayPingTaskIDs={node.display_ping_task_ids}
+                legacyDisplayPingTaskID={node.display_ping_task_id || 0}
                 pingTasks={pingTasks}
                 onSaved={refresh}
               />
@@ -84,10 +86,11 @@ export const ServerView = ({
 const ServerRow: React.FC<{
   nodeUuid: string;
   nodeName: string;
-  displayPingTaskID: number;
+  displayPingTaskIDs?: number[];
+  legacyDisplayPingTaskID: number;
   pingTasks: PingTask[];
   onSaved: () => void;
-}> = ({ nodeUuid, nodeName, displayPingTaskID, pingTasks, onSaved }) => {
+}> = ({ nodeUuid, nodeName, displayPingTaskIDs, legacyDisplayPingTaskID, pingTasks, onSaved }) => {
   const { t } = useTranslation();
   const [open, setOpen] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
@@ -95,22 +98,21 @@ const ServerRow: React.FC<{
     () => assignedDisplayTasks(nodeUuid, pingTasks),
     [nodeUuid, pingTasks],
   );
-  const currentId = resolveDisplayPingTaskId(nodeUuid, pingTasks, displayPingTaskID);
-  const [selectedId, setSelectedId] = React.useState(String(currentId));
-  const displayedTask = assigned.find((task) => task.id === currentId);
+  const currentIds = resolveDisplayPingTaskIds(nodeUuid, pingTasks, displayPingTaskIDs, legacyDisplayPingTaskID);
+  const [selectedIds, setSelectedIds] = React.useState<number[]>(currentIds);
+  const displayedTasks = assigned.filter((task) => currentIds.includes(task.id));
 
   const handleSave = async () => {
-    const selectedTaskId = Number(selectedId);
-    if (selectedTaskId === currentId) {
+    if (selectedIds.length === currentIds.length && selectedIds.every((id) => currentIds.includes(id))) {
       setOpen(false);
       return;
     }
     setSaving(true);
     try {
-      const response = await fetch(`/api/admin/client/${nodeUuid}/display-ping-task`, {
+      const response = await fetch(`/api/admin/client/${nodeUuid}/display-ping-tasks`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ task_id: selectedTaskId }),
+        body: JSON.stringify({ task_ids: selectedIds }),
       });
       if (!response.ok) {
         const result = await response.json().catch(() => ({}));
@@ -133,11 +135,11 @@ const ServerRow: React.FC<{
         {assigned.length ? assigned.map((task) => task.name).join(", ") : t("common.none")}
       </TableCell>
       <TableCell data-label={t("ping.display_task")}>
-        {displayedTask?.name || t("ping.theme_default")}
+        {displayedTasks.length ? displayedTasks.map((task) => task.name).join(", ") : t("ping.theme_default")}
       </TableCell>
       <TableCell data-label={t("common.action")}>
         <Dialog.Root open={open} onOpenChange={(next) => {
-          if (next) setSelectedId(String(currentId));
+          if (next) setSelectedIds(currentIds);
           setOpen(next);
         }}>
           <Dialog.Trigger>
@@ -148,17 +150,23 @@ const ServerRow: React.FC<{
           <AppDialogContent maxWidth="450px">
             <Dialog.Title>{t("ping.choose_display_task")} — {nodeName}</Dialog.Title>
             <p className="mb-3 text-sm text-gray-500">{t("ping.public_display_hint")}</p>
-            <Select.Root value={selectedId} onValueChange={setSelectedId}>
-              <Select.Trigger className="w-full" aria-label={t("ping.display_task")} />
-              <Select.Content>
-                <Select.Item value="0">{t("ping.theme_default")}</Select.Item>
-                {assigned.map((task) => (
-                  <Select.Item key={task.id} value={String(task.id)}>
-                    {task.name} ({task.type}/{task.interval}s)
-                  </Select.Item>
-                ))}
-              </Select.Content>
-            </Select.Root>
+            <div role="group" aria-label={t("ping.display_task")} className="max-h-60 space-y-2 overflow-y-auto">
+              {assigned.map((task) => (
+                <label key={task.id} className="flex cursor-pointer items-center gap-2 rounded border border-[var(--gray-a5)] p-2">
+                  <Checkbox
+                    checked={selectedIds.includes(task.id)}
+                    onCheckedChange={(checked) => setSelectedIds((previous) => checked
+                      ? assigned.filter((item) => item.id === task.id || previous.includes(item.id)).map((item) => item.id)
+                      : previous.filter((id) => id !== task.id))}
+                  />
+                  <span className="min-w-0 break-words text-sm">{task.name} ({task.type}/{task.interval}s)</span>
+                </label>
+              ))}
+              {!assigned.length && <p className="text-sm text-gray-500">{t("common.none")}</p>}
+            </div>
+            <Button type="button" variant="soft" color="gray" className="mt-3" onClick={() => setSelectedIds([])}>
+              {t("ping.theme_default")}
+            </Button>
             <Flex gap="2" justify="end" className="mt-4">
               <Button variant="soft" color="gray" type="button" onClick={() => setOpen(false)}>
                 {t("common.cancel")}

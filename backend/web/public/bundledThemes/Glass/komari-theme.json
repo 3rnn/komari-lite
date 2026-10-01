@@ -84,8 +84,8 @@
         "type": "switch",
         "default": true,
         "help": {
-          "zh-CN": "Show each assigned task's latency and packet loss separately; when disabled, show one selected task. A per-server Public Display selection overrides this mode. Results are never averaged across tasks.",
-          "en": "Show each assigned task's latency and packet loss separately; when disabled, show one selected task. A per-server Public Display selection overrides this mode. Results are never averaged across tasks."
+          "zh-CN": "Show each assigned task's latency and packet loss separately; when disabled, show one selected task. A per-server Public Display selection overrides this mode and can show multiple selected tasks. Results are never averaged across tasks.",
+          "en": "Show each assigned task's latency and packet loss separately; when disabled, show one selected task. A per-server Public Display selection overrides this mode and can show multiple selected tasks. Results are never averaged across tasks."
         }
       },
       {

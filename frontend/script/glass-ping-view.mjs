@@ -1,14 +1,18 @@
 // Pure node-card ping selection; the Glass asset patch embeds these functions.
-export function resolveNodePingSelection(showAll, pingTaskSelection, displayId) {
-  const hasOverride = Number.isSafeInteger(displayId) && displayId > 0;
+export function resolveNodePingSelection(showAll, pingTaskSelection, displayIds, legacyId = 0) {
+  const ids = [...new Set((Array.isArray(displayIds) && displayIds.length ? displayIds : [legacyId])
+    .filter((id) => Number.isSafeInteger(id) && id > 0))];
+  const hasOverride = ids.length > 0;
   return {
     ...pingTaskSelection,
-    showAll: hasOverride ? false : showAll,
-    preferredId: hasOverride ? displayId : pingTaskSelection?.preferredId,
+    showAll: hasOverride ? ids.length > 1 : showAll,
+    preferredId: hasOverride ? ids[0] : pingTaskSelection?.preferredId,
+    ...(hasOverride ? { displayIds: ids } : {}),
+    ...(ids.length > 1 ? { fallbackShowAll: showAll, fallbackPreferredId: pingTaskSelection?.preferredId } : {}),
   };
 }
 
-export function selectPingTaskData(tasks, records, showAll, preferredId, makeHistory) {
+export function selectPingTaskData(tasks, records, showAll, preferredId, makeHistory, displayIds, fallbackShowAll, fallbackPreferredId) {
   const byTask = new Map();
   for (const record of records ?? []) {
     const id = Number(record.task_id);
@@ -20,10 +24,16 @@ export function selectPingTaskData(tasks, records, showAll, preferredId, makeHis
   // The public RPC already returns tasks in database weight/id order but does
   // not expose weight. Re-sorting by ID would silently change that order.
   const assigned = tasks ?? [];
-  const target = showAll
-    ? assigned
+  const filtered = Array.isArray(displayIds) && displayIds.length
+    ? assigned.filter((task) => displayIds.includes(Number(task.id)))
+    : [];
+  const allStale = !filtered.length && fallbackShowAll !== undefined;
+  const effectiveShowAll = allStale ? fallbackShowAll : showAll;
+  const effectivePreferredId = allStale ? fallbackPreferredId : preferredId;
+  const target = effectiveShowAll
+    ? filtered.length ? filtered : assigned
     : assigned.length
-      ? [assigned.find((task) => Number(task.id) === Number(preferredId)) ?? assigned[0]]
+      ? [assigned.find((task) => Number(task.id) === Number(effectivePreferredId)) ?? assigned[0]]
       : [];
   const summaries = target.map((task) => {
     const samples = byTask.get(Number(task.id)) ?? [];
@@ -38,5 +48,5 @@ export function selectPingTaskData(tasks, records, showAll, preferredId, makeHis
       history: makeHistory(samples),
     };
   });
-  return { rows: showAll ? summaries : [], selected: showAll ? null : summaries[0] ?? null };
+  return { rows: effectiveShowAll ? summaries : [], selected: effectiveShowAll ? null : summaries[0] ?? null, showAll: effectiveShowAll };
 }

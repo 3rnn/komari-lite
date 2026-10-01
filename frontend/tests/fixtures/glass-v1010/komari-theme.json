@@ -1,0 +1,174 @@
+{
+  "name": "Komari Glass",
+  "short": "Glass",
+  "description": "A lightweight public monitoring theme for Komari Lite",
+  "version": "1.1.0",
+  "author": "mengying",
+  "url": "https://github.com/imengying/Komari-Glass",
+  "preview": "dist/preview.png",
+  "configuration": {
+    "type": "managed",
+    "icon": "Bolt",
+    "name": "Theme settings",
+    "data": [
+      {
+        "name": {
+          "zh-CN": "Appearance",
+          "en": "Appearance"
+        },
+        "type": "title"
+      },
+      {
+        "key": "defaultAppearance",
+        "name": {
+          "zh-CN": "Default Appearance",
+          "en": "Default Appearance"
+        },
+        "type": "select",
+        "options": "system,light,dark",
+        "default": "dark",
+        "help": {
+          "zh-CN": "system follows OS; user local choice overrides this.",
+          "en": "system follows OS; user local choice overrides this."
+        }
+      },
+      {
+        "key": "assetCurrency",
+        "name": {
+          "zh-CN": "Asset Currency",
+          "en": "Asset Currency"
+        },
+        "type": "select",
+        "options": "CNY,USD,HKD,EUR,GBP,JPY,RUB,CHF,INR,VND,THB,CAD",
+        "default": "CNY",
+        "help": {
+          "zh-CN": "Convert node prices to this currency",
+          "en": "Convert node prices to this currency"
+        }
+      },
+      {
+        "key": "enableBlur",
+        "name": {
+          "zh-CN": "Enable Glass Blur",
+          "en": "Enable Glass Blur"
+        },
+        "type": "switch",
+        "default": true
+      },
+      {
+        "key": "backgroundImage",
+        "name": {
+          "zh-CN": "Background Image URL",
+          "en": "Background Image URL"
+        },
+        "type": "string",
+        "default": "",
+        "help": {
+          "zh-CN": "Use | to separate light/dark backgrounds",
+          "en": "Use | to separate light/dark backgrounds"
+        }
+      },
+      {
+        "name": {
+          "zh-CN": "Server Cards",
+          "en": "Server Cards"
+        },
+        "type": "title"
+      },
+      {
+        "key": "showCarrierPing",
+        "name": {
+          "zh-CN": "Show Each Ping Task",
+          "en": "Show Each Ping Task"
+        },
+        "type": "switch",
+        "default": true,
+        "help": {
+          "zh-CN": "Show each assigned task's latency and packet loss separately; when disabled, show one selected task. A per-server Public Display selection overrides this mode. Results are never averaged across tasks.",
+          "en": "Show each assigned task's latency and packet loss separately; when disabled, show one selected task. A per-server Public Display selection overrides this mode. Results are never averaged across tasks."
+        }
+      },
+      {
+        "key": "preferredPingTaskId",
+        "name": {
+          "zh-CN": "Single-task selection",
+          "en": "Single-task selection"
+        },
+        "type": "pingtask",
+        "default": 0,
+        "help": {
+          "zh-CN": "In single-task mode, use this task only where it is assigned to the node; otherwise show that node's first assigned task, even if it has no samples, unless a per-server Public Display selection overrides it.",
+          "en": "In single-task mode, use this task only where it is assigned to the node; otherwise show that node's first assigned task, even if it has no samples, unless a per-server Public Display selection overrides it."
+        }
+      },
+      {
+        "name": {
+          "zh-CN": "Overview",
+          "en": "Overview"
+        },
+        "type": "title"
+      },
+      {
+        "key": "showStatsBar",
+        "name": {
+          "zh-CN": "Show Stats Bar",
+          "en": "Show Stats Bar"
+        },
+        "type": "switch",
+        "default": true
+      },
+      {
+        "key": "showOnline",
+        "name": {
+          "zh-CN": "Show Online",
+          "en": "Show Online"
+        },
+        "type": "switch",
+        "default": true,
+        "help": {
+          "zh-CN": "Show online node count",
+          "en": "Show online node count"
+        }
+      },
+      {
+        "key": "showAssets",
+        "name": {
+          "zh-CN": "Show Assets",
+          "en": "Show Assets"
+        },
+        "type": "switch",
+        "default": true,
+        "help": {
+          "zh-CN": "Show total and remaining value",
+          "en": "Show total and remaining value"
+        }
+      },
+      {
+        "key": "showTraffic",
+        "name": {
+          "zh-CN": "Show Traffic",
+          "en": "Show Traffic"
+        },
+        "type": "switch",
+        "default": true,
+        "help": {
+          "zh-CN": "Show total traffic",
+          "en": "Show total traffic"
+        }
+      },
+      {
+        "key": "showSpeed",
+        "name": {
+          "zh-CN": "Show Network Speed",
+          "en": "Show Network Speed"
+        },
+        "type": "switch",
+        "default": true,
+        "help": {
+          "zh-CN": "Show realtime speed",
+          "en": "Show realtime speed"
+        }
+      }
+    ]
+  }
+}

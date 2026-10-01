@@ -11,6 +11,7 @@ const script = new URL("../script/upgrade-glass-theme.mjs", import.meta.url).pat
 const prefix = "backend/web/public/bundledThemes/Glass/";
 const fixturePrefix = "frontend/tests/fixtures/glass-vendor/";
 const v109FixturePrefix = "frontend/tests/fixtures/glass-v109/";
+const v1010FixturePrefix = "frontend/tests/fixtures/glass-v1010/";
 const files = ["komari-theme.json", "dist/index.html", "dist/_next/static/chunks/3859ru-aa5bf30a.js", "dist/_next/static/chunks/1j6ltxvh3a3zn.css"];
 // A pinned vendor fixture must survive this change becoming HEAD; git show HEAD
 // would start reading the upgraded theme after the release commit.
@@ -86,6 +87,22 @@ test("pinned v1.0.9 installed Glass is accepted without any write", (t) => {
   assert.match(result.stdout, /eligible.*true/);
   assert.deepEqual(readdirSync(parent), ["Glass"]);
   assert.deepEqual(readFileSync(join(root, "dist/index.html")), readFileSync(join(repo, v109FixturePrefix, "dist/index.html")));
+});
+
+test("v1.0.10 single-selection Glass upgrades to multi-selection without losing user files", (t) => {
+  const { parent, root } = fixture(t);
+  const bundled = join(repo, prefix);
+  for (const name of ["komari-theme.json", "dist/index.html"]) {
+    copyFileSync(join(repo, v1010FixturePrefix, name), join(root, name));
+  }
+  copyFileSync(join(bundled, "dist/_next/static/chunks/3859ru-0b886112.js"), join(root, "dist/_next/static/chunks/3859ru-0b886112.js"));
+  const dry = run(root);
+  assert.equal(dry.status, 0, dry.stderr);
+  assert.deepEqual(readdirSync(parent), ["Glass"]);
+  const result = run(root, true);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(readFileSync(join(root, "user-note.txt"), "utf8"), "retain me");
+  assert.equal(readFileSync(join(root, "dist/index.html"), "utf8"), readFileSync(join(bundled, "dist/index.html"), "utf8"));
 });
 
 test("upgrade dry run confirms pinned installed Glass without writing", (t) => {

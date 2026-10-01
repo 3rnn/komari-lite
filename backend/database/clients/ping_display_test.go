@@ -51,7 +51,7 @@ func TestAgentCannotOverwritePublicPingSelection(t *testing.T) {
 	require.NoError(t, db.AutoMigrate(&models.Client{}))
 	require.NoError(t, db.Create(&models.Client{UUID: "node-a", Token: "token-a", DisplayPingTaskID: 7}).Error)
 	require.NoError(t, saveClientInfo(db, map[string]interface{}{
-		"uuid": "node-a", "os": "Linux", "display_ping_task_id": 99,
+		"uuid": "node-a", "os": "Linux", "display_ping_task_id": 99, "display_ping_task_ids": []uint{99}, "DisplayPingTaskIDs": []uint{99},
 	}))
 	var node models.Client
 	require.NoError(t, db.First(&node, "uuid = ?", "node-a").Error)

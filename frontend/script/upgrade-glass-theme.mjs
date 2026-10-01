@@ -27,6 +27,11 @@ const knownVersions = [
     ["dist/index.html", "b067119ebef492a5f2bc8af0a68b9a2e7787d674374e44b1d38b07f6e0b92ec9"],
     ["dist/_next/static/chunks/3859ru-1c261694.js", "1c261694026e109bf75e4c353869a9b5808b37c0eebbb5820d37495e5e8e3c28"],
   ]),
+  new Map([
+    ["komari-theme.json", "7337cde54bba312a59f531368a9a4fc169742e52d0cf2eb709461608c936aa77"],
+    ["dist/index.html", "df95c933824340e352c205160310e099cc6b419c469b6be590f4a2bbaccf93d8"],
+    ["dist/_next/static/chunks/3859ru-0b886112.js", "0b8861122d6a1438fb32cb0a84cf0b98da596deb64744df9cf6408e690c67368"],
+  ]),
 ];
 const source = fileURLToPath(new URL("../../backend/web/public/bundledThemes/Glass/", import.meta.url));
 const args = process.argv.slice(2);

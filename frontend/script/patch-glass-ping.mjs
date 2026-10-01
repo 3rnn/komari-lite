@@ -26,7 +26,7 @@ const model = readFileSync(new URL("glass-ping-view.mjs", import.meta.url), "utf
 replaceOnce("function rP({node:e", `${model}\nfunction rP({node:e`);
 replaceOnce(
   "function rP({node:e,pingEnabled:t,showCarrierPing:r,pingTaskSelection:n,onClick:i}){var a;let o=",
-  "function rP({node:e,pingEnabled:t,showCarrierPing:r,pingTaskSelection:n,onClick:i}){var a;const selection=resolveNodePingSelection(r,n,e.display_ping_task_id);r=selection.showAll;n=selection;let o=",
+  "function rP({node:e,pingEnabled:t,showCarrierPing:r,pingTaskSelection:n,onClick:i}){var a;const selection=resolveNodePingSelection(r,n,e.display_ping_task_ids,e.display_ping_task_id);r=selection.showAll;n=selection;let o=",
 );
 const hookStart = "let t=function(e,t=!1){";
 const hookEnd = "},[i,o,n?.telecom,n?.mobile,n?.unicom,e])}";
@@ -36,7 +36,7 @@ if (start < 0 || end < start || patched.indexOf(hookStart, end) !== -1) {
   throw new Error("Glass node-card ping hook no longer matches the pinned build");
 }
 const replacement = [
-  'let t=selectPingTaskData(i.history.tasks,i.history.records,Boolean(n?.showAll),n?.preferredId,rd),a=t.selected,',
+  'let t=selectPingTaskData(i.history.tasks,i.history.records,Boolean(n?.showAll),n?.preferredId,rd,n?.displayIds,n?.fallbackShowAll,n?.fallbackPreferredId),a=t.selected,',
   'f=t.rows.map((row,index)=>({id:row.id,label:row.name,name:row.name,',
   'color:["#fb7185","#60a5fa","#34d399","#fbbf24"][index%4],',
   'latencyDisplay:row.avgLatency===null?"-":`${Math.round(row.avgLatency)} ms`,',
@@ -47,7 +47,7 @@ const replacement = [
   'lossBars:row.history.length?row.history.map((point,index)=>({key:`loss-${row.id}-${point.time}-${index}`,',
   'className:point.loss===null?"bg-muted-foreground/15":rb(point.loss),',
   'tooltip:point.loss===null?`${rx(point.time)}\\nNo sample data`:`${rx(point.time)}\\n${point.loss.toFixed(1)}%`})):rw("No sample data")}));',
-  'const p=a?.history??[];return{tasks:f,selectedName:a?.name||null,',
+  'const p=a?.history??[];return{tasks:f,showAll:t.showAll,selectedName:a?.name||null,',
   'latencyDisplay:a?.avgLatency==null?"-":`${Math.round(a.avgLatency)} ms`,',
   'lossDisplay:a?.loss==null?"-":`${a.loss.toFixed(1)}%`,',
   'latencyBars:p.length?p.map((point,index)=>({key:`latency-${point.time}-${index}`,',
@@ -56,10 +56,11 @@ const replacement = [
   'lossBars:p.length?p.map((point,index)=>({key:`loss-${point.time}-${index}`,',
   'className:point.loss===null?"bg-muted-foreground/15":rb(point.loss),',
   'tooltip:point.loss===null?`${rx(point.time)}\\nNo sample data`:`${rx(point.time)}\\n${point.loss.toFixed(1)}%`})):rw("No sample data"),',
-  'loading:o}},[i,o,n?.showAll,n?.preferredId,e])}',
+  'loading:o}},[i,o,n?.showAll,n?.preferredId,n?.displayIds,n?.fallbackShowAll,n?.fallbackPreferredId,e])}',
 ].join("");
 patched = patched.slice(0, start) + replacement + patched.slice(end);
 replaceOnce('}(e.uuid,t,1,r?n:null)', '}(e.uuid,t,1,n)');
+replaceOnce('}(e.uuid,t,1,n),g=function(e)', '}(e.uuid,t,1,n);r=v.showAll??r;let g=function(e)');
 replaceOnce('label:"Latency",value:v.latencyDisplay', 'label:v.selectedName?`Latency · ${v.selectedName}`:"Latency",value:v.latencyDisplay');
 replaceOnce('className:"text-muted-foreground",children:e}),(0,L.jsx)("span",{className:"font-medium tabular-nums",children:t})]}),(0,L.jsx)(rT', 'className:"min-w-0 truncate text-muted-foreground",title:e,children:e}),(0,L.jsx)("span",{className:"font-medium tabular-nums",children:t})]}),(0,L.jsx)(rT');
 replaceOnce('!e.online&&"node-card-offline"),children:', '!e.online&&"node-card-offline"),style:{minHeight:r?0:void 0},children:');

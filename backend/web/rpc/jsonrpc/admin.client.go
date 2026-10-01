@@ -3,6 +3,7 @@ package jsonrpc
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/komari-monitor/komari/database/auditlog"
@@ -43,6 +44,11 @@ func init() {
 		Name:    "admin:setClientDisplayPingTask",
 		Summary: "Choose an assigned ping task for a server's public node card",
 		Returns: "{ display_ping_task_id: uint }",
+	})
+	RegisterWithGroupAndMeta("setClientDisplayPingTasks", rpc.RoleAdmin, adminSetClientDisplayPingTasks, &rpc.MethodMeta{
+		Name:    "admin:setClientDisplayPingTasks",
+		Summary: "Choose assigned ping tasks for a server's public node card",
+		Returns: "{ display_ping_task_ids: uint[], display_ping_task_id: uint }",
 	})
 	RegisterWithGroupAndMeta("removeClient", rpc.RoleAdmin, adminRemoveClient, &rpc.MethodMeta{
 		Name:    "admin:removeClient",
@@ -134,8 +140,9 @@ func adminEditClient(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.Js
 	if uuid == "" {
 		return nil, rpc.MakeError(rpc.InvalidParams, "Invalid or missing UUID", nil)
 	}
-	for _, key := range []string{"display_ping_task_id", "DisplayPingTaskID", "displayPingTaskId"} {
-		if _, present := update[key]; present {
+	for key := range update {
+		if strings.EqualFold(key, "display_ping_task_id") || strings.EqualFold(key, "DisplayPingTaskID") ||
+			strings.EqualFold(key, "display_ping_task_ids") || strings.EqualFold(key, "DisplayPingTaskIDs") {
 			return nil, rpc.MakeError(rpc.InvalidParams, "Use the public display task selector", nil)
 		}
 	}
@@ -175,6 +182,46 @@ func adminSetClientDisplayPingTask(ctx context.Context, req *rpc.JsonRpcRequest)
 	actor, ip := auditActor(ctx)
 	auditlog.Log(ip, actor, "set public ping task:"+params.UUID, "info")
 	return map[string]any{"display_ping_task_id": *params.TaskID}, nil
+}
+
+func adminSetClientDisplayPingTasks(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
+	var params struct {
+		UUID    string  `json:"uuid"`
+		TaskIDs *[]uint `json:"task_ids"`
+	}
+	if err := req.BindParams(&params); err != nil || params.UUID == "" || params.TaskIDs == nil {
+		return nil, rpc.MakeError(rpc.InvalidParams, "Client UUID and task_ids array are required", nil)
+	}
+	if invalidDisplayTaskIDs(*params.TaskIDs) {
+		return nil, rpc.MakeError(rpc.InvalidParams, "task_ids must contain distinct nonzero IDs", nil)
+	}
+	if err := clients.SetClientDisplayPingTasks(params.UUID, *params.TaskIDs); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, rpc.MakeError(rpc.InvalidParams, "Server or ping task not found", nil)
+		}
+		if errors.Is(err, clients.ErrDisplayPingTaskNotAssigned) {
+			return nil, rpc.MakeError(rpc.InvalidParams, err.Error(), nil)
+		}
+		return nil, rpc.MakeError(rpc.InternalError, "Failed to save public display tasks", nil)
+	}
+	actor, ip := auditActor(ctx)
+	auditlog.Log(ip, actor, "set public ping tasks:"+params.UUID, "info")
+	var first uint
+	if len(*params.TaskIDs) > 0 {
+		first = (*params.TaskIDs)[0]
+	}
+	return map[string]any{"display_ping_task_ids": *params.TaskIDs, "display_ping_task_id": first}, nil
+}
+
+func invalidDisplayTaskIDs(ids []uint) bool {
+	seen := make(map[uint]bool, len(ids))
+	for _, id := range ids {
+		if id == 0 || seen[id] {
+			return true
+		}
+		seen[id] = true
+	}
+	return false
 }
 
 func adminRemoveClient(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {

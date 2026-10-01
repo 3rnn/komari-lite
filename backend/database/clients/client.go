@@ -191,7 +191,7 @@ func clientInfoAllowedColumns(db *gorm.DB) map[string]string {
 		}
 		allowed := make(map[string]string, len(stmt.Schema.Fields))
 		for _, field := range stmt.Schema.Fields {
-			if field.DBName == "" || field.PrimaryKey || field.DBName == "display_ping_task_id" {
+			if field.DBName == "" || field.PrimaryKey || field.DBName == "display_ping_task_id" || field.DBName == "display_ping_task_ids" {
 				continue
 			}
 			allowed[field.DBName] = field.DBName
@@ -612,6 +612,12 @@ func SaveClient(updates map[string]interface{}) error {
 }
 
 func saveClient(db *gorm.DB, updates map[string]interface{}) error {
+	for field := range updates {
+		if strings.EqualFold(field, "display_ping_task_id") || strings.EqualFold(field, "DisplayPingTaskID") ||
+			strings.EqualFold(field, "display_ping_task_ids") || strings.EqualFold(field, "DisplayPingTaskIDs") {
+			return fmt.Errorf("use the public display task selector")
+		}
+	}
 	clientUUID, ok := updates["uuid"].(string)
 	if !ok || clientUUID == "" {
 		return fmt.Errorf("invalid client UUID")

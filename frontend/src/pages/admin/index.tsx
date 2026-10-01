@@ -128,7 +128,7 @@ const NodeDetailsPage = () => {
 const PREVIOUS_PAGE_DROP_ID = "admin-node-previous-page";
 const NEXT_PAGE_DROP_ID = "admin-node-next-page";
 // Pin both installers and Agent binaries to the matching published Release.
-const agentReleaseVersion = "1.0.10";
+const agentReleaseVersion = "1.0.11";
 const agentReleaseSource = `https://github.com/3rnn/komari-lite/releases/download/v${agentReleaseVersion}`;
 
 const Layout = () => {
