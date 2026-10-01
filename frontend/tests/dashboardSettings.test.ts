@@ -61,10 +61,21 @@ test("dashboard preview stacks on phones and restores the desktop grid", () => {
   assert.match(dashboardSettingsSource, /col-span-1 sm:col-span-6/);
 });
 
+test("overview renders every checked module before settings are saved", () => {
+  const formalLayout = adminDashboardSource.split("const formalLayout = (")[1]?.split("  return (")[0] ?? "";
+  const overviewPreview = dashboardSettingsSource.split('{draft.preset === "overview" ? (')[1]?.split(') : packedPreview.map')[0] ?? "";
+  assert.match(formalLayout, /\["daily_traffic_ranking", "alerts"\]/);
+  assert.match(overviewPreview, /\["daily_traffic_ranking", "alerts"\]/);
+  assert.deepEqual(
+    enabledDashboardModules(dashboardSettingsForPreset("overview")),
+    FORMAL_DASHBOARD_MODULES,
+  );
+});
+
 test("formal dashboard stretches paired cards to equal row height", () => {
   assert.match(
     adminDashboardSource,
-    /\["alerts"\][\s\S]+?className="min-w-0 \[&>\*\]:h-full"/,
+    /\["daily_traffic_ranking", "alerts"\][\s\S]+?className="min-w-0 \[&>\*\]:h-full"/,
   );
 });
 

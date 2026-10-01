@@ -412,7 +412,7 @@ export default function AdminDashboard() {
         ))}
       </div>
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-        {(["alerts"] as const).map((module) => (
+        {(["daily_traffic_ranking", "alerts"] as const).map((module) => (
           <div
             key={module}
             data-dashboard-module={module}

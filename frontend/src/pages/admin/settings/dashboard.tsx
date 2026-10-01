@@ -509,7 +509,7 @@ export default function DashboardSettingsPage() {
                       .map((id) => previewModule(id))}
                   </div>
                   <div className="col-span-1 grid grid-cols-1 gap-2 sm:col-span-6 sm:grid-cols-2">
-                    {(["alerts"] as const)
+                    {(["daily_traffic_ranking", "alerts"] as const)
                       .map((id) => previewModule(id))}
                   </div>
                 </>
