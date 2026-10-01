@@ -36,7 +36,7 @@ test("terminal, clipboard and command-task surfaces stay deleted", () => {
 
 test("one-click deployment uses this panel's verified local Agent artifacts", () => {
   const source = read("src/pages/admin/index.tsx");
-  assert.match(source, /const agentReleaseVersion = "1\.0\.7";/);
+  assert.match(source, /const agentReleaseVersion = "1\.0\.8";/);
   assert.match(source, /function panelAgentDistribution\(host: string\)/);
   assert.match(source, /agentReleaseSource: `\$\{host\}\/agent\/download`/);
   assert.match(source, /agentInstallerSource: `\$\{host\}\/agent\/install`/);

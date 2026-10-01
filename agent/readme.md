@@ -24,13 +24,13 @@ curl -fsSL "https://<your-panel>/agent/install.sh" | sudo bash -s -- \
   --endpoint "https://<your-panel>" \
   --token "<node-token>" \
   --install-source "https://<your-panel>/agent/download" \
-  --install-version 1.0.7
+  --install-version 1.0.8
 ```
 
 ```powershell
 # Windows (PowerShell)
 iwr "https://<your-panel>/agent/install.ps1" -UseBasicParsing -OutFile install.ps1
-.\install.ps1 --endpoint "https://<your-panel>" --token "<node-token>" --install-source "https://<your-panel>/agent/download" --install-version 1.0.7
+.\install.ps1 --endpoint "https://<your-panel>" --token "<node-token>" --install-source "https://<your-panel>/agent/download" --install-version 1.0.8
 ```
 
 The installer requires `--install-source`; the panel rejects a catalog whose version differs from its own. A Git tag by itself does not publish or deploy these binaries.
@@ -97,8 +97,8 @@ CGO_ENABLED=0 go build -trimpath -ldflags '-s -w' -o komari-agent .
 Build artifacts for all 14 platforms and generate the panel distribution manifest:
 
 ```bash
-./scripts/build-agent-release.sh 1.0.7
-# Creates release/agent-1.0.7/: 14 artifacts + manifest.json + SHA256SUMS.txt
+./scripts/build-agent-release.sh 1.0.8
+# Creates release/agent-1.0.8/: 14 artifacts + manifest.json + SHA256SUMS.txt
 ```
 
 Copy the verified release directory to the running panel's `data/agent-release/` so its one-click installer can distribute the matching platform artifact. A Git tag alone does not publish or deploy these binaries.

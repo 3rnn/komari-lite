@@ -26,7 +26,7 @@ test("deployment settings are restored and saved per node", () => {
 
 test("one-click Agent commands download this panel's local Agent build", () => {
   assert.match(source, /--install-source/);
-  assert.match(source, /const agentReleaseVersion = "1\.0\.7";/);
+  assert.match(source, /const agentReleaseVersion = "1\.0\.8";/);
   assert.match(source, /function panelAgentDistribution\(host: string\)/);
   assert.match(source, /agentReleaseSource: `\$\{host\}\/agent\/download`/);
   assert.match(source, /agentInstallerSource: `\$\{host\}\/agent\/install`/);

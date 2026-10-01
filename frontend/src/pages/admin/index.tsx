@@ -129,7 +129,7 @@ const PREVIOUS_PAGE_DROP_ID = "admin-node-previous-page";
 const NEXT_PAGE_DROP_ID = "admin-node-next-page";
 // Use the Agent built from this deployment's local source, not the older
 // public release with the same semantic version.
-const agentReleaseVersion = "1.0.7";
+const agentReleaseVersion = "1.0.8";
 function panelAgentDistribution(host: string) {
   return {
     agentReleaseSource: `${host}/agent/download`,

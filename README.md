@@ -60,10 +60,10 @@ The Agent has no remote-control, terminal, command-execution, MCP, or self-updat
 ```bash
 cd komari-lite
 chmod +x scripts/build-agent-release.sh
-./scripts/build-agent-release.sh 1.0.7
+./scripts/build-agent-release.sh 1.0.8
 ```
 
-Output is written to `release/agent-1.0.7/`:
+Output is written to `release/agent-1.0.8/`:
 
 - 14 `komari-agent-<os>-<arch>` artifacts;
 - `manifest.json` with the release version and SHA-256 for every artifact;
@@ -72,7 +72,7 @@ Output is written to `release/agent-1.0.7/`:
 The release directory is intentionally ignored by Git. Verify it before deployment:
 
 ```bash
-cd release/agent-1.0.7
+cd release/agent-1.0.8
 sha256sum -c SHA256SUMS.txt
 ```
 
@@ -141,7 +141,7 @@ Install/start Caddy according to its official documentation. The panel stays pri
 
 ### Agent downloads
 
-One-click deployment fetches the installer and Agent binary from the running panel's `/agent/install.*` and `/agent/download` routes, not a moving `latest` URL or an older same-numbered GitHub Release. Copy the verified `release/agent-1.0.7/` contents into `/opt/komari/data/agent-release/`, preserving service-account access. The panel validates downloads against that directory's `manifest.json` digest. Pushing a Git tag alone does **not** publish Agent download assets or update an existing panel installation.
+One-click deployment fetches the installer and Agent binary from the running panel's `/agent/install.*` and `/agent/download` routes, not a moving `latest` URL or an older same-numbered GitHub Release. Copy the verified `release/agent-1.0.8/` contents into `/opt/komari/data/agent-release/`, preserving service-account access. The panel validates downloads against that directory's `manifest.json` digest. Publishing a GitHub Release does **not** update an existing panel installation or its local Agent catalog.
 
 ## 4. Updating the panel binary
 
