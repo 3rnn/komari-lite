@@ -580,8 +580,8 @@ When the user explicitly requests a **clean local rebuild and redeployment** of 
 3. Build from the exact intended source version.
 4. Verify the build succeeds and identify the resulting version/artifacts.
 5. Stop the existing Komari service before replacing deployed files.
-6. For the established clean-redeploy workflow, remove `/opt/komari-lite` and recreate it rather than preserving the old installation directory.
-7. Do not back up the old `/opt/komari-lite` data, configuration, or permissions unless the user explicitly asks for a backup for that deployment.
+6. For the established clean-redeploy workflow, remove `/opt/komari` and recreate it rather than preserving the old installation directory.
+7. Do not back up the old `/opt/komari` data, configuration, or permissions unless the user explicitly asks for a backup for that deployment.
 8. Deploy the newly built artifacts.
 9. Recreate only the configuration, permissions, ownership, and systemd settings actually required by the current version and requested deployment.
 10. Start the service and verify status, logs, runtime behavior, and reported version.
