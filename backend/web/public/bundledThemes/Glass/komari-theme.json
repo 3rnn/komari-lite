@@ -26,7 +26,7 @@
         },
         "type": "select",
         "options": "system,light,dark",
-        "default": "system",
+        "default": "dark",
         "help": {
           "zh-CN": "system follows OS; user local choice overrides this.",
           "en": "system follows OS; user local choice overrides this."
@@ -78,53 +78,27 @@
       {
         "key": "showCarrierPing",
         "name": {
-          "zh-CN": "Enable Carrier Ping",
-          "en": "Enable Carrier Ping"
+          "zh-CN": "Show Each Ping Task",
+          "en": "Show Each Ping Task"
         },
         "type": "switch",
-        "default": false,
+        "default": true,
         "help": {
-          "zh-CN": "Show carrier-specific latency and loss; when disabled, show aggregate latency and loss.",
-          "en": "Show carrier-specific latency and loss; when disabled, show aggregate latency and loss."
+          "zh-CN": "Show each assigned task's latency and packet loss separately; when disabled, show one selected task. Results are never averaged across tasks.",
+          "en": "Show each assigned task's latency and packet loss separately; when disabled, show one selected task. Results are never averaged across tasks."
         }
       },
       {
-        "key": "telecomPingTaskName",
+        "key": "preferredPingTaskId",
         "name": {
-          "zh-CN": "Telecom Ping Task Name",
-          "en": "Telecom Ping Task Name"
+          "zh-CN": "Single-task selection",
+          "en": "Single-task selection"
         },
-        "type": "string",
-        "default": "",
+        "type": "pingtask",
+        "default": 0,
         "help": {
-          "zh-CN": "Only used when carrier ping is enabled. Enter the exact task name, or leave all three empty to match carrier names first and fill unmatched slots in backend order.",
-          "en": "Only used when carrier ping is enabled. Enter the exact task name, or leave all three empty to match carrier names first and fill unmatched slots in backend order."
-        }
-      },
-      {
-        "key": "mobilePingTaskName",
-        "name": {
-          "zh-CN": "Mobile Ping Task Name",
-          "en": "Mobile Ping Task Name"
-        },
-        "type": "string",
-        "default": "",
-        "help": {
-          "zh-CN": "Only used when carrier ping is enabled.",
-          "en": "Only used when carrier ping is enabled."
-        }
-      },
-      {
-        "key": "unicomPingTaskName",
-        "name": {
-          "zh-CN": "Unicom Ping Task Name",
-          "en": "Unicom Ping Task Name"
-        },
-        "type": "string",
-        "default": "",
-        "help": {
-          "zh-CN": "Only used when carrier ping is enabled.",
-          "en": "Only used when carrier ping is enabled."
+          "zh-CN": "In single-task mode, use this task only where it is assigned to the node; otherwise show that node's first assigned task, even if it has no samples.",
+          "en": "In single-task mode, use this task only where it is assigned to the node; otherwise show that node's first assigned task, even if it has no samples."
         }
       },
       {

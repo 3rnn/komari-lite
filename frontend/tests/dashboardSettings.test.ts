@@ -180,10 +180,10 @@ test("all historical ranking cards share one bounded responsive list layout", ()
   assert.doesNotMatch(dashboardPanelsSource, /repeat\(auto-fit, minmax\(min\(100%, 13rem\), 1fr\)\)/);
 });
 
-test("all historical ranking cards share one fixed three-row item layout", () => {
+test("all historical ranking cards share one three-row item layout with a flexible metric row", () => {
   assert.match(
     dashboardPanelsSource,
-    /function DashboardRankingItem[\s\S]+?grid-rows-\[1rem_0\.375rem_1rem\]/,
+    /function DashboardRankingItem[\s\S]+?grid-rows-\[minmax\(1rem,auto\)_0\.375rem_1rem\]/,
   );
   assert.match(
     dashboardPanelsSource,

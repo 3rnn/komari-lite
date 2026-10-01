@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/komari-monitor/komari/utils"
 )
 
 func TestAgentInstallerAcceptsExplicitReleaseSourceWithoutLatest(t *testing.T) {
@@ -41,7 +43,7 @@ func TestAgentDownloadServesPanelLocalReleaseAndVerifiesDigest(t *testing.T) {
 		t.Fatal(err)
 	}
 	manifest := map[string]any{
-		"version":   "1.0.2",
+		"version":   utils.CurrentVersion,
 		"artifacts": map[string]string{"komari-agent-linux-amd64": digest},
 	}
 	writeAgentTestManifest(t, dir, manifest)
@@ -53,11 +55,30 @@ func TestAgentDownloadServesPanelLocalReleaseAndVerifiesDigest(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
 	}
-	if got := recorder.Header().Get("X-Komari-Agent-Version"); got != "1.0.2" {
+	if got := recorder.Header().Get("X-Komari-Agent-Version"); got != utils.CurrentVersion {
 		t.Fatalf("version header = %q", got)
 	}
 	if recorder.Body.String() != string(payload) {
 		t.Fatalf("payload mismatch")
+	}
+}
+
+func TestAgentDownloadRejectsCatalogFromPreviousPanelVersion(t *testing.T) {
+	dir := t.TempDir()
+	payload := []byte("older, correctly hashed agent")
+	sum := sha256.Sum256(payload)
+	if err := os.WriteFile(filepath.Join(dir, "komari-agent-linux-amd64"), payload, 0o640); err != nil {
+		t.Fatal(err)
+	}
+	writeAgentTestManifest(t, dir, map[string]any{
+		"version": "1.0.6",
+		"artifacts": map[string]string{"komari-agent-linux-amd64": hex.EncodeToString(sum[:])},
+	})
+	stubAgentReleaseDir(t, dir)
+	recorder := httptest.NewRecorder()
+	ServeAgentDownload(recorder, httptest.NewRequest(http.MethodGet, "/agent/download/komari-agent-linux-amd64", nil))
+	if recorder.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status=%d; panel must not distribute previous-version Agent", recorder.Code)
 	}
 }
 
@@ -82,7 +103,7 @@ func TestAgentDownloadRejectsTamperedArtifact(t *testing.T) {
 func TestAgentDownloadRejectsUnknownArtifacts(t *testing.T) {
 	dir := t.TempDir()
 	writeAgentTestManifest(t, dir, map[string]any{
-		"version":   "1.0.2",
+		"version":   utils.CurrentVersion,
 		"artifacts": map[string]string{"komari-agent-linux-amd64": strings.Repeat("a", 64)},
 	})
 	stubAgentReleaseDir(t, dir)

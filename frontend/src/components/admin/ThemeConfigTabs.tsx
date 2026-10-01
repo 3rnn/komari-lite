@@ -19,9 +19,11 @@ import {
 } from "@/components/admin/SettingCard";
 import NodeSelectorDialog from "@/components/NodeSelectorDialog";
 import PingTaskSelectorDialog from "@/components/PingTaskSelectorDialog";
+import { usePingTask } from "@/contexts/PingTaskContext";
 import type { I18nText } from "@/utils/i18nText";
 import {
   groupThemeConfigFields,
+  normalizePreferredPingTaskId,
   resolveThemeOptionLabel,
   type ThemeConfigTabField,
 } from "@/utils/themeConfigTabs";
@@ -44,6 +46,8 @@ const ThemeConfigTabs = ({
 }: ThemeConfigTabsProps) => {
   const { t } = useTranslation();
   const { settings } = useSettings();
+  const { pingTasks, isLoading: pingTasksLoading, error: pingTaskError } = usePingTask();
+  const availableTasks = pingTaskError || pingTasksLoading ? null : pingTasks;
   const reduceMotion = Boolean(settings.reduce_motion);
   const groups = useMemo(() => groupThemeConfigFields(fields), [fields]);
   const [activeTab, setActiveTab] = useState(0);
@@ -172,6 +176,30 @@ const ThemeConfigTabs = ({
                 </PingTaskSelectorDialog>
               </SettingCard.Action>
             </SettingCard>
+          </Box>
+        );
+      }
+      case "pingtask": {
+        const options = [
+          { value: "0", label: "Automatic per node" },
+          ...(pingTasks ?? [])
+            .filter((task) => Number.isInteger(task.id) && Number(task.id) > 0)
+            .map((task) => ({
+              value: String(task.id),
+              label: `${String(task.name || `Task ${task.id}`)} (#${task.id})`,
+            })),
+        ];
+        const selectedValue = String(normalizePreferredPingTaskId(value, availableTasks));
+        return (
+          <Box key={key} id={key}>
+            <SettingCardSelect
+              title={title}
+              description={description}
+              value={selectedValue}
+              options={options}
+              OnSave={(next) => onValueChange(key, Number(next))}
+              label={options.find((option) => option.value === selectedValue)?.label || "Automatic per node"}
+            />
           </Box>
         );
       }

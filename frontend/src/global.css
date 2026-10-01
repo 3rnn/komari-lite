@@ -5,6 +5,15 @@
 
 :root {
   --app-viewport-height: 100vh;
+  --km-metric-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  --km-canvas: #edf3ef;
+  --km-sidebar: #e5eee9;
+  --km-panel: #f5f8f5;
+  --km-panel-raised: #eaf2ed;
+  --km-border: #c4d8cc;
+  --km-muted: #4f675d;
+  --km-accent: #146b58;
+  --km-radius: 0.25rem;
 }
 
 @supports (height: 100dvh) {
@@ -77,24 +86,24 @@
 
 :root {
   --radius: 0.5rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --background: #edf3ef;
+  --foreground: #15332a;
+  --card: #f5f8f5;
+  --card-foreground: #15332a;
+  --popover: #f5f8f5;
+  --popover-foreground: #15332a;
+  --primary: #146b58;
+  --primary-foreground: #f5f8f5;
+  --secondary: #e5eee9;
+  --secondary-foreground: #15332a;
+  --muted: #e5eee9;
+  --muted-foreground: #4f675d;
+  --accent: #e5eee9;
+  --accent-foreground: #15332a;
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --border: #c4d8cc;
+  --input: #c4d8cc;
+  --ring: #146b58;
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
@@ -111,24 +120,31 @@
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --km-canvas: #072a28;
+  --km-sidebar: #052522;
+  --km-panel: #0a302d;
+  --km-panel-raised: #103a36;
+  --km-border: #31544e;
+  --km-muted: #a6bdb4;
+  --km-accent: #77dcb3;
+  --background: #072a28;
+  --foreground: #e4eee5;
+  --card: #0a302d;
+  --card-foreground: #e4eee5;
+  --popover: #103a36;
+  --popover-foreground: #e4eee5;
+  --primary: #77dcb3;
+  --primary-foreground: #072a28;
+  --secondary: #103a36;
+  --secondary-foreground: #e4eee5;
+  --muted: #103a36;
+  --muted-foreground: #a6bdb4;
+  --accent: #103a36;
+  --accent-foreground: #e4eee5;
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --border: #31544e;
+  --input: #31544e;
+  --ring: #77dcb3;
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
@@ -151,6 +167,12 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+.km-metric-value {
+  font-family: var(--km-metric-font);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
 
 ::-webkit-scrollbar {
@@ -1407,4 +1429,98 @@ html[data-reduce-motion="true"] .rt-BaseDialogContent {
 
 [data-reduce-motion="true"] .km-theme-preview-skeleton {
   animation: none;
+}
+
+/* Shared Komari monitoring surfaces: one palette across every admin route. */
+.km-panel {
+  background: var(--km-panel);
+  border: 1px solid var(--km-border);
+  border-radius: var(--km-radius);
+  box-shadow: none;
+}
+
+.km-kicker {
+  font-family: var(--km-metric-font);
+  color: var(--km-muted);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.km-page-title {
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+[data-admin-shell] {
+  --color-panel-solid: var(--km-panel);
+  --gray-a5: var(--km-border);
+  --gray-2: var(--km-panel-raised);
+  color: var(--foreground);
+  background: var(--km-canvas);
+}
+
+.km-admin-topbar {
+  background: var(--km-sidebar);
+  border-bottom: 1px solid var(--km-border);
+}
+
+.km-admin-sidebar {
+  background: var(--km-sidebar);
+  border-right: 1px solid var(--km-border);
+}
+
+.km-admin-scroll {
+  background: var(--km-canvas);
+}
+
+.km-admin-nav-item {
+  border-radius: var(--km-radius);
+  color: var(--km-muted);
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.km-admin-nav-item:hover,
+.km-admin-nav-item:focus-visible {
+  color: var(--foreground);
+  background: var(--km-panel-raised);
+}
+
+.km-admin-nav-item[data-active="true"] {
+  color: var(--foreground);
+  background: var(--km-panel-raised);
+}
+
+[data-admin-shell] :is(.rt-Card, .admin-responsive-table-wrap, .rt-TableRoot),
+html[data-admin-shell-active="true"] .rt-BaseDialogContent {
+  background: var(--km-panel);
+  border: 1px solid var(--km-border);
+  border-radius: var(--km-radius);
+  box-shadow: none;
+}
+
+[data-admin-shell] :is(.rt-Button, .rt-IconButton, .rt-TextFieldRoot, .rt-SelectTrigger, .rt-TabsList),
+html[data-admin-shell-active="true"] :is(.rt-Button, .rt-IconButton, .rt-TextFieldRoot, .rt-SelectTrigger) {
+  border-radius: var(--km-radius);
+}
+
+[data-admin-shell] :is(.rt-TextFieldRoot, .rt-SelectTrigger),
+html[data-admin-shell-active="true"] :is(.rt-TextFieldRoot, .rt-SelectTrigger) {
+  border: 1px solid var(--km-border);
+  background: var(--km-panel-raised);
+  box-shadow: none;
+}
+
+[data-admin-shell] :is(.rt-TextFieldRoot, .rt-SelectTrigger):focus-within,
+.km-admin-nav-item:focus-visible {
+  outline: 1px solid var(--km-accent);
+  outline-offset: 1px;
+}
+
+@media (max-width: 767px) {
+  .km-admin-scroll {
+    padding: 0.75rem;
+  }
 }

@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"unicode"
@@ -106,29 +107,32 @@ func TestEmbeddedGlassUsesEnglishRegionAndVersionedChunk(t *testing.T) {
 	if !strings.Contains(string(index), `\"lang\":\"en-US\"`) {
 		t.Fatal("the embedded page payload must agree with its English HTML language")
 	}
-	paths, err := fs.Glob(PublicFS, root+"/_next/static/chunks/*.js")
+	paths, err := fs.Glob(PublicFS, root+"/_next/static/chunks/3859ru-*.js")
 	if err != nil {
 		t.Fatal(err)
 	}
+	var referenced []string
 	for _, path := range paths {
-		chunk, err := fs.ReadFile(PublicFS, path)
-		if err != nil {
-			t.Fatal(err)
+		if strings.Contains(string(index), "/_next/static/chunks/"+filepath.Base(path)) {
+			referenced = append(referenced, path)
 		}
-		if !strings.Contains(string(chunk), "function ro(e,t=") {
-			continue
-		}
-		if !strings.Contains(string(chunk), `function ro(e,t="en")`) {
-			t.Fatal("the public region formatter must display English by default")
-		}
-		sum := sha256.Sum256(chunk)
-		name := fmt.Sprintf("3859ru-%x.js", sum[:4])
-		if filepath.Base(path) != name || !strings.Contains(string(index), "/_next/static/chunks/"+name) {
-			t.Fatal("the updated Glass chunk needs a content-derived URL in the page")
-		}
-		return
 	}
-	t.Fatal("no embedded Glass region formatter found")
+	if len(referenced) != 1 {
+		t.Fatalf("expected exactly one referenced Glass node-card chunk, got %d", len(referenced))
+	}
+	path := referenced[0]
+	chunk, err := fs.ReadFile(PublicFS, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(chunk), `function ro(e,t="en")`) {
+		t.Fatal("the public region formatter must display English by default")
+	}
+	sum := sha256.Sum256(chunk)
+	name := fmt.Sprintf("3859ru-%x.js", sum[:4])
+	if filepath.Base(path) != name || !regexp.MustCompile(`3859ru-[0-9a-f]{8}\.js`).MatchString(name) {
+		t.Fatal("the referenced Glass chunk needs a content-derived URL")
+	}
 }
 
 func TestNormalizeHTMLLanguage(t *testing.T) {

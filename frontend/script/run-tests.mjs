@@ -4,7 +4,7 @@ import { spawnSync } from "node:child_process";
 
 const testDirectory = path.resolve("tests");
 const testFiles = readdirSync(testDirectory)
-  .filter((name) => name.endsWith(".test.ts"))
+  .filter((name) => name.endsWith(".test.ts") || name.endsWith(".test.mjs"))
   .sort((left, right) => left.localeCompare(right))
   .map((name) => path.join(testDirectory, name));
 

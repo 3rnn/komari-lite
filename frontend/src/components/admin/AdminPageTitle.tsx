@@ -9,11 +9,11 @@ export default function AdminPageTitle({
 }) {
   return (
     <div className="min-w-0">
-      <h1 className="text-xl font-semibold leading-7 text-foreground">
+      <h1 className="km-page-title text-xl font-semibold leading-7 text-foreground">
         {children}
       </h1>
       {description ? (
-        <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
+        <p className="mt-1 max-w-3xl text-xs leading-5 text-muted-foreground">
           {description}
         </p>
       ) : null}
@@ -23,7 +23,7 @@ export default function AdminPageTitle({
 
 export function AdminSectionTitle({ children }: { children: ReactNode }) {
   return (
-    <h2 className="text-base font-semibold leading-6 text-foreground">
+    <h2 className="km-kicker text-foreground">
       {children}
     </h2>
   );

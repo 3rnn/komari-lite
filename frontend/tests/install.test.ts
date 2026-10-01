@@ -34,6 +34,11 @@ test("completed installation reuses the full installation layout", () => {
   assert.doesNotMatch(source, /max-w-md text-center/);
 });
 
+test("installer action controls stack on narrow screens", () => {
+  assert.match(source, /<Flex(?=[^>]*justify="between")(?=[^>]*direction=\{\{ initial: "column", sm: "row" \}\})[^>]*>/);
+  assert.match(source, /step < 4 \? \(\s*<Flex(?=[^>]*gap="3")(?=[^>]*direction=\{\{ initial: "column", sm: "row" \}\})[^>]*>/);
+});
+
 test("install restore uses staged progress and an explicit restart countdown", () => {
   assert.match(source, /phase_uploading/);
   assert.match(source, /phase_processing/);

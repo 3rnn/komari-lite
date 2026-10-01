@@ -127,11 +127,15 @@ const NodeDetailsPage = () => {
 
 const PREVIOUS_PAGE_DROP_ID = "admin-node-previous-page";
 const NEXT_PAGE_DROP_ID = "admin-node-next-page";
-// Bump this with the panel and Agent version at every release. Keeping it local
-// makes the downloaded artifact deterministic even for traditional deployments.
-const agentReleaseVersion = "1.0.6";
-const agentReleaseSource = `https://github.com/3rnn/komari-lite/releases/download/v${agentReleaseVersion}`;
-const agentInstallerSource = `${agentReleaseSource}/install`;
+// Use the Agent built from this deployment's local source, not the older
+// public release with the same semantic version.
+const agentReleaseVersion = "1.0.7";
+function panelAgentDistribution(host: string) {
+  return {
+    agentReleaseSource: `${host}/agent/download`,
+    agentInstallerSource: `${host}/agent/install`,
+  };
+}
 
 const Layout = () => {
   const { t } = useTranslation();
@@ -398,6 +402,7 @@ const AutoDiscoverySection = ({
 
   const generateCommand = () => {
     const host = resolveAgentSource(settings?.script_domain).host;
+    const { agentReleaseSource, agentInstallerSource } = panelAgentDistribution(host);
     const args: string[] = [
       "-e", host,
       "--auto-discovery", adKey,
@@ -1695,6 +1700,7 @@ function GenerateCommandButton({ node, settings }: { node: NodeDetail, settings:
 
   const generateCommand = () => {
     const host = resolveAgentSource(settings?.script_domain).host;
+    const { agentReleaseSource, agentInstallerSource } = panelAgentDistribution(host);
     const token = node.token || "";
     let args = ["-e", host, "-t", token, "--disable-web-ssh", "--disable-auto-update", "--install-source", agentReleaseSource, "--install-version", agentReleaseVersion];
     // Installation security policy: disable remote control and auto-updates; reject insecure certificates.

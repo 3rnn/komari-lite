@@ -50,7 +50,7 @@ export function SettingCard({
       className={
         bordless
           ? `min-w-0 max-w-full border-0 ${className}`
-          : `min-h-8 min-w-0 max-w-full rounded-md border-1 bg-[var(--color-panel-solid)] px-4 py-2 ${className}`
+          : `km-panel min-h-8 min-w-0 max-w-full px-3 py-2 ${className}`
       }
     >
       <Flex
@@ -68,13 +68,13 @@ export function SettingCard({
           justify={"center"}
         >
           <label
-            className="min-w-0 break-words text-base font-medium [overflow-wrap:anywhere]"
+            className="min-w-0 break-words text-sm font-medium [overflow-wrap:anywhere]"
             style={{ fontWeight: 600 }}
           >
             {title}
           </label>
           {description && (
-            <label className="min-w-0 break-words text-sm text-muted-foreground [overflow-wrap:anywhere]">
+            <label className="min-w-0 break-words text-xs text-muted-foreground [overflow-wrap:anywhere]">
               {description}
             </label>
           )}

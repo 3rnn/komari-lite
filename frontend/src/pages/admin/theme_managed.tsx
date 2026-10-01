@@ -13,6 +13,8 @@ import {
 } from "@/utils/themeConfiguration";
 import AdminPageTitle from "@/components/admin/AdminPageTitle";
 import type { ThemeConfigTabField } from "@/utils/themeConfigTabs";
+import { normalizePreferredPingTaskId } from "@/utils/themeConfigTabs";
+import { usePingTask } from "@/contexts/PingTaskContext";
 
 type ThemeFieldBase = ThemeConfigTabField;
 
@@ -31,6 +33,8 @@ const ThemeManaged: React.FC = () => {
   } = usePublicInfo();
   const theme = publicInfo?.theme;
   const themeSettings = publicInfo?.theme_settings || {}; // Current settings.
+  const { pingTasks, isLoading: pingTasksLoading, error: pingTaskError, refresh: refreshPingTasks } = usePingTask();
+  const availableTasks = pingTaskError || pingTasksLoading ? null : pingTasks;
   const { t, i18n } = useTranslation();
 
   const currentLanguage =
@@ -124,7 +128,9 @@ const ThemeManaged: React.FC = () => {
       const current = values[f.key];
       // Use the current value, and the default only when undefined.
       if (current !== undefined) {
-        obj[f.key] = current;
+        obj[f.key] = f.type === "pingtask"
+          ? normalizePreferredPingTaskId(current, availableTasks)
+          : current;
       } else if (f.default !== undefined) {
         obj[f.key] = f.default;
       } else {
@@ -132,12 +138,11 @@ const ThemeManaged: React.FC = () => {
       }
     });
     return obj;
-  }, [fields, values]);
+  }, [fields, values, availableTasks]);
+  const requiresPingTasks = fields.some((field) => field.type === "pingtask");
 
   const saveAll = async () => {
-    if (!theme) return;
-    console.log("Values before saving:", values);
-    console.log("Payload before saving:", payload);
+    if (!theme || (requiresPingTasks && (pingTasksLoading || pingTaskError))) return;
     setSaving(true);
     try {
       const resp = await fetch(
@@ -177,7 +182,7 @@ const ThemeManaged: React.FC = () => {
             : t("theme.manage")}
         </AdminPageTitle>
         {fields.length > 0 && (
-          <Button onClick={saveAll} disabled={saving}>
+          <Button onClick={saveAll} disabled={saving || (requiresPingTasks && (pingTasksLoading || Boolean(pingTaskError)))}>
             {t("common.save")}
           </Button>
         )}
@@ -185,6 +190,12 @@ const ThemeManaged: React.FC = () => {
       {error && (
         <Callout.Root color="red">
           <Callout.Text>{error}</Callout.Text>
+        </Callout.Root>
+      )}
+      {pingTaskError && requiresPingTasks && (
+        <Callout.Root color="red" role="alert">
+          <Callout.Text>Ping tasks could not be loaded. Retry before saving theme settings.</Callout.Text>
+          <Button variant="soft" onClick={refreshPingTasks}>{t("common.retry")}</Button>
         </Callout.Root>
       )}
       {loading && firstLoading && <Loading />}
@@ -201,7 +212,7 @@ const ThemeManaged: React.FC = () => {
           resolveText={(value) => resolveI18nText(value, currentLanguage)}
           footer={
             <Flex>
-              <Button onClick={saveAll} disabled={saving}>
+              <Button onClick={saveAll} disabled={saving || (requiresPingTasks && (pingTasksLoading || Boolean(pingTaskError)))}>
                 {t("common.save")}
               </Button>
             </Flex>

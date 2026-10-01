@@ -425,6 +425,12 @@ func processV2Event(conn *ws.SafeConn, method string, params interface{}, eventI
 		return true
 	}
 	switch method {
+	case v2.MethodAgentPing:
+		if !handlePingEvent(conn, params) {
+			forgetV2Event(eventID)
+			return false
+		}
+		return true
 	case v2.MethodAgentConfig:
 		var p v2.ConfigParams
 		if err := v2.BindParams(params, &p); err != nil {

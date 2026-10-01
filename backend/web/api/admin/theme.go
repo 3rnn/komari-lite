@@ -2,6 +2,8 @@ package admin
 
 import (
 	"encoding/json"
+	"errors"
+	"math"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -27,13 +29,21 @@ func UpdateThemeSettings(c *gin.Context) {
 		return
 	}
 
+	db := dbcore.GetDBInstance()
+	if err := validatePingThemeSettings(req, func(id uint) bool {
+		var count int64
+		return db.Model(&models.PingTask{}).Where("id = ?", id).Count(&count).Error == nil && count > 0
+	}); err != nil {
+		api.RespondError(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
 	data, err := json.Marshal(&req)
 	if err != nil {
 		api.RespondError(c, http.StatusInternalServerError, "Failed to generate theme configuration: "+err.Error())
 		return
 	}
 
-	db := dbcore.GetDBInstance()
 	var themeCfg models.ThemeConfiguration
 	if err := db.Where("short = ?", public.DefaultTheme).
 		Assign(models.ThemeConfiguration{Short: public.DefaultTheme, Data: string(data)}).
@@ -42,4 +52,22 @@ func UpdateThemeSettings(c *gin.Context) {
 		return
 	}
 	api.RespondSuccess(c, nil)
+}
+
+func validatePingThemeSettings(req map[string]any, taskExists func(uint) bool) error {
+	if value, present := req["showCarrierPing"]; present {
+		if _, ok := value.(bool); !ok {
+			return errors.New("Invalid ping task display switch")
+		}
+	}
+	if value, present := req["preferredPingTaskId"]; present {
+		id, ok := value.(float64)
+		if !ok || math.IsNaN(id) || math.IsInf(id, 0) || id < 0 || id > float64(^uint(0)) || math.Trunc(id) != id {
+			return errors.New("Invalid ping task ID")
+		}
+		if id > 0 && !taskExists(uint(id)) {
+			return errors.New("Selected ping task does not exist")
+		}
+	}
+	return nil
 }

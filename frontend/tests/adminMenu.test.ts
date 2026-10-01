@@ -140,7 +140,7 @@ test("uses concise sidebar labels without shortening page titles", () => {
 });
 
 test("gives sidebar labels room while keeping the mobile page visible", () => {
-  assert.match(adminPanelSource, /const DESKTOP_SIDEBAR_WIDTH = 232;/);
+  assert.match(adminPanelSource, /const DESKTOP_SIDEBAR_WIDTH = 252;/);
   assert.match(
     adminPanelSource,
     /const MOBILE_SIDEBAR_WIDTH = "min\(280px, calc\(100vw - 56px\)\)";/,
@@ -224,7 +224,7 @@ test("switches to the submenu containing the current nested route", () => {
 });
 
 test("does not create an implicit second grid column on mobile", () => {
-  assert.match(adminPanelSource, /className="md:col-span-2"/);
+  assert.match(adminPanelSource, /className="km-admin-topbar md:col-span-2"/);
   assert.doesNotMatch(adminPanelSource, /className="col-span-2"/);
   assert.match(adminPanelSource, /open: \{\s+x: 0,\s+opacity: 1,/);
   assert.match(adminPanelSource, /closed: \{\s+x: 0,\s+opacity: 1,/);

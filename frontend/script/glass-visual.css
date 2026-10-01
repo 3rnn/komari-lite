@@ -1,0 +1,103 @@
+/* Glass public-theme overrides. Keep the vendored CSS untouched and retain light-mode support. */
+:root {
+  --background: #f0f5f3;
+  --foreground: #162f30;
+  --card-solid: #ffffff;
+  --card-foreground: #162f30;
+  --muted: #e4eeea;
+  --muted-foreground: #526c6b;
+  --border: #bfd0ca;
+  --glass-control: #e4eeea;
+  --node-card-bg: #f9fcfa;
+  --node-card-hover: #eff6f2;
+  --node-card-border: #b6cbc5;
+  --node-data-bg: #f0f6f3;
+  --node-offline-bg: #ffffffd9;
+}
+.dark {
+  --background: #071f21;
+  --foreground: #e2eeea;
+  --card-solid: #0b292a;
+  --card-foreground: #e2eeea;
+  --primary: #80d8bb;
+  --primary-foreground: #071f21;
+  --muted: #17393a;
+  --muted-foreground: #a3bdb8;
+  --border: #335254;
+  --ring: #9ce9d0;
+  --glass-control: #123234;
+  --node-card-bg: #0b292a;
+  --node-card-hover: #123436;
+  --node-card-border: #335254;
+  --node-data-bg: #103032;
+  --node-offline-bg: #071f21d9;
+}
+
+/* Solid, quiet surfaces instead of the upstream translucent glass and shadows. */
+.glass-panel {
+  border: 1px solid var(--node-card-border);
+  background: var(--node-card-bg);
+  box-shadow: none;
+}
+html[data-blur=on] .glass-panel,
+html[data-blur=off] .glass-panel {
+  background: var(--node-card-bg);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+#theme-background { opacity: 0 !important; }
+
+header.w-full { border-bottom: 1px solid var(--border); }
+header.w-full > div { height: 3.5rem; }
+main { min-width: 0; }
+.overview-strip {
+  border-radius: 4px;
+  box-shadow: none;
+}
+.dark .overview-strip { box-shadow: none; }
+.overview-stat { min-height: 4.5rem; }
+.stat-icon { border-radius: 3px; }
+
+.node-card {
+  min-height: 0;
+  border-radius: 4px;
+  box-shadow: none;
+  transition: border-color .16s, background-color .16s;
+}
+.node-card:hover,
+.dark .node-card:hover {
+  border-color: var(--muted-foreground);
+  background: var(--node-card-hover);
+  box-shadow: none;
+}
+.node-card-offline,
+.node-card-offline:hover,
+.dark .node-card-offline:hover {
+  border-color: var(--destructive);
+  box-shadow: none;
+}
+.node-card > header { border-bottom: 1px solid var(--border); }
+.node-card > header, .node-card > div { min-width: 0; }
+.node-card > header { padding: .625rem .875rem; }
+.node-card > div { padding-inline: .875rem; padding-bottom: .875rem; }
+.node-data-panel {
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--node-data-bg);
+}
+.chip-pill, .node-tag, .node-card .chip-pill, .node-card .node-tag {
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--glass-control);
+}
+.node-card .chip-online { color: var(--success); }
+.node-card .chip-offline { color: var(--destructive); }
+.icon-btn, .btn-primary, .segmented-control, .segment-btn { border-radius: 3px; }
+.segment-btn-active { box-shadow: none; }
+
+@media (max-width: 640px) {
+  header.w-full > div { height: 3.25rem; }
+  .overview-stat { min-height: 4.5rem; }
+  .node-card > header { padding: .625rem .75rem; }
+  .node-card > div { padding-inline: .75rem; padding-bottom: .75rem; }
+}

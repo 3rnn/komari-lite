@@ -56,7 +56,7 @@ export function OverviewSkeleton() {
   return (
     <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
       {[0, 1, 2].map((item) => (
-        <div key={item} className="h-[112px] rounded-md border bg-[var(--color-panel-solid)] p-3">
+        <div key={item} className="km-panel h-[112px] p-3">
           <Skeleton width="7rem" height="1rem" />
           <Skeleton className="mt-4" width="9rem" height="1.9rem" />
           <Skeleton className="mt-3" width="72%" height="0.85rem" />
@@ -85,12 +85,12 @@ export function SummaryPanel({
     orange: "text-[var(--orange-11)]",
   }[tone];
   return (
-    <section className="min-h-[112px] rounded-md border bg-[var(--color-panel-solid)] p-3">
+    <section className="km-panel min-h-[112px] p-3">
       <div className="flex items-center justify-between gap-3">
-        <span className="text-sm font-medium text-muted-foreground">{label}</span>
+        <span className="km-kicker">{label}</span>
         <span className={`flex size-7 items-center justify-center ${toneClass}`}>{icon}</span>
       </div>
-      <div className="mt-2 text-2xl font-bold tabular-nums text-foreground">{value}</div>
+      <div className="mt-2 text-2xl font-bold km-metric-value text-foreground">{value}</div>
       <div className="mt-2 text-sm text-muted-foreground">{children}</div>
     </section>
   );
@@ -160,13 +160,13 @@ function DashboardRankingItem({
   detail?: React.ReactNode;
 }) {
   return (
-    <div className="grid min-h-[3.5rem] min-w-0 grid-rows-[1rem_0.375rem_1rem] gap-y-1.5">
+    <div className="grid min-h-[3.5rem] min-w-0 grid-rows-[minmax(1rem,auto)_0.375rem_1rem] gap-y-1.5">
       <div className="flex min-w-0 items-center justify-between gap-3 text-xs leading-4">
         <span className="min-w-0 truncate text-foreground">
           <span className="mr-1 text-muted-foreground">{index + 1}.</span>
           <span className="font-medium">{name}</span>
         </span>
-        <strong className={`shrink-0 font-semibold tabular-nums ${valueClassName}`}>{value}</strong>
+        <strong className={`min-w-0 text-right font-semibold km-metric-value ${valueClassName}`}>{value}</strong>
       </div>
       <div className="h-1.5 overflow-hidden rounded-full bg-[var(--gray-a4)]">
         {progress}
@@ -278,7 +278,7 @@ export function AlertOverviewPanel({
           [t("admin_dashboard.recovered_today"), recovered, "text-[var(--green-11)]"],
         ].map(([label, value, color], index) => (
           <div key={String(label)} className={index === 0 ? "pr-3" : "px-3"}>
-            <div className={`text-xl font-semibold leading-none tabular-nums ${color}`}>{value}</div>
+            <div className={`text-xl font-semibold leading-none km-metric-value ${color}`}>{value}</div>
             <div className="mt-1 text-[11px] text-muted-foreground">{label}</div>
           </div>
         ))}
@@ -400,7 +400,7 @@ export function LatencyPanel({
             [warningCount, t("admin_dashboard.packet_loss_alerts"), "text-[var(--orange-11)]"],
           ].map(([value, label, color], index) => (
             <div key={String(label)} className={index === 0 ? "pr-3" : "px-3"}>
-              <div className={`text-xl font-semibold leading-none tabular-nums ${color}`}>{value}</div>
+              <div className={`text-xl font-semibold leading-none km-metric-value ${color}`}>{value}</div>
               <div className="mt-1.5 text-[11px] text-muted-foreground">{label}</div>
             </div>
           ))}

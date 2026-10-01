@@ -24,16 +24,14 @@ test("deployment settings are restored and saved per node", () => {
   assert.match(source, /body: JSON\.stringify\(\{ profile: deploymentProfile\(\) \}\)/);
 });
 
-test("one-click Agent commands download the installer and matching Agent from GitHub", () => {
+test("one-click Agent commands download this panel's local Agent build", () => {
   assert.match(source, /--install-source/);
-  assert.match(source, /const agentReleaseVersion = "1\.0\.6";/);
-  assert.match(
-    source,
-    /const agentReleaseSource = `https:\/\/github\.com\/3rnn\/komari-lite\/releases\/download\/v\$\{agentReleaseVersion\}`;/,
-  );
-  assert.match(source, /const agentInstallerSource = `\$\{agentReleaseSource\}\/install`/);
-  assert.doesNotMatch(source, /\/agent\/install\.(?:sh|ps1)/);
-  assert.doesNotMatch(source, /\/agent\/download/);
+  assert.match(source, /const agentReleaseVersion = "1\.0\.7";/);
+  assert.match(source, /function panelAgentDistribution\(host: string\)/);
+  assert.match(source, /agentReleaseSource: `\$\{host\}\/agent\/download`/);
+  assert.match(source, /agentInstallerSource: `\$\{host\}\/agent\/install`/);
+  assert.equal((source.match(/panelAgentDistribution\(host\);/g) ?? []).length, 2);
+  assert.doesNotMatch(source, /github\.com\/3rnn\/komari-lite\/releases\/download/);
 });
 
 test("one-click deployment removes installation settings and uses safe defaults", () => {

@@ -27,7 +27,7 @@ const parsedMenuConfig = menuConfig as {
 };
 const baseMenuItems = parsedMenuConfig.menu;
 const footerMenuItems = parsedMenuConfig.footer ?? [];
-const DESKTOP_SIDEBAR_WIDTH = 232;
+const DESKTOP_SIDEBAR_WIDTH = 252;
 const MOBILE_SIDEBAR_WIDTH = "min(280px, calc(100vw - 56px))";
 const MOBILE_SIDEBAR_OPEN_TRANSITION = {
   duration: 0.22,
@@ -347,7 +347,7 @@ const AdminPanelBar = ({ content }: AdminPanelBarProps) => {
                 item.labelKey,
                 "flex w-4 h-5 items-center justify-center",
               )}
-              <Text className="text-base" weight="medium" style={{ flex: 1 }}>
+              <Text className="text-xs font-medium uppercase tracking-[0.08em]" weight="medium" style={{ flex: 1 }}>
                 {item.rawLabel || t(item.labelKey)}
               </Text>
               <ChevronDownIcon
@@ -412,13 +412,13 @@ const AdminPanelBar = ({ content }: AdminPanelBarProps) => {
           width: "100%",
           overflow: "hidden",
           overscrollBehavior: "none",
-          backgroundColor: "var(--accent-1)",
+          backgroundColor: "var(--km-canvas)",
           position: "relative",
         }}
       >
         {/* Navbar */}
         <motion.nav
-          className="md:col-span-2"
+          className="km-admin-topbar md:col-span-2"
           initial={{ y: 0 }}
           animate={{ y: 0 }}
           transition={{ duration: 0.5, ease: "easeOut" }}
@@ -428,7 +428,7 @@ const AdminPanelBar = ({ content }: AdminPanelBarProps) => {
             p="2"
             justify="between"
             align="center"
-            className="border-b-1"
+            className="px-3 py-2 md:px-4"
           >
             <Flex
               gap={isMobile ? "2" : "3"}
@@ -490,12 +490,13 @@ const AdminPanelBar = ({ content }: AdminPanelBarProps) => {
           )}
           <motion.div
             key="admin-sidebar"
+            className="km-admin-sidebar"
             variants={sidebarVariants}
             initial={false}
             animate={sidebarOpen ? "open" : "closed"}
             exit="closed"
             style={{
-              backgroundColor: "var(--accent-1)",
+              backgroundColor: "var(--km-sidebar)",
               width: isMobile
                 ? MOBILE_SIDEBAR_WIDTH
                 : sidebarOpen
@@ -517,7 +518,7 @@ const AdminPanelBar = ({ content }: AdminPanelBarProps) => {
           >
             <Flex
               gap="3"
-              className="p-2 border-r-1"
+              className="p-2"
               direction="column"
               justify="start"
               align="start"
@@ -567,7 +568,7 @@ const AdminPanelBar = ({ content }: AdminPanelBarProps) => {
           variants={contentVariants}
           animate={sidebarOpen ? "open" : "closed"}
           style={{
-            backgroundColor: "var(--accent-3)",
+            backgroundColor: "var(--km-canvas)",
             display: "block",
             height: "100%", // Ensure the container takes full height
             minHeight: 0,
@@ -578,8 +579,9 @@ const AdminPanelBar = ({ content }: AdminPanelBarProps) => {
         >
           <div
             data-admin-scroll-container
+            className="km-admin-scroll"
             style={{
-              backgroundColor: "var(--accent-1)",
+              backgroundColor: "var(--km-canvas)",
               height: "100%",
               borderRadius: "0",
               padding: isMobile ? "8px" : "16px",
@@ -656,14 +658,14 @@ const SidebarItem = ({
         onClick={onClick}
         target={openInNewTab ? "_blank" : undefined}
         rel={openInNewTab ? "noopener noreferrer" : undefined}
-        className="group transition-colors duration-200 hover:bg-accent-3 rounded-md"
+        className="km-admin-nav-item group"
       >
         <Flex
           className="p-2 gap-2 h-full"
           align="center"
           style={{
-            borderLeft: "4px solid transparent",
-            borderRadius: "6px",
+            borderLeft: "2px solid transparent",
+            borderRadius: "var(--km-radius)",
             backgroundColor: "transparent",
             color: "inherit",
             transition: "background-color 0.2s, border-color 0.2s",
@@ -678,7 +680,7 @@ const SidebarItem = ({
           >
             {icon}
           </span>
-          <Text className="text-base" weight="medium" style={{ flex: 1 }}>
+          <Text className="text-xs font-medium uppercase tracking-[0.08em]" weight="medium" style={{ flex: 1 }}>
             {children}
           </Text>
         </Flex>
@@ -693,24 +695,25 @@ const SidebarItem = ({
       onFocus={preload}
       onTouchStart={preload}
       onClick={onClick}
-      className="group transition-colors duration-200 hover:bg-accent-3 rounded-md"
+      className="km-admin-nav-item group"
+      data-active={isActive ? "true" : undefined}
     >
       <Flex
         className="p-2 gap-2"
         align="center"
         style={{
           borderLeft: isActive
-            ? "4px solid var(--accent-8)"
-            : "4px solid transparent",
-          borderRadius: "6px",
-          backgroundColor: isActive ? "var(--accent-4)" : "transparent",
-          color: isActive ? "var(--accent-10)" : "inherit",
+            ? "2px solid var(--km-accent)"
+            : "2px solid transparent",
+          borderRadius: "var(--km-radius)",
+          backgroundColor: isActive ? "var(--km-panel-raised)" : "transparent",
+          color: isActive ? "var(--foreground)" : "inherit",
           transition: "background-color 0.2s, border-color 0.2s",
         }}
       >
         <span
           style={{
-            color: isActive ? "var(--accent-10)" : "inherit",
+            color: isActive ? "var(--km-accent)" : "inherit",
             opacity: isActive ? 1 : 0.7,
           }}
           className="flex w-4 h-5 items-center justify-center"
@@ -718,7 +721,7 @@ const SidebarItem = ({
           {icon}
         </span>
         <Text
-          className="text-base"
+          className="text-xs font-medium uppercase tracking-[0.08em]"
           weight={isActive ? "bold" : "medium"}
           style={{ flex: 1 }}
         >

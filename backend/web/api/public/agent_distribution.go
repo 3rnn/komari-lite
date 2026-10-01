@@ -13,6 +13,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/komari-monitor/komari/utils"
 )
 
 const (
@@ -70,6 +72,11 @@ func ServeAgentDownload(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("agent distribution unavailable: %v", err)
 		http.Error(w, "Agent release is not published on this panel", http.StatusServiceUnavailable)
+		return
+	}
+	if manifest.Version != utils.CurrentVersion {
+		log.Printf("agent distribution unavailable: catalog version %q does not match panel %q", manifest.Version, utils.CurrentVersion)
+		http.Error(w, "Agent release version does not match this panel", http.StatusServiceUnavailable)
 		return
 	}
 	expected, allowed := manifest.Artifacts[name]

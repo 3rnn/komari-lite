@@ -8,7 +8,7 @@ A monitoring-focused, source-only fork of Komari. The repository is ready for pu
 
 - Nodes, live/historical metrics, Ping tasks, alerting, audit log, login and 2FA.
 - A fixed local Glass public dashboard with Simplified Chinese and English support.
-- A monitoring-only Agent installed from the GitHub Release matching the panel version.
+- A monitoring-only Agent distributed from the panel's matching local artifact catalog.
 - Native systemd deployment support.
 
 It intentionally excludes remote terminal/control/command execution, Cloudflare tunnel management, self-update/version checks, theme market/lifecycle actions, Nezha, reverse-route checks, and other UI languages.
@@ -60,10 +60,10 @@ The Agent has no remote-control, terminal, command-execution, MCP, or self-updat
 ```bash
 cd komari-lite
 chmod +x scripts/build-agent-release.sh
-./scripts/build-agent-release.sh 1.0.6
+./scripts/build-agent-release.sh 1.0.7
 ```
 
-Output is written to `release/agent-1.0.6/`:
+Output is written to `release/agent-1.0.7/`:
 
 - 14 `komari-agent-<os>-<arch>` artifacts;
 - `manifest.json` with the release version and SHA-256 for every artifact;
@@ -72,7 +72,7 @@ Output is written to `release/agent-1.0.6/`:
 The release directory is intentionally ignored by Git. Verify it before deployment:
 
 ```bash
-cd release/agent-1.0.6
+cd release/agent-1.0.7
 sha256sum -c SHA256SUMS.txt
 ```
 
@@ -141,13 +141,7 @@ Install/start Caddy according to its official documentation. The panel stays pri
 
 ### Agent downloads
 
-One-click deployment downloads both the installer and Agent binary from the explicit GitHub Release tag matching the panel version; it never follows `latest`. A traditional deployment therefore only needs the panel binary; it does **not** need a `data/agent-release/` directory.
-
-Before publishing a panel version, upload all 14 `komari-agent-*` artifacts to the same GitHub Release tag. The installer downloads the platform-matched artifact from:
-
-```text
-https://github.com/3rnn/komari-lite/releases/download/v<panel-version>/komari-agent-<os>-<arch>
-```
+One-click deployment fetches the installer and Agent binary from the running panel's `/agent/install.*` and `/agent/download` routes, not a moving `latest` URL or an older same-numbered GitHub Release. Copy the verified `release/agent-1.0.7/` contents into `/opt/komari/data/agent-release/`, preserving service-account access. The panel validates downloads against that directory's `manifest.json` digest. Pushing a Git tag alone does **not** publish Agent download assets or update an existing panel installation.
 
 ## 4. Updating the panel binary
 

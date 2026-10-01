@@ -36,11 +36,9 @@ test("mobile navigation uses a partial overlay without hiding the page", () => {
   assert.match(source, /data-testid="mobile-sidebar-close"/);
   assert.match(source, /key="mobile-sidebar-backdrop"/);
   assert.match(source, /onClick=\{\(\) => setSidebarOpen\(false\)\}/);
-  assert.match(source, /backgroundColor: "var\(--accent-3\)"[\s\S]{0,100}display: "block"/);
-  assert.doesNotMatch(
-    source,
-    /backgroundColor: "var\(--accent-3\)"[\s\S]{0,100}display: isMobile && sidebarOpen \? "none"/,
-  );
+  assert.match(source, /key="mobile-sidebar-backdrop"[\s\S]*?className="[^"]*bg-\[var\(--black-a6\)\]/);
+  assert.match(source, /\{\/\* Main Content \*\/\}[\s\S]*?display: "block"/);
+  assert.doesNotMatch(source, /display: isMobile && sidebarOpen \? "none" : "block"/);
 });
 
 test("admin shell owns the viewport while the mobile drawer locks only main content", () => {

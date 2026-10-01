@@ -482,7 +482,7 @@ export default function Install() {
               </Flex>
             )}
           </Card>
-          <Flex justify="between" mt="5">
+          <Flex justify="between" direction={{ initial: "column", sm: "row" }} gap="3" mt="5">
             <Button
               type="button"
               variant="soft"
@@ -497,7 +497,7 @@ export default function Install() {
               {t("install.back")}
             </Button>
             {step < 4 ? (
-              <Flex gap="3">
+              <Flex gap="3" direction={{ initial: "column", sm: "row" }}>
                 {step === 0 && (
                   <Button
                     type="button"

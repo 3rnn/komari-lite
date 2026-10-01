@@ -12,6 +12,7 @@ export interface ThemeConfigTabField {
     | "string"
     | "richtext"
     | "nodes"
+    | "pingtask"
     | "pingtasks";
   default?: unknown;
   options?: string;
@@ -22,6 +23,16 @@ export interface ThemeConfigTabField {
 export interface ThemeConfigGroup {
   title?: I18nText;
   items: ThemeConfigTabField[];
+}
+
+export function normalizePreferredPingTaskId(
+  value: unknown,
+  tasks: Array<{ id?: number }> | null,
+): number {
+  const id = Number(value ?? 0);
+  if (!Number.isSafeInteger(id) || id < 0) return 0;
+  if (tasks === null || id === 0) return id;
+  return tasks.some((task) => task.id === id) ? id : 0;
 }
 
 export function resolveThemeOptionLabel(value: string, translatedLabel?: string): string {

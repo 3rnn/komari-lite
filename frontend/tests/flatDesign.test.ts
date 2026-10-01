@@ -26,5 +26,6 @@ test("placeholder surfaces avoid decorative gradients and continuous shimmer", (
 });
 
 test("login card uses a flat bordered surface", () => {
-  assert.match(login, /<section className="rounded-lg border border-\[var\(--gray-a5\)\] bg-\[var\(--color-panel-solid\)\] p-5 sm:p-7">/);
+  assert.match(login, /<section className="km-panel p-5 sm:p-7">/);
+  assert.match(rule(".km-panel"), /border:\s*1px solid var\(--km-border\)/);
 });

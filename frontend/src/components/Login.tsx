@@ -310,7 +310,7 @@ const StandaloneShell = ({
       <div className="fixed right-4 top-4 z-10 flex gap-2 sm:right-6 sm:top-6">
         <ThemeSwitch />
       </div>
-      <section className="rounded-lg border border-[var(--gray-a5)] bg-[var(--color-panel-solid)] p-5 sm:p-7">
+      <section className="km-panel p-5 sm:p-7">
         <LoginIdentityHeader />
         {info ? <Text as="div" size="2" color="gray" mb="4">{info}</Text> : null}
         {children}
