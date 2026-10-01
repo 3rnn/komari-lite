@@ -34,12 +34,10 @@ test("terminal, clipboard and command-task surfaces stay deleted", () => {
   }
 });
 
-test("one-click deployment uses this panel's verified local Agent artifacts", () => {
+test("one-click deployment pins installer and binaries to a GitHub Release", () => {
   const source = read("src/pages/admin/index.tsx");
-  assert.match(source, /const agentReleaseVersion = "1\.0\.8";/);
-  assert.match(source, /function panelAgentDistribution\(host: string\)/);
-  assert.match(source, /agentReleaseSource: `\$\{host\}\/agent\/download`/);
-  assert.match(source, /agentInstallerSource: `\$\{host\}\/agent\/install`/);
-  assert.equal((source.match(/panelAgentDistribution\(host\);/g) ?? []).length, 2);
-  assert.doesNotMatch(source, /github\.com\/3rnn\/komari-lite\/releases\/download/);
+  assert.match(source, /const agentReleaseVersion = "1\.0\.9";/);
+  assert.match(source, /github\.com\/3rnn\/komari-lite\/releases\/download\/v\$\{agentReleaseVersion\}/);
+  assert.doesNotMatch(source, /\/releases\/latest/);
+  assert.doesNotMatch(source, /panelAgentDistribution\(host\)|\/agent\/download/);
 });

@@ -127,15 +127,9 @@ const NodeDetailsPage = () => {
 
 const PREVIOUS_PAGE_DROP_ID = "admin-node-previous-page";
 const NEXT_PAGE_DROP_ID = "admin-node-next-page";
-// Use the Agent built from this deployment's local source, not the older
-// public release with the same semantic version.
-const agentReleaseVersion = "1.0.8";
-function panelAgentDistribution(host: string) {
-  return {
-    agentReleaseSource: `${host}/agent/download`,
-    agentInstallerSource: `${host}/agent/install`,
-  };
-}
+// Pin both installers and Agent binaries to the matching published Release.
+const agentReleaseVersion = "1.0.9";
+const agentReleaseSource = `https://github.com/3rnn/komari-lite/releases/download/v${agentReleaseVersion}`;
 
 const Layout = () => {
   const { t } = useTranslation();
@@ -402,7 +396,6 @@ const AutoDiscoverySection = ({
 
   const generateCommand = () => {
     const host = resolveAgentSource(settings?.script_domain).host;
-    const { agentReleaseSource, agentInstallerSource } = panelAgentDistribution(host);
     const args: string[] = [
       "-e", host,
       "--auto-discovery", adKey,
@@ -414,8 +407,8 @@ const AutoDiscoverySection = ({
 
     const scriptUrl =
       selectedPlatform === "windows"
-        ? `${agentInstallerSource}.ps1`
-        : `${agentInstallerSource}.sh`;
+        ? `${agentReleaseSource}/install.ps1`
+        : `${agentReleaseSource}/install.sh`;
 
     let finalCommand = "";
     switch (selectedPlatform) {
@@ -1700,7 +1693,6 @@ function GenerateCommandButton({ node, settings }: { node: NodeDetail, settings:
 
   const generateCommand = () => {
     const host = resolveAgentSource(settings?.script_domain).host;
-    const { agentReleaseSource, agentInstallerSource } = panelAgentDistribution(host);
     const token = node.token || "";
     let args = ["-e", host, "-t", token, "--disable-web-ssh", "--disable-auto-update", "--install-source", agentReleaseSource, "--install-version", agentReleaseVersion];
     // Installation security policy: disable remote control and auto-updates; reject insecure certificates.
@@ -1737,8 +1729,8 @@ function GenerateCommandButton({ node, settings }: { node: NodeDetail, settings:
     }
     const scriptUrl =
       selectedPlatform === "windows"
-        ? `${agentInstallerSource}.ps1`
-        : `${agentInstallerSource}.sh`;
+        ? `${agentReleaseSource}/install.ps1`
+        : `${agentReleaseSource}/install.sh`;
     let finalCommand = "";
     switch (selectedPlatform) {
       case "linux":

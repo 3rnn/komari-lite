@@ -157,7 +157,7 @@ catch {
 Log-Step "Installation configuration:"
 Log-Config "Service name: $ServiceName"
 Log-Config "Install directory: $InstallDir"
-Log-Config "GitHub proxy: $ProxyDisplay"
+Log-Config "Agent source: $InstallSource"
 Log-Config "Agent arguments: $($KomariArgs -join ' ')"
 if ($InstallVersion -ne "") {
     Log-Config "Specified agent version: $InstallVersion"
@@ -202,8 +202,6 @@ function Uninstall-Previous {
         Remove-Item $AgentPath -Force
     }
 }
-Uninstall-Previous
-
 # Agent binaries come from the explicitly configured release source.
 $BinaryName = "komari-agent-windows-$arch.exe"
 if ([string]::IsNullOrWhiteSpace($InstallSource)) {
@@ -214,16 +212,34 @@ $versionToInstall = if ($InstallVersion) { $InstallVersion } else { "panel-manag
 $DownloadUrl = "$($InstallSource.TrimEnd('/'))/$BinaryName"
 Log-Success "Installing Komari Agent version: $versionToInstall"
 
-# Download and install
+# Download and verify before stopping the existing service.
 New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
 Log-Info "URL: $DownloadUrl"
+$StagingDir = Join-Path $InstallDir (".agent-download-" + [guid]::NewGuid().ToString("N"))
+New-Item -ItemType Directory -Path $StagingDir -Force -ErrorAction Stop | Out-Null
+$StagedAgent = Join-Path $StagingDir $BinaryName
 try {
-    Invoke-WebRequest -Uri $DownloadUrl -OutFile $AgentPath -UseBasicParsing
+    Invoke-WebRequest -Uri $DownloadUrl -OutFile $StagedAgent -UseBasicParsing -ErrorAction Stop
+    if ($InstallSource -like 'https://github.com/3rnn/komari-lite/releases/download/v*') {
+        $ChecksumFile = Join-Path $StagingDir 'SHA256SUMS.txt'
+        Invoke-WebRequest -Uri "$InstallSource/SHA256SUMS.txt" -OutFile $ChecksumFile -UseBasicParsing -ErrorAction Stop
+        $escapedName = [regex]::Escape($BinaryName)
+        $matches = @(Get-Content -Path $ChecksumFile | Where-Object { $_ -match "(?i)^[0-9a-f]{64}\s+$escapedName$" })
+        if ($matches.Count -ne 1) { throw "Release checksum missing or ambiguous for $BinaryName" }
+        $expected = ($matches[0] -split '\s+')[0]
+        $actual = (Get-FileHash -Path $StagedAgent -Algorithm SHA256 -ErrorAction Stop).Hash
+        if ($actual -ne $expected) { throw "Agent checksum mismatch for $BinaryName" }
+        Log-Success "Verified $BinaryName against release checksums"
+    }
 }
 catch {
-    Log-Error "Download failed: $_"
+    Remove-Item -Path $StagingDir -Recurse -Force -ErrorAction SilentlyContinue
+    Log-Error "Download or checksum verification failed: $_"
     exit 1
 }
+Uninstall-Previous
+Move-Item -Path $StagedAgent -Destination $AgentPath -Force -ErrorAction Stop
+Remove-Item -Path $StagingDir -Recurse -Force -ErrorAction SilentlyContinue
 Log-Success "Downloaded and saved to $AgentPath"
 
 # Register and start service

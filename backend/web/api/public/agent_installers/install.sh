@@ -190,9 +190,6 @@ uninstall_previous() {
     fi
 }
 
-# Uninstall previous installation
-uninstall_previous
-
 install_dependencies() {
     log_step "Checking and installing dependencies..."
 
@@ -302,17 +299,54 @@ download_url="${install_source}/${file_name}"
 
 log_step "Creating installation directory: ${GREEN}$target_dir${NC}"
 mkdir -p "$target_dir"
+staging_dir=$(mktemp -d "${target_dir}/.agent-download.XXXXXXXX") || exit 1
+trap 'rm -rf "$staging_dir"' EXIT
+staged_agent="${staging_dir}/${file_name}"
 
-# Download binary
+# Download and check the new binary before removing a working installation.
 log_step "Downloading $file_name from the pinned release..."
 log_info "URL: ${CYAN}$download_url${NC}"
-if ! curl --fail --show-error -L -o "$komari_agent_path" "$download_url"; then
+if ! curl --fail --show-error -L -o "$staged_agent" "$download_url"; then
     log_error "Download failed"
     exit 1
 fi
 
+case "$install_source" in
+    https://github.com/3rnn/komari-lite/releases/download/v*)
+        checksum_file="${staging_dir}/SHA256SUMS.txt"
+        if ! curl --fail --show-error -L -o "$checksum_file" "${install_source}/SHA256SUMS.txt"; then
+            log_error "Unable to download release checksums"
+            exit 1
+        fi
+        expected=$(awk -v name="$file_name" '$2 == name && $1 ~ /^[[:xdigit:]]+$/ && length($1) == 64 { print tolower($1) }' "$checksum_file")
+        if [ -z "$expected" ] || [ "${#expected}" -ne 64 ]; then
+            log_error "Release checksum missing or ambiguous for $file_name"
+            exit 1
+        fi
+        if command -v sha256sum >/dev/null 2>&1; then
+            actual=$(sha256sum "$staged_agent" | awk '{print $1}')
+        elif command -v shasum >/dev/null 2>&1; then
+            actual=$(shasum -a 256 "$staged_agent" | awk '{print $1}')
+        elif command -v sha256 >/dev/null 2>&1; then
+            actual=$(sha256 -q "$staged_agent")
+        else
+            log_error "No SHA-256 tool available to verify the release binary"
+            exit 1
+        fi
+        if [ "$actual" != "$expected" ]; then
+            log_error "Agent checksum mismatch for $file_name"
+            exit 1
+        fi
+        log_success "Verified $file_name against release checksums"
+        ;;
+esac
+
 # Set executable permissions
-chmod +x "$komari_agent_path"
+chmod +x "$staged_agent"
+uninstall_previous
+mv -f "$staged_agent" "$komari_agent_path"
+rm -rf "$staging_dir"
+trap - EXIT
 log_success "Komari-agent installed to ${GREEN}$komari_agent_path${NC}"
 
 # Detect init system and configure service

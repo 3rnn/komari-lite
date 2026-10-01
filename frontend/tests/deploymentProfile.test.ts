@@ -17,6 +17,10 @@ const globalCssSource = fs.readFileSync(
   path.join(root, "src/global.css"),
   "utf8",
 );
+const installers = ["install.sh", "install.ps1"].map((name) => fs.readFileSync(
+  path.resolve(root, "../backend/web/api/public/agent_installers", name),
+  "utf8",
+));
 
 test("deployment settings are restored and saved per node", () => {
   assert.match(source, /client\/\$\{node\.uuid\}\/deployment-profile/);
@@ -24,14 +28,24 @@ test("deployment settings are restored and saved per node", () => {
   assert.match(source, /body: JSON\.stringify\(\{ profile: deploymentProfile\(\) \}\)/);
 });
 
-test("one-click Agent commands download this panel's local Agent build", () => {
+test("both one-click Agent commands use the pinned GitHub Release installers and binaries", () => {
   assert.match(source, /--install-source/);
-  assert.match(source, /const agentReleaseVersion = "1\.0\.8";/);
-  assert.match(source, /function panelAgentDistribution\(host: string\)/);
-  assert.match(source, /agentReleaseSource: `\$\{host\}\/agent\/download`/);
-  assert.match(source, /agentInstallerSource: `\$\{host\}\/agent\/install`/);
-  assert.equal((source.match(/panelAgentDistribution\(host\);/g) ?? []).length, 2);
-  assert.doesNotMatch(source, /github\.com\/3rnn\/komari-lite\/releases\/download/);
+  assert.match(source, /const agentReleaseVersion = "1\.0\.9";/);
+  assert.match(source, /const agentReleaseSource = `https:\/\/github\.com\/3rnn\/komari-lite\/releases\/download\/v\$\{agentReleaseVersion\}`;/);
+  assert.equal((source.match(/"--install-source", agentReleaseSource/g) ?? []).length, 2);
+  assert.equal((source.match(/selectedPlatform === "windows"\s*\? `\$\{agentReleaseSource\}\/install\.ps1`\s*:\s*`\$\{agentReleaseSource\}\/install\.sh`/g) ?? []).length, 2);
+  assert.doesNotMatch(source, /panelAgentDistribution\(host\)|\/releases\/latest|\/agent\/download/);
+});
+
+test("GitHub installers verify their Agent binary before replacing an existing service", () => {
+  for (const installer of installers) {
+    assert.match(installer, /SHA256SUMS\.txt/);
+    assert.match(installer, /checksum mismatch/i);
+    const removal = installer.includes("Uninstall-Previous")
+      ? installer.indexOf("\nUninstall-Previous\n")
+      : installer.indexOf("\nuninstall_previous\n");
+    assert.ok(removal > installer.indexOf("SHA256SUMS.txt"));
+  }
 });
 
 test("one-click deployment removes installation settings and uses safe defaults", () => {
