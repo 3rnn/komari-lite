@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { selectPingTaskData } from "../script/glass-ping-view.mjs";
+import { resolveNodePingSelection, selectPingTaskData } from "../script/glass-ping-view.mjs";
 
 const tasks = [
   { id: 1, name: "CT", weight: 1 },
@@ -57,4 +57,31 @@ test("fallback respects backend task order when public tasks omit weight", () =>
 test("same-named tasks remain distinct by task ID", () => {
   const view = selectPingTaskData([{ id: 4, name: "CT" }, { id: 5, name: "CT" }], [sample(4, 20, 1), sample(5, 90, 2)], true, 0, makeHistory);
   assert.deepEqual(view.rows.map((row) => [row.id, row.avgLatency]), [[4, 20], [5, 90]]);
+});
+
+test("a positive server display ID overrides global multi-task mode", () => {
+  const selection = resolveNodePingSelection(true, { preferredId: 1 }, 2);
+  assert.deepEqual(selection, { showAll: false, preferredId: 2 });
+  const view = selectPingTaskData(tasks, [sample(1, 30, 1), sample(2, 80, 3)], selection.showAll, selection.preferredId, makeHistory);
+  assert.equal(view.selected.id, 2);
+  assert.equal(view.selected.avgLatency, 80);
+  assert.deepEqual(view.rows, []);
+});
+
+test("zero server display ID retains the theme's multi-task or single-task setting", () => {
+  assert.deepEqual(resolveNodePingSelection(true, { preferredId: 1 }, 0), { showAll: true, preferredId: 1 });
+  assert.deepEqual(resolveNodePingSelection(false, { preferredId: 2 }, 0), { showAll: false, preferredId: 2 });
+});
+
+test("an unassigned server display ID falls back to first assigned task, not record averages", () => {
+  const selection = resolveNodePingSelection(true, { preferredId: 1 }, 99);
+  const view = selectPingTaskData(tasks, [sample(2, 80, 3), sample(99, 1, 4)], selection.showAll, selection.preferredId, makeHistory);
+  assert.equal(view.selected.id, 1);
+  assert.equal(view.selected.avgLatency, null);
+  assert.deepEqual(view.rows, []);
+});
+
+test("server display override preserves carrier probe selection", () => {
+  const selection = resolveNodePingSelection(true, { preferredId: 1, telecom: "CT", unicom: "CU", mobile: "CM" }, 2);
+  assert.deepEqual(selection, { showAll: false, preferredId: 2, telecom: "CT", unicom: "CU", mobile: "CM" });
 });

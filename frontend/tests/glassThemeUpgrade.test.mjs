@@ -10,6 +10,7 @@ const repo = new URL("../..", import.meta.url).pathname;
 const script = new URL("../script/upgrade-glass-theme.mjs", import.meta.url).pathname;
 const prefix = "backend/web/public/bundledThemes/Glass/";
 const fixturePrefix = "frontend/tests/fixtures/glass-vendor/";
+const v109FixturePrefix = "frontend/tests/fixtures/glass-v109/";
 const files = ["komari-theme.json", "dist/index.html", "dist/_next/static/chunks/3859ru-aa5bf30a.js", "dist/_next/static/chunks/1j6ltxvh3a3zn.css"];
 // A pinned vendor fixture must survive this change becoming HEAD; git show HEAD
 // would start reading the upgraded theme after the release commit.
@@ -28,18 +29,18 @@ function fixture(t) {
 }
 const run = (root, apply = false) => spawnSync(process.execPath, [script, "--theme-dir", root, ...(apply ? ["--apply"] : [])], { encoding: "utf8" });
 const legacyBootstrap = (html) => html.replace(/\|\|(\\*)"dark\1"/g, (_match, escapes) => `||${escapes}"system${escapes}"`);
-const legacyManifest = (bundled) => readFileSync(join(bundled, "komari-theme.json"), "utf8")
+const legacyManifest = () => readFileSync(join(repo, v109FixturePrefix, "komari-theme.json"), "utf8")
   .replace('"default": "dark"', '"default": "system"');
 
 function previousUpgradeFixture(t) {
   const { parent, root } = fixture(t);
   const bundled = join(repo, prefix);
-  const html = legacyBootstrap(readFileSync(join(bundled, "dist/index.html"), "utf8")
+  const html = legacyBootstrap(readFileSync(join(repo, v109FixturePrefix, "dist/index.html"), "utf8")
     .replace(/<link rel="stylesheet" href="\/glass-visual-[a-f0-9]{8}\.css"\/>/, "")
     .replace(/3859ru-[a-f0-9]{8}\.js/g, "3859ru-ed32134c.js"));
   assert.equal(createHash("sha256").update(html).digest("hex"), "6f28762c9abbe4c230dc2ee92c2430f2aac2d2634dbb5b6d468c9a41c101755b");
   writeFileSync(join(root, "dist/index.html"), html);
-  writeFileSync(join(root, "komari-theme.json"), legacyManifest(bundled));
+  writeFileSync(join(root, "komari-theme.json"), legacyManifest());
   copyFileSync(join(bundled, "dist/_next/static/chunks/3859ru-ed32134c.js"), join(root, "dist/_next/static/chunks/3859ru-ed32134c.js"));
   return { parent, root };
 }
@@ -60,17 +61,31 @@ test("previously upgraded Glass can safely receive the compact card layout", (t)
 test("deployed adaptive-layout Glass is recognized before any visual upgrade", (t) => {
   const { parent, root } = fixture(t);
   const bundled = join(repo, prefix);
-  const html = legacyBootstrap(readFileSync(join(bundled, "dist/index.html"), "utf8")
+  const html = legacyBootstrap(readFileSync(join(repo, v109FixturePrefix, "dist/index.html"), "utf8")
     .replace(/<link rel="stylesheet" href="\/glass-visual-[a-f0-9]{8}\.css"\/>/, ""));
   assert.equal(createHash("sha256").update(html).digest("hex"), "ff081dec062fae4d207dfab11ead2282c6c9fbf38584e9c05530cab73af1636c");
   writeFileSync(join(root, "dist/index.html"), html);
-  writeFileSync(join(root, "komari-theme.json"), legacyManifest(bundled));
+  writeFileSync(join(root, "komari-theme.json"), legacyManifest());
   copyFileSync(join(bundled, "dist/_next/static/chunks/3859ru-1c261694.js"), join(root, "dist/_next/static/chunks/3859ru-1c261694.js"));
   const result = run(root);
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /eligible.*true/);
   assert.deepEqual(readdirSync(parent), ["Glass"]);
   assert.equal(readFileSync(join(root, "dist/index.html"), "utf8"), html);
+});
+
+test("pinned v1.0.9 installed Glass is accepted without any write", (t) => {
+  const { parent, root } = fixture(t);
+  const bundled = join(repo, prefix);
+  for (const name of ["komari-theme.json", "dist/index.html"]) {
+    copyFileSync(join(repo, v109FixturePrefix, name), join(root, name));
+  }
+  copyFileSync(join(bundled, "dist/_next/static/chunks/3859ru-1c261694.js"), join(root, "dist/_next/static/chunks/3859ru-1c261694.js"));
+  const result = run(root);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /eligible.*true/);
+  assert.deepEqual(readdirSync(parent), ["Glass"]);
+  assert.deepEqual(readFileSync(join(root, "dist/index.html")), readFileSync(join(repo, v109FixturePrefix, "dist/index.html")));
 });
 
 test("upgrade dry run confirms pinned installed Glass without writing", (t) => {

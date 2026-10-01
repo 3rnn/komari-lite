@@ -25,6 +25,13 @@ test("node cards use the tested per-task model instead of averaging different ta
   assert.match(code, /v\.selectedName\?`Latency/);
 });
 
+test("node cards apply the server display ID before choosing multi-task or single-task panels", () => {
+  assert.match(code, /function resolveNodePingSelection\(/);
+  assert.match(code, /resolveNodePingSelection\(r,n,e\.display_ping_task_id\)/);
+  assert.match(code, /r=selection\.showAll;n=selection/);
+  assert.match(code, /Number\.isSafeInteger\(displayId\) && displayId > 0/);
+});
+
 test("per-task panels and cards use content-driven height and compact rows", () => {
   assert.match(code, /rows:t,loading:r,kind:n/);
   assert.ok(code.includes('className:"node-data-panel group/ping-panel gap-1.5 !overflow-visible p-2",style:{minHeight:0,justifyContent:"flex-start"}'));

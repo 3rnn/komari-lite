@@ -31,13 +31,74 @@ For every task:
 - Validate meaningful changes before continuing.
 - Fix regressions introduced by your work before considering the task complete.
 
-Do not modify, restart, redeploy, or remove live Komari services unless the user explicitly requests it.
+For normal Komari development requests, the default delivery workflow includes local build, clean local deployment, live service restart, post-deployment verification, Git commit, and Git push as defined in **Default Change Delivery Workflow** below.
 
-Do not modify production data unless the user explicitly requests it.
+Do not alter production data outside the established `/opt/komari` clean-redeployment workflow unless the user explicitly requests it.
 
 ---
 
-## 2. Core Engineering Principles
+## 2. Default Change Delivery Workflow
+
+Unless the user explicitly asks for a different scope, every requested Komari code or UI change should be treated as a complete delivery task.
+
+The default workflow is:
+
+1. Re-read `AGENTS.md` and `TASK_PROGRESS.md` when present.
+2. Inspect the current local Git state: current branch, `git status`, `git diff`, existing uncommitted changes, and relevant recent commits when useful.
+3. Treat the current local repository as the source of truth.
+4. Understand the requested change and the affected frontend/backend/Agent code.
+5. Implement the requested change.
+6. Review the diff and remove accidental or unrelated edits.
+7. Run all relevant available validation: targeted tests, frontend tests, backend tests, Agent tests, lint, type checks, build, and visual/responsive checks when UI is affected.
+8. Fix regressions introduced by the change and rerun failed checks.
+9. If validation succeeds, create a focused Git commit for the completed change.
+10. Build the exact committed source locally.
+11. Perform a clean local deployment to `/opt/komari`: stop the existing Komari service, remove `/opt/komari`, do not back up the previous `/opt/komari` contents/configuration/data/ownership/permissions, recreate `/opt/komari`, install the newly built artifacts, recreate only the configuration/ownership/permissions/systemd settings required by the current source, and restart the Komari service.
+12. Verify the deployed system: service status, startup/runtime logs, frontend availability, administrator UI when applicable, API availability, monitoring data, Agent communication, and actual running version/build.
+13. If deployment verification succeeds, push the current branch and the new commit to the configured GitHub remote.
+14. Report the final commit, validation results, deployment result, push result, and final execution status.
+
+Do not stop for confirmation between these normal stages.
+
+Pause only when one of the following genuinely requires user action or a decision:
+
+- credentials, administrator setup, MFA, or another interactive authentication step
+- a destructive database/schema operation outside the established clean `/opt/komari` replacement workflow
+- unresolved unrelated local changes that could be overwritten
+- an ambiguous product decision that cannot be safely inferred
+- an external rate limit or unavailable dependency
+- a failed validation or deployment problem that cannot be safely repaired automatically
+
+If a step fails, do not blindly continue to later stages.
+
+In particular:
+
+- Do not deploy code that has failed required validation.
+- Do not push a change that has not been successfully committed.
+- Do not claim deployment or push success unless verified.
+- Do not create a Git tag or GitHub Release for every change. Tags and Releases are created only when explicitly requested.
+- Do not use `git reset --hard`, force-push, or overwrite unrelated local changes.
+- Do not pull remote changes over the validated local source unless explicitly requested or clearly necessary and safe.
+
+The intended normal lifecycle is:
+
+```text
+User request
+  -> inspect
+  -> modify
+  -> validate
+  -> commit
+  -> build committed source
+  -> clean deploy to /opt/komari
+  -> restart
+  -> post-deployment verification
+  -> push to GitHub
+  -> final status
+```
+
+---
+
+## 3. Core Engineering Principles
 
 Always prefer:
 
@@ -60,7 +121,7 @@ When a larger redesign is explicitly requested, architectural changes are allowe
 
 ---
 
-## 3. English-Only First-Party Repository Content
+## 4. English-Only First-Party Repository Content
 
 First-party project content should use English only.
 
@@ -102,7 +163,7 @@ If Chinese text exists in compatibility-sensitive data or external content, pres
 
 ---
 
-## 4. Compatibility-Sensitive Areas
+## 5. Compatibility-Sensitive Areas
 
 komari-lite is a monitoring project. Treat the following areas as compatibility-sensitive:
 
@@ -139,7 +200,7 @@ Any intentional behavior change must be directly related to the requested task a
 
 ---
 
-## 5. API, Configuration, and Database Compatibility
+## 6. API, Configuration, and Database Compatibility
 
 Avoid unnecessary changes to:
 
@@ -179,7 +240,7 @@ Prefer additive and backward-compatible migrations. Preserve existing data and p
 
 ---
 
-## 6. Security
+## 7. Security
 
 Do not weaken existing security controls.
 
@@ -222,7 +283,7 @@ Be especially careful with:
 
 ---
 
-## 7. Komari UI / UX Design Direction
+## 8. Komari UI / UX Design Direction
 
 For Komari frontend and administrative interfaces, use the **Hermes Agent dashboard** as the primary visual inspiration unless the user gives a different design direction for the current task.
 
@@ -305,7 +366,7 @@ Use the reference as design guidance rather than performing a literal pixel-for-
 
 ---
 
-## 8. Frontend Refactoring Rules
+## 9. Frontend Refactoring Rules
 
 Before modifying the frontend:
 
@@ -337,7 +398,7 @@ A successful build alone is not sufficient validation for substantial UI work.
 
 ---
 
-## 9. Backend and Dashboard Integration
+## 10. Backend and Dashboard Integration
 
 Backend changes should be made only when required by the requested feature, redesigned UI, compatibility fix, security fix, or measurable backend improvement within scope.
 
@@ -364,11 +425,11 @@ After backend changes, verify the relevant subset of:
 - Agent communication remains functional.
 - No obvious new runtime errors appear.
 
-Do not restart a live production service unless explicitly requested.
+Live restart and clean local redeployment are part of the default Komari delivery workflow after successful validation, unless the user explicitly asks not to deploy.
 
 ---
 
-## 10. CSS, Components, and Code Cleanup
+## 11. CSS, Components, and Code Cleanup
 
 Cleanup is allowed when it directly supports the current task or is necessary to safely modify the affected code.
 
@@ -407,7 +468,7 @@ Do not delete code simply because it appears unused at first glance.
 
 ---
 
-## 11. Code Structure and Performance
+## 12. Code Structure and Performance
 
 Improve structure when it materially benefits the requested task.
 
@@ -462,7 +523,7 @@ Do not sacrifice correctness, stability, readability, or maintainability for min
 
 ---
 
-## 12. Dependencies, Build, and Tooling
+## 13. Dependencies, Build, and Tooling
 
 Preserve the existing build system unless there is a strong task-specific reason to change it.
 
@@ -504,7 +565,7 @@ If automated tests are missing or incomplete, perform the best practical validat
 
 ---
 
-## 13. Git Discipline
+## 14. Git Discipline
 
 Before editing, inspect:
 
@@ -531,9 +592,17 @@ After each logical batch:
 
 When the user explicitly asks to use the **local repository as the source of truth**, preserve the local code and do not replace it with remote content merely because the remote branch or tag differs.
 
+For normal Komari development tasks:
+
+- Commit the completed validated change before deployment.
+- Use a concise, task-focused commit message.
+- Build and deploy from that committed source.
+- Push the resulting commit to the configured GitHub remote only after successful post-deployment verification.
+- Do not create a new tag or GitHub Release unless explicitly requested.
+
 ---
 
-## 14. Release, Tag, and Version Discipline
+## 15. Release, Tag, and Version Discipline
 
 When the user asks to publish the current local Komari code as a new release/tag:
 
@@ -569,11 +638,11 @@ If upstream packaging intentionally differs, explain and verify the exception ra
 
 ---
 
-## 15. Local Build and Clean Redeployment
+## 16. Local Build and Clean Redeployment
 
-Only perform deployment actions when explicitly requested.
+For normal Komari development requests, clean local rebuild and redeployment are part of the default delivery workflow unless the user explicitly asks not to deploy.
 
-When the user explicitly requests a **clean local rebuild and redeployment** of Komari:
+When performing a **clean local rebuild and redeployment** of Komari:
 
 1. Use the requested local Git commit/tag as the source of truth.
 2. Inspect the current repository and build instructions.
@@ -589,11 +658,11 @@ When the user explicitly requests a **clean local rebuild and redeployment** of 
 
 Never assume old permissions, service arguments, or file layout remain correct after a version change. Inspect the current project and deployment requirements first.
 
-This clean-redeployment rule does not authorize deployment by itself; explicit user instruction is still required.
+This clean-redeployment rule is authorized by the default delivery workflow for normal Komari development tasks unless the user explicitly disables deployment for the current task.
 
 ---
 
-## 16. Iterative Workflows
+## 17. Iterative Workflows
 
 For substantial implementation work, use logical phases appropriate to the task.
 
@@ -616,7 +685,7 @@ Do not automatically run repository-wide English cleanup, dead-code cleanup, dep
 
 ---
 
-## 17. Long-Running Task Progress
+## 18. Long-Running Task Progress
 
 For genuinely long, multi-phase tasks, a temporary progress file may be useful:
 
@@ -655,7 +724,7 @@ Do not commit it unless the user requests it or the repository already intention
 
 ---
 
-## 18. Final Review and Reporting
+## 19. Final Review and Reporting
 
 Before declaring a task complete:
 
@@ -672,6 +741,11 @@ For substantial tasks, summarize:
 - Why it changed
 - Important files affected
 - Validation performed
+- Git commit hash and commit message
+- Local build result
+- `/opt/komari` clean-deployment result
+- Service/runtime verification result
+- GitHub push result
 - Any remaining limitations or follow-up work
 - Release/tag/version information when relevant
 

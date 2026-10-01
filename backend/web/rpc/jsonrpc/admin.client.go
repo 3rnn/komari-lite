@@ -2,6 +2,7 @@ package jsonrpc
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/komari-monitor/komari/database/auditlog"
@@ -14,6 +15,7 @@ import (
 	logger "github.com/komari-monitor/komari/utils/log"
 	"github.com/komari-monitor/komari/utils/notifier"
 	agent_runtime "github.com/komari-monitor/komari/web/agent"
+	"gorm.io/gorm"
 )
 
 // admin.client.go
@@ -36,6 +38,11 @@ func init() {
 			{Name: "uuid", Type: "string", Required: true, Description: "Client UUID"},
 		},
 		Returns: "null",
+	})
+	RegisterWithGroupAndMeta("setClientDisplayPingTask", rpc.RoleAdmin, adminSetClientDisplayPingTask, &rpc.MethodMeta{
+		Name:    "admin:setClientDisplayPingTask",
+		Summary: "Choose an assigned ping task for a server's public node card",
+		Returns: "{ display_ping_task_id: uint }",
 	})
 	RegisterWithGroupAndMeta("removeClient", rpc.RoleAdmin, adminRemoveClient, &rpc.MethodMeta{
 		Name:    "admin:removeClient",
@@ -127,6 +134,11 @@ func adminEditClient(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.Js
 	if uuid == "" {
 		return nil, rpc.MakeError(rpc.InvalidParams, "Invalid or missing UUID", nil)
 	}
+	for _, key := range []string{"display_ping_task_id", "DisplayPingTaskID", "displayPingTaskId"} {
+		if _, present := update[key]; present {
+			return nil, rpc.MakeError(rpc.InvalidParams, "Use the public display task selector", nil)
+		}
+	}
 	if err := clients.SaveClient(update); err != nil {
 		return nil, rpc.MakeError(rpc.InternalError, err.Error(), nil)
 	}
@@ -141,6 +153,28 @@ func adminEditClient(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.Js
 	actor, ip := auditActor(ctx)
 	auditlog.Log(ip, actor, "edit client:"+uuid, "info")
 	return nil, nil
+}
+
+func adminSetClientDisplayPingTask(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
+	var params struct {
+		UUID   string `json:"uuid"`
+		TaskID *uint  `json:"task_id"`
+	}
+	if err := req.BindParams(&params); err != nil || params.UUID == "" || params.TaskID == nil {
+		return nil, rpc.MakeError(rpc.InvalidParams, "Client UUID and task_id are required", nil)
+	}
+	if err := clients.SetClientDisplayPingTask(params.UUID, *params.TaskID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, rpc.MakeError(rpc.InvalidParams, "Server or ping task not found", nil)
+		}
+		if errors.Is(err, clients.ErrDisplayPingTaskNotAssigned) {
+			return nil, rpc.MakeError(rpc.InvalidParams, err.Error(), nil)
+		}
+		return nil, rpc.MakeError(rpc.InternalError, "Failed to save public display task", nil)
+	}
+	actor, ip := auditActor(ctx)
+	auditlog.Log(ip, actor, "set public ping task:"+params.UUID, "info")
+	return map[string]any{"display_ping_task_id": *params.TaskID}, nil
 }
 
 func adminRemoveClient(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {

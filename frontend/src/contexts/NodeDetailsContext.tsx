@@ -20,6 +20,7 @@ export type NodeDetail = {
   swap_total: number;
   disk_total: number;
   version: string;
+  display_ping_task_id: number;
   deployment_status?: "" | "saved" | "sent" | "applied" | "failed";
   weight: number;
   price: number;

@@ -161,6 +161,7 @@ func registerAdminRoutes(r *gin.Engine) {
 		clientGroup.GET("/list", jsonRpc.Bind("admin:listClients", jsonRpc.WithRaw()))
 		clientGroup.GET("/:uuid", jsonRpc.Bind("admin:getClient", jsonRpc.WithPath("uuid"), jsonRpc.WithRaw()))
 		clientGroup.POST("/:uuid/edit", jsonRpc.Bind("admin:editClient", jsonRpc.WithPath("uuid")))
+		clientGroup.POST("/:uuid/display-ping-task", jsonRpc.Bind("admin:setClientDisplayPingTask", jsonRpc.WithPath("uuid")))
 		clientGroup.POST("/:uuid/remove", jsonRpc.Bind("admin:removeClient", jsonRpc.WithPath("uuid")))
 		clientGroup.GET("/:uuid/token", jsonRpc.Bind("admin:getClientToken", jsonRpc.WithPath("uuid"), jsonRpc.WithFlat()))
 		clientGroup.GET("/:uuid/deployment-profile", jsonRpc.Bind("admin:getClientDeploymentProfile", jsonRpc.WithPath("uuid"), jsonRpc.WithRaw()))

@@ -84,8 +84,8 @@
         "type": "switch",
         "default": true,
         "help": {
-          "zh-CN": "Show each assigned task's latency and packet loss separately; when disabled, show one selected task. Results are never averaged across tasks.",
-          "en": "Show each assigned task's latency and packet loss separately; when disabled, show one selected task. Results are never averaged across tasks."
+          "zh-CN": "Show each assigned task's latency and packet loss separately; when disabled, show one selected task. A per-server Public Display selection overrides this mode. Results are never averaged across tasks.",
+          "en": "Show each assigned task's latency and packet loss separately; when disabled, show one selected task. A per-server Public Display selection overrides this mode. Results are never averaged across tasks."
         }
       },
       {
@@ -97,8 +97,8 @@
         "type": "pingtask",
         "default": 0,
         "help": {
-          "zh-CN": "In single-task mode, use this task only where it is assigned to the node; otherwise show that node's first assigned task, even if it has no samples.",
-          "en": "In single-task mode, use this task only where it is assigned to the node; otherwise show that node's first assigned task, even if it has no samples."
+          "zh-CN": "In single-task mode, use this task only where it is assigned to the node; otherwise show that node's first assigned task, even if it has no samples, unless a per-server Public Display selection overrides it.",
+          "en": "In single-task mode, use this task only where it is assigned to the node; otherwise show that node's first assigned task, even if it has no samples, unless a per-server Public Display selection overrides it."
         }
       },
       {

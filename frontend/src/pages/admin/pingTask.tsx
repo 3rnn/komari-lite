@@ -32,6 +32,7 @@ const InnerLayout = () => {
   } = useNodeDetails();
   const { t } = useTranslation();
   const [search, setSearch] = React.useState("");
+  const [activeTab, setActiveTab] = React.useState<"task" | "server">("task");
   const taskList = React.useMemo(() => pingTasks ?? [], [pingTasks]);
   const serverNamesByUuid = React.useMemo(
     () =>
@@ -103,15 +104,15 @@ const InnerLayout = () => {
           icon={<CheckCircle2 size={20} />}
         />
       </div>
-      <Tabs.Root defaultValue="task">
+      <Tabs.Root value={activeTab} onValueChange={(value) => setActiveTab(value as "task" | "server")}>
         <div className="flex w-full flex-wrap items-end gap-3">
           <div className="min-w-[16rem] flex-[1_1_16rem] overflow-x-auto pb-1">
             <Tabs.List className="w-max min-w-full">
               <Tabs.Trigger value="task" className="min-w-[8rem] flex-1">
-                {t("ping.task_view")}
+                {t("ping.monitor_config_tab")}
               </Tabs.Trigger>
               <Tabs.Trigger value="server" className="min-w-[8rem] flex-1">
-                {t("ping.server_view")}
+                {t("ping.public_display_tab")}
               </Tabs.Trigger>
             </Tabs.List>
           </div>
@@ -127,17 +128,19 @@ const InnerLayout = () => {
                 <Search size={16} />
               </TextField.Slot>
             </TextField.Root>
-            <AddButton />
+            {activeTab === "task" && <AddButton />}
           </div>
         </div>
         <Box pt="3">
           <Tabs.Content value="task">
+            <p className="mb-3 text-sm text-gray-500">{t("ping.monitor_config_hint")}</p>
             <TaskView
               pingTasks={filteredTasks}
               reorderEnabled={!search.trim()}
             />
           </Tabs.Content>
           <Tabs.Content value="server">
+            <p className="mb-3 text-sm text-gray-500">{t("ping.public_display_hint")}</p>
             <ServerView pingTasks={taskList} search={search} />
           </Tabs.Content>
         </Box>

@@ -105,7 +105,8 @@ func deletePingTaskRows(db *gorm.DB, ids []uint) error {
 		if result.RowsAffected == 0 {
 			return gorm.ErrRecordNotFound
 		}
-		return nil
+		return tx.Model(&models.Client{}).Where("display_ping_task_id IN ?", ids).
+			Update("display_ping_task_id", 0).Error
 	})
 }
 
@@ -164,6 +165,11 @@ func editPingTasks(db *gorm.DB, tasks []*models.PingTask) ([]metricstore.PingAss
 				pendingDefaults = append(pendingDefaults, pendingPingLossDefault{taskID: task.Id, clients: addedClients})
 			}
 			if len(removedClients) > 0 {
+				if err := tx.Model(&models.Client{}).
+					Where("uuid IN ? AND display_ping_task_id = ?", removedClients, task.Id).
+					Update("display_ping_task_id", 0).Error; err != nil {
+					return err
+				}
 				if err := tx.Where("task_id = ? AND client IN ?", task.Id, removedClients).Delete(&models.PingLossNotification{}).Error; err != nil {
 					return err
 				}

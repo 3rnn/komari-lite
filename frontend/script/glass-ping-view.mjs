@@ -1,4 +1,13 @@
-// Pure node-card ping selection; the Glass asset patch embeds this function.
+// Pure node-card ping selection; the Glass asset patch embeds these functions.
+export function resolveNodePingSelection(showAll, pingTaskSelection, displayId) {
+  const hasOverride = Number.isSafeInteger(displayId) && displayId > 0;
+  return {
+    ...pingTaskSelection,
+    showAll: hasOverride ? false : showAll,
+    preferredId: hasOverride ? displayId : pingTaskSelection?.preferredId,
+  };
+}
+
 export function selectPingTaskData(tasks, records, showAll, preferredId, makeHistory) {
   const byTask = new Map();
   for (const record of records ?? []) {

@@ -22,8 +22,12 @@ function replaceOnce(before, after) {
 }
 
 const model = readFileSync(new URL("glass-ping-view.mjs", import.meta.url), "utf8")
-  .replace("export function selectPingTaskData", "function selectPingTaskData");
+  .replace(/^export function /gm, "function ");
 replaceOnce("function rP({node:e", `${model}\nfunction rP({node:e`);
+replaceOnce(
+  "function rP({node:e,pingEnabled:t,showCarrierPing:r,pingTaskSelection:n,onClick:i}){var a;let o=",
+  "function rP({node:e,pingEnabled:t,showCarrierPing:r,pingTaskSelection:n,onClick:i}){var a;const selection=resolveNodePingSelection(r,n,e.display_ping_task_id);r=selection.showAll;n=selection;let o=",
+);
 const hookStart = "let t=function(e,t=!1){";
 const hookEnd = "},[i,o,n?.telecom,n?.mobile,n?.unicom,e])}";
 const start = patched.indexOf(hookStart, patched.indexOf("function rP({node:e"));

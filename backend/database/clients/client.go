@@ -191,7 +191,7 @@ func clientInfoAllowedColumns(db *gorm.DB) map[string]string {
 		}
 		allowed := make(map[string]string, len(stmt.Schema.Fields))
 		for _, field := range stmt.Schema.Fields {
-			if field.DBName == "" || field.PrimaryKey {
+			if field.DBName == "" || field.PrimaryKey || field.DBName == "display_ping_task_id" {
 				continue
 			}
 			allowed[field.DBName] = field.DBName

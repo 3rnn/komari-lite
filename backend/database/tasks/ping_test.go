@@ -110,11 +110,15 @@ func TestDeletePingTaskRowsCleansMatchingPingLossNotifications(t *testing.T) {
 		{Client: "client-a", TaskId: tasks[0].Id, Enable: true, WindowSeconds: 60, LossThreshold: 5, MinimumSamples: 1, CooldownSeconds: 300},
 		{Client: "client-a", TaskId: tasks[1].Id, Enable: true, WindowSeconds: 60, LossThreshold: 5, MinimumSamples: 1, CooldownSeconds: 300},
 	}).Error)
+	require.NoError(t, db.Model(&models.Client{}).Where("uuid = ?", "client-a").Update("display_ping_task_id", tasks[0].Id).Error)
 	require.NoError(t, db.Exec("CREATE TABLE ping_records (client TEXT NOT NULL, task_id INTEGER NOT NULL)").Error)
 	require.NoError(t, db.Exec("INSERT INTO ping_records (client, task_id) VALUES (?, ?), (?, ?)",
 		"client-a", tasks[0].Id, "client-a", tasks[1].Id).Error)
 
 	require.NoError(t, deletePingTaskRows(db, []uint{tasks[0].Id}))
+	var node models.Client
+	require.NoError(t, db.First(&node, "uuid = ?", "client-a").Error)
+	assert.Zero(t, node.DisplayPingTaskID, "deleting a displayed probe must restore automatic public display")
 
 	var remainingTasks []models.PingTask
 	require.NoError(t, db.Order("id ASC").Find(&remainingTasks).Error)
@@ -162,6 +166,7 @@ func TestEditPingTasksRemovesAlertsForUnassignedClients(t *testing.T) {
 		{Name: "Task 2", Clients: models.StringArray{"client-b"}, Type: "icmp", Target: "8.8.8.8", Interval: 60},
 	}
 	require.NoError(t, db.Create(&tasks).Error)
+	require.NoError(t, db.Model(&models.Client{}).Where("uuid = ?", "client-b").Update("display_ping_task_id", tasks[0].Id).Error)
 	require.NoError(t, db.Create([]models.PingLossNotification{
 		{Client: "client-a", TaskId: tasks[0].Id, Enable: true, WindowSeconds: 60, LossThreshold: 5, MinimumSamples: 1, CooldownSeconds: 300},
 		{Client: "client-b", TaskId: tasks[0].Id, Enable: true, WindowSeconds: 60, LossThreshold: 5, MinimumSamples: 1, CooldownSeconds: 300},
@@ -180,6 +185,9 @@ func TestEditPingTasksRemovesAlertsForUnassignedClients(t *testing.T) {
 	updated.Clients = models.StringArray{"client-a", "client-c"}
 	removed, err := editPingTasks(db, []*models.PingTask{&updated})
 	require.NoError(t, err)
+	var displayNode models.Client
+	require.NoError(t, db.First(&displayNode, "uuid = ?", "client-b").Error)
+	assert.Zero(t, displayNode.DisplayPingTaskID, "unassigning a displayed probe must restore automatic public display")
 	assert.Equal(t, []metricstore.PingAssignment{{Client: "client-b", TaskID: tasks[0].Id}}, removed)
 	require.Len(t, removed, 1)
 	assert.True(t, metricstore.PingAssignmentWritesBlocked(removed[0]))

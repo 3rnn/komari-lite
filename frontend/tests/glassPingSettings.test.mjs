@@ -32,6 +32,7 @@ test("admin exposes a toggle between a single selected task and separate assigne
   assert.equal(field.type, "switch");
   assert.match(field.help.en, /each assigned task/i);
   assert.match(field.help.en, /one selected task/i);
+  assert.match(field.help.en, /per-server Public Display selection overrides/i);
   assert.doesNotMatch(field.help.en, /aggregate/i);
 });
 
@@ -39,5 +40,6 @@ test("admin can select one ping task by ID or automatic per-node selection", () 
   const field = fields.find((entry) => entry.key === "preferredPingTaskId");
   assert.equal(field.type, "pingtask");
   assert.equal(field.default, 0);
+  assert.match(field.help.en, /unless a per-server Public Display selection overrides it/i);
   assert.match(readFileSync(new URL("../src/components/admin/ThemeConfigTabs.tsx", import.meta.url), "utf8"), /case "pingtask"/);
 });

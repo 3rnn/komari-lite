@@ -33,6 +33,7 @@ type Client struct {
 	DiskTotal              int64      `json:"disk_total" gorm:"type:bigint"`
 	Version                string     `json:"version,omitempty" gorm:"type:varchar(100)"`
 	Weight                 int        `json:"weight" gorm:"type:int"`
+	DisplayPingTaskID      uint       `json:"display_ping_task_id" gorm:"type:int;not null;default:0"` // Public node-card task; 0 follows theme defaults.
 	Price                  float64    `json:"price"`
 	BillingCycle           int        `json:"billing_cycle"`
 	AutoRenewal            bool       `json:"auto_renewal" gorm:"default:false"` // Whether to renew automatically
