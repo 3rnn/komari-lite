@@ -106,3 +106,17 @@ test("mobile admin drawer stays above sticky theme category tabs", () => {
   assert.match(panelSource, /zIndex:\s*isMobile\s*\?\s*50\s*:\s*1/);
 });
 
+test("theme category tab surface and scroll fades follow the admin panel in both appearances", () => {
+  const tabs = globalStyles.match(/\.km-theme-config-tabs\s*\{([^}]*)\}/)?.[1];
+  const leftFade = globalStyles.match(/(?:^|\n)\.km-theme-config-tabs-viewport::before\s*\{([^}]*)\}/)?.[1];
+  const rightFade = [...globalStyles.matchAll(/\.km-theme-config-tabs-viewport::after\s*\{([^}]*)\}/g)].at(-1)?.[1];
+  assert.ok(tabs);
+  assert.ok(leftFade);
+  assert.ok(rightFade);
+  assert.match(tabs, /background:\s*var\(--color-panel-solid\)/);
+  assert.match(leftFade, /background:\s*linear-gradient\(to right, var\(--color-panel-solid\) 30%, transparent\)/);
+  assert.match(rightFade, /background:\s*linear-gradient\(to left, var\(--color-panel-solid\) 30%, transparent\)/);
+  assert.match(globalStyles, /\[data-admin-shell\]\s*\{[^}]*--color-panel-solid:\s*var\(--km-panel\)/);
+  assert.doesNotMatch(tabs, /--accent-1/);
+});
+
