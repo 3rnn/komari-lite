@@ -164,7 +164,13 @@ function Assert-TrustedDirectory {
         foreach ($rule in $acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier])) {
             if ($rule.AccessControlType -ne 'Allow' -or
                 ($rule.PropagationFlags -band [System.Security.AccessControl.PropagationFlags]::InheritOnly)) { continue }
-            $writeRights = [int][System.Security.AccessControl.FileSystemRights]::Modify -bor
+            # Modify includes read/execute rights: test only explicit mutation bits.
+            $writeRights = [int][System.Security.AccessControl.FileSystemRights]::WriteData -bor
+                [int][System.Security.AccessControl.FileSystemRights]::AppendData -bor
+                [int][System.Security.AccessControl.FileSystemRights]::WriteExtendedAttributes -bor
+                [int][System.Security.AccessControl.FileSystemRights]::WriteAttributes -bor
+                [int][System.Security.AccessControl.FileSystemRights]::Delete -bor
+                [int][System.Security.AccessControl.FileSystemRights]::DeleteSubdirectoriesAndFiles -bor
                 [int][System.Security.AccessControl.FileSystemRights]::ChangePermissions -bor
                 [int][System.Security.AccessControl.FileSystemRights]::TakeOwnership
             $write = [int]$rule.FileSystemRights -band $writeRights
@@ -204,7 +210,13 @@ function Assert-TrustedDirectory {
             if ($rule.AccessControlType -ne 'Allow' -or
                 ($rule.PropagationFlags -band [System.Security.AccessControl.PropagationFlags]::InheritOnly)) { continue }
             $sid = $rule.IdentityReference.Value
-            $writeRights = [int][System.Security.AccessControl.FileSystemRights]::Modify -bor
+            # Modify includes read/execute rights: test only explicit mutation bits.
+            $writeRights = [int][System.Security.AccessControl.FileSystemRights]::WriteData -bor
+                [int][System.Security.AccessControl.FileSystemRights]::AppendData -bor
+                [int][System.Security.AccessControl.FileSystemRights]::WriteExtendedAttributes -bor
+                [int][System.Security.AccessControl.FileSystemRights]::WriteAttributes -bor
+                [int][System.Security.AccessControl.FileSystemRights]::Delete -bor
+                [int][System.Security.AccessControl.FileSystemRights]::DeleteSubdirectoriesAndFiles -bor
                 [int][System.Security.AccessControl.FileSystemRights]::ChangePermissions -bor
                 [int][System.Security.AccessControl.FileSystemRights]::TakeOwnership
             $write = [int]$rule.FileSystemRights -band $writeRights
@@ -533,7 +545,8 @@ try {
     Copy-Item -LiteralPath $nssmExeToUse -Destination $InstalledNssm -Force -ErrorAction Stop
     if ((Get-FileHash -Path $InstalledNssm -Algorithm SHA256 -ErrorAction Stop).Hash -ne $TrustedNssmHash) { throw 'Installed NSSM checksum mismatch' }
     if (-not $ExistingService) {
-        & $nssmExeToUse install $ServiceName $AgentPath
+        # NSSM registers its own executable as ImagePath; never install from staging.
+        & $InstalledNssm install $ServiceName $AgentPath
         if ($LASTEXITCODE -ne 0) { throw 'NSSM failed to install the service' }
     }
     & $nssmExeToUse set $ServiceName AppParameters $argString
@@ -557,6 +570,13 @@ try {
     $appState = (& $nssmExeToUse status $ServiceName 2>&1 | Out-String).Trim()
     if ($LASTEXITCODE -ne 0 -or -not $serviceState -or $serviceState.State -cne 'Running' -or
         $appState -cne 'SERVICE_RUNNING') { throw 'Agent service did not remain running after start' }
+    # Read the SCM ImagePath back before deleting staging, for fresh installs and upgrades.
+    # Compare the whole value, not a prefix: staged paths, suffixes and arguments must fail.
+    $registeredNssm = ([string]$serviceState.PathName).Trim()
+    if (-not [string]::Equals($registeredNssm, $InstalledNssm, [System.StringComparison]::OrdinalIgnoreCase) -and
+        -not [string]::Equals($registeredNssm, '"' + $InstalledNssm + '"', [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Registered service executable is not the permanent NSSM binary'
+    }
 } catch {
     $reason = $_.Exception.Message
     if ($MutationStarted) {

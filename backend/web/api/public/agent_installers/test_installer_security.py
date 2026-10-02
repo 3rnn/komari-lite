@@ -24,6 +24,18 @@ def function(source, name):
 
 
 class InstallerSecurity(unittest.TestCase):
+    def test_windows_acl_mask_contains_only_explicit_mutation_rights(self):
+        source = PS.read_text()
+        directory = source[source.index('function Assert-TrustedDirectory'):source.index('try { $InstallDir =')]
+        masks = re.findall(r'\$writeRights = (.*?)\n\s*\$write =', directory, re.S)
+        self.assertEqual(len(masks), 2, 'check both pre-create and post-create ACL passes')
+        expected = {'WriteData', 'AppendData', 'WriteExtendedAttributes', 'WriteAttributes',
+                    'Delete', 'DeleteSubdirectoriesAndFiles', 'ChangePermissions', 'TakeOwnership'}
+        for mask in masks:
+            rights = set(re.findall(r'FileSystemRights\]::(\w+)', mask))
+            self.assertEqual(rights, expected, 'read/execute composite rights must not count as mutation')
+            self.assertNotIn('Modify', mask)
+
     def test_windows_config_has_private_acl_before_serializing_secrets(self):
         src = PS.read_text()
         config = src[src.index('# Create private config'):src.index("$KomariArgs += @('--config'")]
@@ -395,10 +407,30 @@ curl() {
         self.assertIn('checksum mismatch', verification.lower())
         self.assertIn('requires --install-sha256', text)
 
+    def test_windows_registered_nssm_path_is_checked_before_cleanup(self):
+        source = PS.read_text()
+        transaction = source[source.index('# Register and start service'):]
+        self.assertIn('$registeredNssm = ([string]$serviceState.PathName).Trim()', transaction)
+        check = transaction[transaction.index('$registeredNssm ='):transaction.index('} catch {\n    $reason')]
+        self.assertIn('[string]::Equals($registeredNssm, $InstalledNssm,', check)
+        self.assertIn('''[string]::Equals($registeredNssm, '"' + $InstalledNssm + '"',''', check)
+        self.assertEqual(check.count('[System.StringComparison]::OrdinalIgnoreCase'), 2)
+        self.assertIn('-and', check)
+        self.assertIn("throw 'Registered service executable is not the permanent NSSM binary'", check)
+        self.assertLess(transaction.index('$serviceState = Get-CimInstance Win32_Service'),
+                        transaction.index('$registeredNssm ='))
+        self.assertLess(transaction.index('$registeredNssm ='), transaction.index('Restore-Previous } catch'))
+        for stage in ('$StagingDir', '$NssmStageDir'):
+            self.assertLess(transaction.index('$registeredNssm ='),
+                            transaction.index('Remove-Item -LiteralPath ' + stage + ' -Recurse'))
+
     def test_windows_nssm_receives_separate_arguments(self):
         text = PS.read_text()
         self.assertNotIn("$argString = $KomariArgs -join ' '", text)
-        self.assertIn('& $nssmExeToUse install $ServiceName $AgentPath', text)
+        self.assertIn('& $InstalledNssm install $ServiceName $AgentPath', text)
+        self.assertNotRegex(text, r'& \$nssmExeToUse install\b')
+        self.assertLess(text.index('Installed NSSM checksum mismatch'),
+                        text.index('& $InstalledNssm install $ServiceName $AgentPath'))
         self.assertIn('& $nssmExeToUse set $ServiceName AppParameters $argString', text)
         self.assertIn('Quote-WindowsArg', text)
 
