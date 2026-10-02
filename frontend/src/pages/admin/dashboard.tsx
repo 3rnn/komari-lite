@@ -48,8 +48,10 @@ import {
   packDashboardModules,
   type DashboardModuleId,
 } from "@/utils/dashboardSettings";
+import { subscribeAdminRevocation } from "@/utils/adminRevocation";
 import { formatBytes } from "@/utils/unitHelper";
 import {
+  isDashboardUnauthorized,
   readDashboardSession,
   writeDashboardSession,
   type DashboardViewState,
@@ -100,8 +102,23 @@ export default function AdminDashboard() {
   const [loading, setLoading] = React.useState(() => getDashboardSnapshot(summaryKey, accountKey) === null);
   const [error, setError] = React.useState<string | null>(null);
   const [chartsError, setChartsError] = React.useState<string | null>(null);
+  const [revoked, setRevoked] = React.useState(false);
+  const revokedRef = React.useRef(false);
+
+  const revokeDashboard = React.useCallback(() => {
+    if (revokedRef.current) return;
+    revokedRef.current = true;
+    setData(null);
+    setCharts(null);
+    setError("HTTP 401");
+    setChartsError("HTTP 401");
+    setRevoked(true);
+  }, []);
+
+  React.useEffect(() => subscribeAdminRevocation(revokeDashboard), [revokeDashboard]);
 
   const loadSummary = React.useCallback(async (silent = false) => {
+    if (revokedRef.current) return;
     if (summarySections.length === 0) {
       setData(null);
       if (!silent) setLoading(false);
@@ -110,16 +127,21 @@ export default function AdminDashboard() {
     if (!silent && !getDashboardSnapshot(summaryKey, accountKey)) setLoading(true);
     try {
       const next = await requestDashboard(summarySections, settings.ranking_limit, accountKey);
+      if (revokedRef.current) return;
       setData(next);
       setError(null);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
+      if (isDashboardUnauthorized(reason)) revokeDashboard();
+      if (!revokedRef.current || isDashboardUnauthorized(reason)) {
+        setError(reason instanceof Error ? reason.message : String(reason));
+      }
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [accountKey, settings.ranking_limit, summaryKey, summarySections]);
+  }, [accountKey, revokeDashboard, settings.ranking_limit, summaryKey, summarySections]);
 
   const loadCharts = React.useCallback(async () => {
+    if (revokedRef.current) return;
     if (chartSections.length === 0) {
       setCharts(null);
       setChartsError(null);
@@ -127,12 +149,16 @@ export default function AdminDashboard() {
     }
     try {
       const next = await requestDashboardCharts(chartSections, settings.ranking_limit, accountKey);
+      if (revokedRef.current) return;
       setCharts(next);
       setChartsError(null);
     } catch (reason) {
-      setChartsError(reason instanceof Error ? reason.message : String(reason));
+      if (isDashboardUnauthorized(reason)) revokeDashboard();
+      if (!revokedRef.current || isDashboardUnauthorized(reason)) {
+        setChartsError(reason instanceof Error ? reason.message : String(reason));
+      }
     }
-  }, [accountKey, chartSections, settings.ranking_limit]);
+  }, [accountKey, chartSections, revokeDashboard, settings.ranking_limit]);
 
   const refreshAll = React.useCallback(() => {
     void loadSummary(false);
@@ -140,6 +166,7 @@ export default function AdminDashboard() {
   }, [loadCharts, loadSummary]);
 
   React.useEffect(() => {
+    if (revokedRef.current) return;
     const cachedSummary = getDashboardSnapshot(summaryKey, accountKey);
     const cachedCharts = getDashboardChartsSnapshot(chartKey, accountKey);
     setData(cachedSummary);
@@ -433,6 +460,13 @@ export default function AdminDashboard() {
       onClickCapture={rememberClickedModule}
       className="flex flex-col gap-3 p-0 md:p-4"
     >
+      {revoked ? (
+        <Callout.Root color="red" role="alert">
+          <Callout.Icon><AlertCircle size={16} /></Callout.Icon>
+          <Callout.Text>{t("admin_dashboard.load_failed")}: {error || chartsError || "HTTP 401"}</Callout.Text>
+        </Callout.Root>
+      ) : (
+        <>
       <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
         <AdminPageTitle description={t("admin_dashboard.subtitle")}>
           {t("admin_dashboard.title")}
@@ -482,6 +516,8 @@ export default function AdminDashboard() {
             </div>
           ))}
         </div>
+      )}
+        </>
       )}
     </div>
   );

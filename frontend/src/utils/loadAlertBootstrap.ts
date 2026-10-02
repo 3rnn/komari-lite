@@ -1,3 +1,6 @@
+import { registerAdminCacheClearer } from "./adminRevocation.ts";
+import { adminNodeRequest } from "./adminNodeRequest.ts";
+
 export interface LoadAlertConfiguration {
   id?: number;
   name?: string;
@@ -20,7 +23,7 @@ export interface LoadAlertBootstrapSnapshot {
 const LOAD_ALERT_BOOTSTRAP_TTL_MS = 30_000;
 
 export async function fetchLoadAlertConfigurations(): Promise<LoadAlertConfiguration[]> {
-  const response = await fetch("/api/admin/notification/load", {
+  const response = await adminNodeRequest("/api/admin/notification/load", {
     cache: "no-store",
   });
   if (!response.ok) {
@@ -36,13 +39,21 @@ export const createLoadAlertBootstrapResource = (
 ) => {
   const snapshots = new Map<string, LoadAlertBootstrapSnapshot>();
   const pendingRequests = new Map<string, Promise<void>>();
+  let generation = 0;
+  registerAdminCacheClearer(() => {
+    generation++;
+    snapshots.clear();
+    pendingRequests.clear();
+  });
 
   const start = (accountKey: string): Promise<void> => {
     const pending = pendingRequests.get(accountKey);
     if (pending) return pending;
 
+    const started = generation;
     const request = loader()
       .then((data) => {
+        if (started !== generation) return;
         snapshots.set(accountKey, {
           data,
           error: null,
@@ -50,6 +61,7 @@ export const createLoadAlertBootstrapResource = (
         });
       })
       .catch((reason: unknown) => {
+        if (started !== generation) return;
         snapshots.set(accountKey, {
           data: null,
           error:
@@ -60,7 +72,7 @@ export const createLoadAlertBootstrapResource = (
         });
       })
       .finally(() => {
-        pendingRequests.delete(accountKey);
+        if (pendingRequests.get(accountKey) === request) pendingRequests.delete(accountKey);
       });
     pendingRequests.set(accountKey, request);
     return request;

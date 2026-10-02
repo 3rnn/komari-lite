@@ -28,23 +28,30 @@ test("deployment settings are restored and saved per node", () => {
   assert.match(source, /body: JSON\.stringify\(\{ profile: deploymentProfile\(\) \}\)/);
 });
 
-test("both one-click Agent commands use the pinned GitHub Release installers and binaries", () => {
+test("one-click Agent command uses the pinned GitHub Release installers and binaries", () => {
   assert.match(source, /--install-source/);
-  assert.match(source, /const agentReleaseVersion = "1\.0\.14";/);
+  assert.match(source, /const agentReleaseVersion = "1\.0\.15";/);
   assert.match(source, /const agentReleaseSource = `https:\/\/github\.com\/3rnn\/komari-lite\/releases\/download\/v\$\{agentReleaseVersion\}`;/);
-  assert.equal((source.match(/"--install-source", agentReleaseSource/g) ?? []).length, 2);
-  assert.equal((source.match(/selectedPlatform === "windows"\s*\? `\$\{agentReleaseSource\}\/install\.ps1`\s*:\s*`\$\{agentReleaseSource\}\/install\.sh`/g) ?? []).length, 2);
+  assert.equal((source.match(/"--install-source", agentReleaseSource/g) ?? []).length, 1);
+  assert.equal((source.match(/selectedPlatform === "windows"\s*\? `\$\{agentReleaseSource\}\/install\.ps1`\s*:\s*`\$\{agentReleaseSource\}\/install\.sh`/g) ?? []).length, 1);
   assert.doesNotMatch(source, /panelAgentDistribution\(host\)|\/releases\/latest|\/agent\/download/);
 });
 
-test("GitHub installers verify their Agent binary before replacing an existing service", () => {
+test("unsupported macOS one-click command is not offered and command history is warned about", () => {
+  assert.doesNotMatch(source, /value="macos"|case "macos"|bash <\(curl|zsh <\(curl/);
+  assert.match(source, /shell history/i);
+  assert.match(source, /token/i);
+});
+
+test("GitHub installers verify their Agent binary before changing an existing service", () => {
   for (const installer of installers) {
     assert.match(installer, /SHA256SUMS\.txt/);
     assert.match(installer, /checksum mismatch/i);
-    const removal = installer.includes("Uninstall-Previous")
-      ? installer.indexOf("\nUninstall-Previous\n")
-      : installer.indexOf("\nuninstall_previous\n");
-    assert.ok(removal > installer.indexOf("SHA256SUMS.txt"));
+    const verification = installer.search(/checksum mismatch/i);
+    const mutation = installer.includes("function Restore-Previous")
+      ? installer.indexOf('Log-Step "Configuring Windows service', verification)
+      : installer.indexOf('systemctl stop "${service_name}.service" || { rollback_install;', verification);
+    assert.ok(mutation > verification, "service mutation must follow checksum verification");
   }
 });
 
@@ -104,7 +111,7 @@ test("deployment actions keep stable button content while a request is pending",
 test("Agent command copy uses the Edge-compatible clipboard fallback", () => {
   assert.match(source, /import \{ writeClipboardText \} from "@\/utils\/clipboard"/);
   const copyStart = source.indexOf("writeClipboardText(generateCommand())");
-  const saveStart = source.indexOf("const response = await fetch(", copyStart);
+  const saveStart = source.indexOf("const response = await adminNodeRequest(", copyStart);
   assert.ok(copyStart >= 0 && saveStart > copyStart);
   assert.match(source, /\(value\) => \(\{ ok: true as const, value \}\)/);
   assert.match(source, /copyResult\.value\.confirmed/);
@@ -121,4 +128,20 @@ test("mobile deployment copy shows an inline confirmed or failed result", () => 
   assert.match(source, /role="status"/);
   assert.match(source, /aria-live="polite"/);
   assert.match(source, /commandTextAreaRef\.current\?\.select\(\)/);
+});
+
+
+test("servers page routes every admin GET through the session-aware request", () => {
+  assert.doesNotMatch(source, /\bfetch\s*\(/);
+  assert.equal((source.match(/adminNodeRequest\(`\/api\/admin\/client\/\$\{node\.uuid\}\/deployment-profile`/g) ?? []).length, 2);
+  assert.match(source, /adminNodeRequest\(`\/api\/admin\/client\/\$\{node\.uuid\}\/traffic-calibration`/);
+});
+
+test("unsupported auto-discovery installation is not offered or generated", () => {
+  assert.doesNotMatch(source, /AutoDiscoverySection|--auto-discovery|auto_discovery_key/);
+});
+
+test("Windows generated install command uses encoded PowerShell rather than cmd-quoted program text", () => {
+  assert.match(source, /windowsInstallCommand\(scriptUrl, args\)/);
+  assert.doesNotMatch(source, /-Command `|pwsh\.exe -NoProfile -ExecutionPolicy Bypass -Command /);
 });

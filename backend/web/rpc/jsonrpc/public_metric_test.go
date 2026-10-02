@@ -1,7 +1,9 @@
 package jsonrpc
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"math"
 	"strings"
 	"testing"
@@ -12,6 +14,125 @@ import (
 	"github.com/komari-monitor/komari/pkg/metric"
 	"github.com/komari-monitor/komari/pkg/rpc"
 )
+
+func TestPublicQueryMetricsRejectsOversizedRequestsBeforeStorage(t *testing.T) {
+	end := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+	start := end.Add(-time.Hour)
+	keys := make([]string, 17)
+	for i := range keys {
+		keys[i] = fmt.Sprintf("metric.%d", i)
+	}
+	entities := make([]string, 129)
+	for i := range entities {
+		entities[i] = fmt.Sprintf("node-%d", i)
+	}
+	for _, tc := range []struct {
+		name   string
+		params map[string]any
+	}{
+		{"future range", map[string]any{"metric_key": "cpu.usage", "start": end.AddDate(10, 0, 0), "end": end.AddDate(10, 0, 0).Add(time.Hour)}},
+		{"ancient range", map[string]any{"metric_key": "cpu.usage", "start": time.Date(1000, 1, 1, 0, 0, 0, 0, time.UTC), "end": time.Date(1000, 1, 1, 1, 0, 0, 0, time.UTC)}},
+		{"range", map[string]any{"metric_key": "cpu.usage", "start": end.Add(-91 * 24 * time.Hour), "end": end}},
+		{"metric count", map[string]any{"metric_keys": keys, "start": start, "end": end}},
+		{"entity count", map[string]any{"metric_key": "cpu.usage", "entity_ids": entities, "start": start, "end": end}},
+		{"series product", map[string]any{"metric_keys": keys[:16], "entity_ids": entities[:9], "start": start, "end": end}},
+		{"points", map[string]any{"metric_key": "cpu.usage", "max_points": 1001, "start": start, "end": end}},
+		{"per-metric points", map[string]any{"metric_key": "cpu.usage", "max_points_by_metric": map[string]int{"cpu.usage": 1001}, "start": start, "end": end}},
+		{"raw series count", map[string]any{"metric_key": "cpu.usage", "entity_ids": entities[:9], "server_downsample": false, "start": start, "end": end}},
+		{"raw range", map[string]any{"metric_key": "cpu.usage", "server_downsample": false, "start": end.Add(-5 * time.Hour), "end": end}},
+		{"raw per-metric override", map[string]any{"metric_key": "cpu.usage", "server_downsample_by_metric": map[string]bool{"cpu.usage": false}, "start": end.Add(-5 * time.Hour), "end": end}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := publicQueryMetrics(context.Background(), &rpc.JsonRpcRequest{Params: tc.params})
+			if err == nil || err.Code != rpc.InvalidParams {
+				t.Fatalf("oversized request must be rejected as invalid params before storage, got %v", err)
+			}
+		})
+	}
+}
+
+func TestPublicPingMetricStatsRejectsOversizedRequestsBeforeStorage(t *testing.T) {
+	end := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+	entities := make([]string, maxPublicMetricEntities+1)
+	for i := range entities {
+		entities[i] = fmt.Sprintf("node-%d", i)
+	}
+	for _, tc := range []struct {
+		name   string
+		params map[string]any
+	}{
+		{"range", map[string]any{"start": end.Add(-maxPublicMetricRange - time.Second), "end": end}},
+		{"future", map[string]any{"start": end.AddDate(10, 0, 0), "end": end.AddDate(10, 0, 0).Add(time.Hour)}},
+		{"ancient", map[string]any{"start": time.Date(1000, 1, 1, 0, 0, 0, 0, time.UTC), "end": time.Date(1000, 1, 1, 1, 0, 0, 0, time.UTC)}},
+		{"hours", map[string]any{"hours": maxPublicMetricRange.Hours() + 1}},
+		{"entities", map[string]any{"entity_ids": entities, "start": end.Add(-time.Hour), "end": end}},
+		{"max points", map[string]any{"max_points": maxPublicMetricQueryPoints + 1, "start": end.Add(-time.Hour), "end": end}},
+		{"downsample points", map[string]any{"downsample_points": maxPublicMetricQueryPoints + 1, "start": end.Add(-time.Hour), "end": end}},
+		{"negative points", map[string]any{"max_points": -1, "start": end.Add(-time.Hour), "end": end}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := publicGetPingMetricStats(context.Background(), &rpc.JsonRpcRequest{Params: tc.params})
+			if err == nil || err.Code != rpc.InvalidParams {
+				t.Fatalf("oversized ping stats request must be rejected before storage, got %v", err)
+			}
+		})
+	}
+}
+
+func TestPublicPingMetricStatsAcceptsNormalQueryLimits(t *testing.T) {
+	end := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+	for _, points := range []int{0, defaultMetricQueryPoints, maxPublicMetricQueryPoints} {
+		params := publicMetricQueryParams{MaxPoints: points}
+		if err := validatePublicMetricQuery(params, []string{metricstore.MetricPingLatency}, []string{"visible-node"}, end.Add(-4*time.Hour), end); err != nil {
+			t.Fatalf("normal ping query with max_points=%d rejected: %v", points, err)
+		}
+	}
+}
+
+func TestPublicRawMetricQueryRejectsExcessPoints(t *testing.T) {
+	ctx := context.Background()
+	store, err := metric.Open(ctx, metric.Config{Driver: metric.DriverSQLite, DSN: t.TempDir() + "/metrics.db", AutoMigrate: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if err := store.CreateMetric(ctx, metric.Definition{Name: "test.cpu", Type: metric.TypeGauge, RetentionDays: 7}); err != nil {
+		t.Fatal(err)
+	}
+	start := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+	points := make([]metric.Point, maxPublicRawMetricPoints+1)
+	for i := range points {
+		points[i] = metric.Point{MetricName: "test.cpu", EntityID: "node-a", Timestamp: start.Add(time.Duration(i) * time.Second), Value: float64(i)}
+	}
+	if err := store.WriteBatch(ctx, points); err != nil {
+		t.Fatal(err)
+	}
+	query := metric.Query{MetricName: "test.cpu", EntityID: "node-a", Start: start, End: start.Add(time.Duration(maxPublicRawMetricPoints-1) * time.Second), Order: metric.OrderAsc}
+	got, err := queryPublicRawMetricSeries(ctx, store, []metric.Query{query})
+	if err != nil || len(got) != 1 || len(got[0]) != maxPublicRawMetricPoints {
+		t.Fatalf("raw query at point budget: count=%d, err=%v", len(got), err)
+	}
+	query.End = start.Add(time.Hour)
+	if _, err := queryPublicRawMetricSeries(ctx, store, []metric.Query{query}); err == nil {
+		t.Fatal("raw query must reject more than its point budget")
+	}
+}
+
+func TestPublicRawMetricQueryRespectsConcurrencyGate(t *testing.T) {
+	for i := 0; i < cap(publicRawMetricReadGate); i++ {
+		publicRawMetricReadGate <- struct{}{}
+	}
+	defer func() {
+		for i := 0; i < cap(publicRawMetricReadGate); i++ {
+			<-publicRawMetricReadGate
+		}
+	}()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := queryPublicRawMetricSeries(ctx, nil, []metric.Query{{MetricName: "test.cpu"}}); err != context.Canceled {
+		t.Fatalf("queued raw query must honor cancellation, got %v", err)
+	}
+}
 
 func TestMetricQueryParamsRequireRFC3339Time(t *testing.T) {
 	tests := []struct {

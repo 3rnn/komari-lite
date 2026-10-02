@@ -15,6 +15,8 @@ import AdminPageTitle from "@/components/admin/AdminPageTitle";
 import { renderProviderInputs } from "@/utils/renderProviders";
 import { SquareArrowOutUpRight } from "lucide-react";
 import { Link } from "react-router-dom";
+import { adminNodeRequest } from "@/utils/adminNodeRequest";
+import { getAdminRevocationGeneration, subscribeAdminRevocation } from "@/utils/adminRevocation";
 
 const NotificationSettings = () => {
   const { t } = useTranslation();
@@ -26,13 +28,26 @@ const NotificationSettings = () => {
   const [messageLoading, setMessageLoading] = React.useState(false);
   const [messageError, setMessageError] = React.useState("");
 
+  React.useEffect(() => subscribeAdminRevocation(() => {
+    setMessageDefs({});
+    setMessageList([]);
+    setCurrentMessageSender("");
+    setMessageValues({});
+    setMessageError("");
+    setMessageLoading(false);
+  }), []);
+
   // Fetch all message senders and their field definitions.
   React.useEffect(() => {
     if (loading) return;
+    let cancelled = false;
+    const generation = getAdminRevocationGeneration();
+    const current = () => !cancelled && generation === getAdminRevocationGeneration();
     setMessageLoading(true);
-    fetch("/api/admin/settings/message-sender")
+    adminNodeRequest("/api/admin/settings/message-sender", {})
       .then((res) => res.json())
       .then((data) => {
+        if (!current()) return;
         if (data.status === "success" && data.data) {
           setMessageDefs(data.data);
           const senders = Object.keys(data.data);
@@ -46,17 +61,22 @@ const NotificationSettings = () => {
           setMessageError(data.message || t("settings.notification.provider_fetch_failed"));
         }
       })
-      .catch(() => setMessageError(t("settings.notification.provider_fetch_failed")))
-      .finally(() => setMessageLoading(false));
+      .catch(() => { if (current()) setMessageError(t("settings.notification.provider_fetch_failed")); })
+      .finally(() => { if (current()) setMessageLoading(false); });
+    return () => { cancelled = true; };
   }, [loading, settings.notification_method, t]);
 
   // Fetch settings for the selected sender.
   React.useEffect(() => {
     if (!currentMessageSender) return;
+    let cancelled = false;
+    const generation = getAdminRevocationGeneration();
+    const current = () => !cancelled && generation === getAdminRevocationGeneration();
     setMessageLoading(true);
-    fetch(`/api/admin/settings/message-sender?provider=${currentMessageSender}`)
+    adminNodeRequest(`/api/admin/settings/message-sender?provider=${encodeURIComponent(currentMessageSender)}`, {})
       .then((res) => res.json())
       .then((data) => {
+        if (!current()) return;
         if (data.status === "success" && data.data) {
           try {
             setMessageValues(JSON.parse(data.data.addition || "{}"));
@@ -67,12 +87,14 @@ const NotificationSettings = () => {
           setMessageError(data.message || t("settings.notification.provider_settings_fetch_failed"));
         }
       })
-      .catch(() => setMessageError(t("settings.notification.provider_settings_fetch_failed")))
-      .finally(() => setMessageLoading(false));
+      .catch(() => { if (current()) setMessageError(t("settings.notification.provider_settings_fetch_failed")); })
+      .finally(() => { if (current()) setMessageLoading(false); });
+    return () => { cancelled = true; };
   }, [currentMessageSender, t]);
 
   // Save the settings.
   const handleMessageSave = async (values: any) => {
+    const generation = getAdminRevocationGeneration();
     setMessageLoading(true);
     setMessageError("");
     const body = {
@@ -80,12 +102,13 @@ const NotificationSettings = () => {
       addition: JSON.stringify(values),
     };
     try {
-      const res = await fetch("/api/admin/settings/message-sender", {
+      const res = await adminNodeRequest("/api/admin/settings/message-sender", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
       const data = await res.json();
+      if (generation !== getAdminRevocationGeneration()) return;
       if (data.status !== "success") {
         throw new Error(data.message || t("common.error"));
       } else {
@@ -93,9 +116,9 @@ const NotificationSettings = () => {
       }
       toast.success(t("common.success"));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : String(error));
+      if (generation === getAdminRevocationGeneration()) toast.error(error instanceof Error ? error.message : String(error));
     }
-    setMessageLoading(false);
+    if (generation === getAdminRevocationGeneration()) setMessageLoading(false);
   };
   if (loading || (!messageLoading && messageList.length === 0 && !messageError)) {
     return <SettingsPageSkeleton />;
@@ -161,7 +184,7 @@ const NotificationSettings = () => {
         description={t("settings.notification.test_description")}
         onClick={async () => {
           try {
-            const res = await fetch("/api/admin/test/sendMessage", {
+            const res = await adminNodeRequest("/api/admin/test/sendMessage", {
               method: "POST",
             });
             let data;

@@ -1,19 +1,29 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { register } from "node:module";
+import type { DashboardData } from "../src/utils/dashboard.ts";
 
-import {
+const sourceRoot = new URL("../src/", import.meta.url).href;
+register("data:text/javascript," + encodeURIComponent(`
+  export async function resolve(specifier, context, nextResolve) {
+    return nextResolve(specifier.startsWith("@/")
+      ? ${JSON.stringify(sourceRoot)} + specifier.slice(2) + ".ts"
+      : specifier, context);
+  }
+`));
+
+const {
   dashboardLocalStorageTotal,
   dashboardOnlinePercent,
   dashboardRuntimeStorageTotal,
   dashboardTrafficAxisWidth,
   shortDashboardDay,
-  type DashboardData,
-} from "../src/utils/dashboard.ts";
-import {
+} = await import("../src/utils/dashboard.ts");
+const {
   dashboardAlertCategoryPath,
   dashboardAlertDetailPath,
   formatBillingAlertStatus,
-} from "../src/utils/adminAlertFilters.ts";
+} = await import("../src/utils/adminAlertFilters.ts");
 
 const sample = {
   servers: { total: 4, online: 3, offline: 1, offline_nodes: [] },

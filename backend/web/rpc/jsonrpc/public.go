@@ -227,10 +227,24 @@ func publicGetRecordsByUUID(ctx context.Context, req *rpc.JsonRpcRequest) (any, 
 	return response, nil
 }
 
-func publicGetPublicPingTasks(_ context.Context, _ *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
+func publicGetPublicPingTasks(ctx context.Context, _ *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
 	pingTasks, err := tasks.GetAllPingTasks()
 	if err != nil {
 		return nil, rpc.MakeError(rpc.InternalError, err.Error(), nil)
+	}
+	isLogin := isLoginFromCtx(ctx)
+	if !isLogin {
+		clientList, err := clients.GetAllClientBasicInfo()
+		if err != nil {
+			return nil, rpc.MakeError(rpc.InternalError, "Failed to retrieve client information: "+err.Error(), nil)
+		}
+		hidden := make(map[string]bool)
+		for _, client := range clientList {
+			if client.Hidden {
+				hidden[client.UUID] = true
+			}
+		}
+		pingTasks = filterPublicPingTaskClients(pingTasks, hidden, false)
 	}
 	type publicPingTask struct {
 		Id        uint     `json:"id"`
@@ -254,6 +268,24 @@ func publicGetPublicPingTasks(_ context.Context, _ *rpc.JsonRpcRequest) (any, *r
 		}
 	}
 	return out, nil
+}
+
+func filterPublicPingTaskClients(taskList []models.PingTask, hidden map[string]bool, isLogin bool) []models.PingTask {
+	out := make([]models.PingTask, len(taskList))
+	copy(out, taskList)
+	if isLogin {
+		return out
+	}
+	for i := range out {
+		visible := make(models.StringArray, 0, len(out[i].Clients))
+		for _, uuid := range out[i].Clients {
+			if !hidden[uuid] {
+				visible = append(visible, uuid)
+			}
+		}
+		out[i].Clients = visible
+	}
+	return out
 }
 
 // filterPublicRecordsByLoadType preserves the original public endpoint’s field projection.

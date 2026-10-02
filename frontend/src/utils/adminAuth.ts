@@ -1,4 +1,5 @@
 import { allowedColors, type Colors } from "../contexts/ThemeContext.ts";
+import { adminRequestInvalidated, getAdminRevocationGeneration, revokeAdminSession } from "./adminRevocation.ts";
 
 export type Account = {
   logged_in: boolean;
@@ -79,12 +80,23 @@ export function isAdminNodeBootstrapLoading(
 
 export async function fetchAccount(
   fetcher: Fetcher = fetch,
+  isLatest: () => boolean = () => true,
 ): Promise<Account> {
+  const generation = getAdminRevocationGeneration();
   const response = await fetcher("/api/me", { cache: "no-store" });
+  adminRequestInvalidated(generation);
+  if (!isLatest()) throw new DOMException("Account request superseded", "AbortError");
+  if (response.status === 401) {
+    revokeAdminSession();
+    return { logged_in: false, uuid: "", username: "", sso_id: "", sso_type: "", "2fa_enabled": false };
+  }
   if (!response.ok) {
     throw new Error(`Failed to fetch account data (${response.status})`);
   }
-  return response.json() as Promise<Account>;
+  const account = await response.json() as Account;
+  adminRequestInvalidated(generation);
+  if (!isLatest()) throw new DOMException("Account request superseded", "AbortError");
+  return account;
 }
 
 export async function saveAccountPreferences(

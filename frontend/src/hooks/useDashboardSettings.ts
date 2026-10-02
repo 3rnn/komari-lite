@@ -6,9 +6,14 @@ import {
   type DashboardSettings,
 } from "@/utils/dashboardSettings";
 import { readDashboardSession, writeDashboardSession } from "@/utils/dashboardSession";
+import { adminRequestInvalidated, getAdminRevocationGeneration, registerAdminCacheClearer, revokeAdminSession } from "@/utils/adminRevocation";
 
 const dashboardSettingsSnapshots = new Map<string, DashboardSettings>();
 const pendingDashboardSettingsRequests = new Map<string, Promise<DashboardSettings>>();
+registerAdminCacheClearer(() => {
+  dashboardSettingsSnapshots.clear();
+  pendingDashboardSettingsRequests.clear();
+});
 
 function normalizedAccountKey(accountKey?: string): string {
   return accountKey?.trim() || "authenticated";
@@ -49,10 +54,13 @@ export async function fetchDashboardSettings(options?: {
   const pending = pendingDashboardSettingsRequests.get(accountKey);
   if (pending) return pending;
 
+  const generation = getAdminRevocationGeneration();
   const request = fetch("/api/admin/settings/dashboard", {
     cache: "no-store",
     signal: options?.signal,
   }).then(async (response) => {
+    adminRequestInvalidated(generation);
+    if (response.status === 401) revokeAdminSession();
     let payload: unknown = null;
     try {
       payload = await response.json();
@@ -60,6 +68,7 @@ export async function fetchDashboardSettings(options?: {
       // The HTTP status below remains the fallback.
     }
     if (!response.ok) throw await responseError(response, payload);
+    adminRequestInvalidated(generation);
     const envelope = readEnvelope(payload);
     if (envelope.status !== "success") throw await responseError(response, payload);
     const settings = sanitizeDashboardSettings(envelope.data);
@@ -68,8 +77,9 @@ export async function fetchDashboardSettings(options?: {
     return settings;
   });
 
-  const tracked = request.finally(() => {
-    pendingDashboardSettingsRequests.delete(accountKey);
+  let tracked: Promise<DashboardSettings>;
+  tracked = request.finally(() => {
+    if (pendingDashboardSettingsRequests.get(accountKey) === tracked) pendingDashboardSettingsRequests.delete(accountKey);
   });
   pendingDashboardSettingsRequests.set(accountKey, tracked);
   return tracked;
@@ -81,12 +91,15 @@ export async function saveDashboardSettings(
 ): Promise<DashboardSettings> {
   const accountKey = normalizedAccountKey(options?.accountKey);
   const normalized = sanitizeDashboardSettings(settings);
+  const generation = getAdminRevocationGeneration();
   const response = await fetch("/api/admin/settings/dashboard", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(normalized),
     signal: options?.signal,
   });
+  adminRequestInvalidated(generation);
+  if (response.status === 401) revokeAdminSession();
   let payload: unknown = null;
   try {
     payload = await response.json();
@@ -94,6 +107,7 @@ export async function saveDashboardSettings(
     // The HTTP status below remains the fallback.
   }
   if (!response.ok) throw await responseError(response, payload);
+  adminRequestInvalidated(generation);
   const envelope = readEnvelope(payload);
   if (envelope.status !== "success") throw await responseError(response, payload);
   const confirmed = sanitizeDashboardSettings(envelope.data);
@@ -113,37 +127,49 @@ export function useDashboardSettings(accountKeyInput?: string) {
   );
   const [loading, setLoading] = React.useState(getDashboardSettingsSnapshot(accountKey) === null);
   const [error, setError] = React.useState<Error | null>(null);
+  const activeKey = React.useRef(accountKey);
+  activeKey.current = accountKey;
 
   const refetch = React.useCallback(async (force = false) => {
+    const generation = getAdminRevocationGeneration();
     setLoading(true);
     try {
       const next = await fetchDashboardSettings({ force, accountKey });
+      if (activeKey.current !== accountKey || generation !== getAdminRevocationGeneration()) return next;
       setSettings(next);
       setError(null);
       return next;
     } catch (reason) {
       const nextError = reason instanceof Error ? reason : new Error(String(reason));
-      setError(nextError);
+      if (activeKey.current === accountKey && generation === getAdminRevocationGeneration()) setError(nextError);
       throw nextError;
     } finally {
-      setLoading(false);
+      if (activeKey.current === accountKey && generation === getAdminRevocationGeneration()) setLoading(false);
     }
   }, [accountKey]);
 
   React.useEffect(() => {
+    let cancelled = false;
+    const generation = getAdminRevocationGeneration();
+    const current = () => !cancelled && activeKey.current === accountKey && generation === getAdminRevocationGeneration();
     const cached = getDashboardSettingsSnapshot(accountKey);
     setSettings(cached ?? DEFAULT_DASHBOARD_SETTINGS);
+    setError(null);
     setLoading(cached === null);
     if (!cached) {
       void refetch().catch(() => {});
-      return;
+    } else {
+      void fetchDashboardSettings({ force: true, accountKey })
+        .then((next) => {
+          if (!current()) return;
+          setSettings(next);
+          setError(null);
+        })
+        .catch((reason) => {
+          if (current()) setError(reason instanceof Error ? reason : new Error(String(reason)));
+        });
     }
-    void fetchDashboardSettings({ force: true, accountKey })
-      .then((next) => {
-        setSettings(next);
-        setError(null);
-      })
-      .catch((reason) => setError(reason instanceof Error ? reason : new Error(String(reason))));
+    return () => { cancelled = true; };
   }, [accountKey, refetch]);
 
   return { settings, loading, error, refetch };

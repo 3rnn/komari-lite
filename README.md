@@ -23,8 +23,8 @@ It intentionally excludes remote terminal/control/command execution, Cloudflare 
 
 ## Requirements
 
-- Go 1.25 or newer. Build the panel with CGO enabled for SQLite.
-- Node.js 20+ and npm for the administrator UI.
+- Go 1.27.1 or newer. Build the panel with CGO enabled for SQLite.
+- Node.js 24+ and npm for building and running the TypeScript test suite. Windows Agent installation requires PowerShell 7.3+.
 - Linux tools: `bash`, `python3`, `sha256sum`, and optionally Caddy for TLS termination.
 
 ## 1. Build the panel
@@ -60,10 +60,10 @@ The Agent has no remote-control, terminal, command-execution, MCP, or self-updat
 ```bash
 cd komari-lite
 chmod +x scripts/build-agent-release.sh
-./scripts/build-agent-release.sh 1.0.14
+./scripts/build-agent-release.sh 1.0.15
 ```
 
-Output is written to `release/agent-1.0.14/`:
+Output is written to `release/agent-1.0.15/`:
 
 - 14 `komari-agent-<os>-<arch>` artifacts;
 - `manifest.json` with the release version and SHA-256 for every artifact;
@@ -72,7 +72,7 @@ Output is written to `release/agent-1.0.14/`:
 The release directory is intentionally ignored by Git. Verify it before deployment:
 
 ```bash
-cd release/agent-1.0.14
+cd release/agent-1.0.15
 sha256sum -c SHA256SUMS.txt
 ```
 
@@ -141,7 +141,7 @@ Install/start Caddy according to its official documentation. The panel stays pri
 
 ### Agent downloads
 
-One-click deployment fetches both installer and platform-specific Agent binary from the **matching GitHub Release tag**, `v1.0.14`, at `https://github.com/3rnn/komari-lite/releases/download/v1.0.14/`. Publish and verify all 14 Agent binaries plus `install.sh` and `install.ps1` before deploying this panel version; never use a moving `latest` URL. Nodes must be able to reach GitHub. The optional panel-hosted `/agent/download` catalog is no longer used by generated installation commands. Publishing a Release does **not** update an existing panel installation.
+One-click deployment fetches both installer and platform-specific Agent binary from the **matching GitHub Release tag**, `v1.0.15`, at `https://github.com/3rnn/komari-lite/releases/download/v1.0.15/`. Publish and verify all 14 Agent binaries plus `install.sh` and `install.ps1` before deploying this panel version; never use a moving `latest` URL. Nodes must be able to reach GitHub. The optional panel-hosted `/agent/download` catalog is no longer used by generated installation commands. Publishing a Release does **not** update an existing panel installation.
 
 ## 4. Updating the panel binary
 

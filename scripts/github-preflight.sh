@@ -18,11 +18,11 @@ reject_path() {
 }
 
 # Panel runtime state and release output live at the repository root.
-reject_path 'runtime directory' '^/(data|secrets|credentials|backup|backups|rollback|release|agent-release|logs)/'
+reject_path 'runtime directory' '^(data|secrets|credentials|backup|backups|rollback|release|agent-release|logs)/'
 reject_path 'runtime data file' '(^|/)data/'
 reject_path 'database or key material' '\.(db|db-wal|db-shm|sqlite|sqlite3|pem|key|p12|pfx|crt|csr)$'
 reject_path 'environment file' '(^|/)\.env(\.local|\.(production|development|test|staging)(\.local)?)?$'
-reject_path 'generated binary' '^/komari($|\.)|(^|/)komari-agent-[^/]+$'
+reject_path 'generated binary' '^komari($|\.)|(^|/)komari-agent-[^/]+$'
 reject_path 'archive' '\.(zip|tar|tgz|tar\.gz|gz)$'
 
 # Scan tracked and not-yet-tracked text files without echoing matching secrets.

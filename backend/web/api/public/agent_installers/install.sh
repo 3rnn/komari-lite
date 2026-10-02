@@ -40,6 +40,7 @@ service_name="komari-agent"
 target_dir="/opt/komari"
 install_source=""
 install_version="" # the panel's one-click command supplies the pinned release version
+install_sha256="" # caller-pinned digest for custom download sources
  
 
 # Detect OS
@@ -69,10 +70,19 @@ case $os_type in
         exit 1
         ;;
 esac
+[[ $os_name == linux ]] || { log_error 'This installer supports only Linux systemd or fresh OpenRC; use a native installer on this OS'; exit 1; }
 
 # Parse install-specific arguments
-komari_args=""
+komari_args=()
 while [[ $# -gt 0 ]]; do
+    case $1 in
+        --install-dir|--install-service-name|--install-source|--install-ghproxy|--install-version|--install-sha256)
+            if [[ $# -lt 2 || -z $2 || $2 == --install* ]]; then
+                log_error "$1 requires a value"
+                exit 1
+            fi
+            ;;
+    esac
     case $1 in
         --install-dir)
             target_dir="$2"
@@ -94,20 +104,124 @@ while [[ $# -gt 0 ]]; do
             install_version="$2"
             shift 2
             ;;
+        --install-sha256)
+            install_sha256="$2"
+            shift 2
+            ;;
         --install*)
             log_warning "Unknown install parameter: $1"
             shift
             ;;
         *)
-            # Non-install arguments go to komari_args
-            komari_args="$komari_args $1"
+            # Non-install arguments go to the Agent without splitting or evaluation.
+            komari_args+=("$1")
             shift
             ;;
     esac
 done
 
-# Remove leading space from komari_args if present
-komari_args="${komari_args# }"
+extract_runtime_credentials() {
+    local i=0 arg key value
+    local -a remaining=()
+    agent_token="" agent_endpoint="" agent_cf_secret=""
+    while (( i < ${#komari_args[@]} )); do
+        arg=${komari_args[i]}
+        case $arg in
+            -t|--token|-token|-e|--endpoint|-endpoint|--cf-access-client-secret|-cf-access-client-secret)
+                if (( i + 1 >= ${#komari_args[@]} )) || [[ -z ${komari_args[i+1]} ]]; then
+                    log_error "Missing Agent credential/endpoint value"
+                    return 1
+                fi
+                key=$arg value=${komari_args[i+1]}
+                ((i+=2)) ;;
+            --token=*|-token=*|-t=*|-t?*|--endpoint=*|-endpoint=*|-e=*|-e?*|--cf-access-client-secret=*|-cf-access-client-secret=*)
+                key=${arg%%=*} value=${arg#*=}
+                if [[ $arg == -t?* && $arg != -t=* && $arg != -token=* ]]; then key=-t; value=${arg:2}; fi
+                if [[ $arg == -e?* && $arg != -e=* ]]; then key=-e; value=${arg:2}; fi
+                if [[ -z $value ]]; then log_error "Empty Agent credential/endpoint"; return 1; fi
+                ((i+=1)) ;;
+            --config*|-config*|--token*|-token*|--endpoint*|-endpoint*|--cf-access-client-secret*|-cf-access-client-secret*|--auto-discovery*|-auto-discovery*)
+                log_error "Unsupported Agent config/credential syntax; use -t/--token and -e/--endpoint"
+                return 1 ;;
+            *) remaining+=("$arg"); ((i+=1)); continue ;;
+        esac
+        case $key in
+            -t|--token|-token) agent_token=$value ;;
+            -e|--endpoint|-endpoint) agent_endpoint=$value ;;
+            --cf-access-client-secret|-cf-access-client-secret) agent_cf_secret=$value ;;
+        esac
+    done
+    komari_args=("${remaining[@]}")
+    if [[ $agent_endpoint == *://*@* ]]; then
+        log_error "Agent endpoint URL userinfo is not allowed"
+        return 1
+    fi
+}
+extract_runtime_credentials || exit 1
+
+validate_service_name() {
+    [[ $1 =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$ && $1 != . && $1 != .. ]]
+}
+if ! validate_service_name "$service_name"; then
+    log_error "Invalid --install-service-name (letters, digits, dot, underscore, hyphen only)."
+    exit 1
+fi
+for value in "$target_dir" "$agent_token" "$agent_endpoint" "$agent_cf_secret" "${komari_args[@]}"; do
+    if [[ $value == *[[:cntrl:]]* ]]; then
+        log_error "Control characters are not allowed in install paths or Agent arguments."
+        exit 1
+    fi
+done
+if [[ $target_dir != /* ]]; then
+    log_error "--install-dir must be an absolute path"
+    exit 1
+fi
+# Validate before any logs or network requests; URL userinfo is often a secret.
+if [[ $install_source == *[[:cntrl:]]* || $install_source == *://*@* || $install_source == *[\?\#\\]* ]]; then
+    log_error "Invalid --install-source: URL userinfo and query/fragment are not allowed"
+    exit 1
+fi
+if [[ -n $agent_endpoint && ( $agent_endpoint != https://* || $agent_endpoint == *[[:cntrl:]]* || $agent_endpoint == *://*@* ) ]]; then
+    log_error "Invalid Agent endpoint (HTTPS without userinfo required)"
+    exit 1
+fi
+
+# Single-quote one shell word for service scripts (including embedded apostrophes).
+shell_quote() {
+    local value=$1 quoted="'" char i
+    for ((i=0; i<${#value}; i++)); do
+        char=${value:i:1}
+        if [[ $char == "'" ]]; then quoted+="'\\''"; else quoted+="$char"; fi
+    done
+    printf "%s'" "$quoted"
+}
+# systemd has its own escaping rules; $$ prevents environment expansion.
+systemd_quote() {
+    local value=${1//\\/\\\\}
+    value=${value//\"/\\\"}
+    value=${value//\$/\$\$}
+    value=${value//%/%%}
+    printf '"%s"' "$value"
+}
+xml_escape() {
+    local value=${1//&/\&amp;}
+    value=${value//</\&lt;}
+    value=${value//>/\&gt;}
+    value=${value//\"/\&quot;}
+    value=${value//\'/\&apos;}
+    printf '%s' "$value"
+}
+nix_escape() {
+    local value=${1//\\/\\\\}
+    value=${value//\"/\\\"}
+    value=${value//\$\{/\\\$\{}
+    printf '%s' "$value"
+}
+json_escape() {
+    local value=${1//\\/\\\\}
+    value=${value//\"/\\\"}
+    printf '%s' "$value"
+}
 
 komari_agent_path="${target_dir}/agent"
 
@@ -132,7 +246,7 @@ log_config "Installation configuration:"
 log_config "  Service name: ${GREEN}$service_name${NC}"
 log_config "  Install directory: ${GREEN}$target_dir${NC}"
 log_config "  Agent source: ${GREEN}${install_source:-"(missing)"}${NC}"
-log_config "  Binary arguments: ${GREEN}$komari_args${NC}"
+log_config "  Agent arguments: [redacted] (${#komari_args[@]} arguments)"
 if [ -n "$install_version" ]; then
     log_config "  Specified agent version: ${GREEN}$install_version${NC}"
 else
@@ -140,55 +254,6 @@ else
 fi
 echo ""
 
-# Function to uninstall the previous installation
-uninstall_previous() {
-    log_step "Checking for previous installation..."
-    
-    # Stop and disable service if it exists
-    if command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files | grep -q "${service_name}.service"; then
-        log_info "Stopping and disabling existing systemd service..."
-        systemctl stop ${service_name}.service
-        systemctl disable ${service_name}.service
-        rm -f "/etc/systemd/system/${service_name}.service"
-        systemctl daemon-reload
-    elif command -v rc-service >/dev/null 2>&1 && [ -f "/etc/init.d/${service_name}" ]; then
-        log_info "Stopping and disabling existing OpenRC service..."
-        rc-service ${service_name} stop
-        rc-update del ${service_name} default
-        rm -f "/etc/init.d/${service_name}"
-    elif command -v uci >/dev/null 2>&1 && [ -f "/etc/init.d/${service_name}" ]; then
-        log_info "Stopping and disabling existing procd service..."
-        /etc/init.d/${service_name} stop
-        /etc/init.d/${service_name} disable
-        rm -f "/etc/init.d/${service_name}"
-    elif command -v initctl >/dev/null 2>&1 && [ -f "/etc/init/${service_name}.conf" ]; then
-        log_info "Stopping and removing existing upstart service..."
-        initctl stop ${service_name}
-        rm -f "/etc/init/${service_name}.conf"
-    elif [ "$os_name" = "darwin" ] && command -v launchctl >/dev/null 2>&1; then
-        # macOS launchd service - check both system and user locations
-        system_plist="/Library/LaunchDaemons/com.komari.${service_name}.plist"
-        user_plist="$HOME/Library/LaunchAgents/com.komari.${service_name}.plist"
-        
-        if [ -f "$system_plist" ]; then
-            log_info "Stopping and removing existing system launchd service..."
-            launchctl bootout system "$system_plist" 2>/dev/null || true
-            rm -f "$system_plist"
-        fi
-        
-        if [ -f "$user_plist" ]; then
-            log_info "Stopping and removing existing user launchd service..."
-            launchctl bootout gui/$(id -u) "$user_plist" 2>/dev/null || true
-            rm -f "$user_plist"
-        fi
-    fi
-    
-    # Remove old binary if it exists
-    if [ -f "$komari_agent_path" ]; then
-        log_info "Removing old binary..."
-        rm -f "$komari_agent_path"
-    fi
-}
 
 install_dependencies() {
     log_step "Checking and installing dependencies..."
@@ -235,8 +300,7 @@ install_dependencies() {
 }
 
  
-# Install dependencies
-install_dependencies
+# Validate release inputs before installing dependencies.
 
  
 
@@ -295,60 +359,61 @@ if [ -z "$install_source" ]; then
     log_error "Missing --install-source (expected: a pinned GitHub release URL)"
     exit 1
 fi
-download_url="${install_source}/${file_name}"
-
-log_step "Creating installation directory: ${GREEN}$target_dir${NC}"
-mkdir -p "$target_dir"
-staging_dir=$(mktemp -d "${target_dir}/.agent-download.XXXXXXXX") || exit 1
-trap 'rm -rf "$staging_dir"' EXIT
-staged_agent="${staging_dir}/${file_name}"
-
-# Download and check the new binary before removing a working installation.
-log_step "Downloading $file_name from the pinned release..."
-log_info "URL: ${CYAN}$download_url${NC}"
-if ! curl --fail --show-error -L -o "$staged_agent" "$download_url"; then
-    log_error "Download failed"
+# The standard release keeps its existing HTTPS checksum manifest workflow.
+# A mirror or custom origin needs an independently supplied, fixed digest: a
+# checksum downloaded from that same untrusted origin proves nothing.
+if [[ ! $install_source =~ ^https://[^/]+(/.*)?$ ]]; then
+    log_error "--install-source must be an HTTPS URL"
     exit 1
 fi
+if [ -n "$install_sha256" ] && [[ ! $install_sha256 =~ ^[[:xdigit:]]{64}$ ]]; then
+    log_error "Invalid --install-sha256 (expected 64 hexadecimal characters)"
+    exit 1
+fi
+if [[ ! $install_source =~ ^https://github[.]com/3rnn/komari-lite/releases/download/v[^/?#]+$ ]] && [ -z "$install_sha256" ]; then
+    log_error "Custom --install-source requires --install-sha256 from a trusted, independent source"
+    exit 1
+fi
+validate_release_version() {
+    [[ -z $install_version ]] && return 0
+    if [[ ! $install_version =~ ^[0-9]+([.][0-9]+){1,3}([-+][A-Za-z0-9.-]+)?$ ||
+          $install_source != "https://github.com/3rnn/komari-lite/releases/download/v${install_version}" ]]; then
+        log_error "Invalid --install-version: requested version must match the official release URL exactly"
+        return 1
+    fi
+}
+validate_release_version || exit 1
 
-case "$install_source" in
-    https://github.com/3rnn/komari-lite/releases/download/v*)
-        checksum_file="${staging_dir}/SHA256SUMS.txt"
-        if ! curl --fail --show-error -L -o "$checksum_file" "${install_source}/SHA256SUMS.txt"; then
-            log_error "Unable to download release checksums"
-            exit 1
+# Dependency installation happens only after platform detection/preflight.
+
+download_url="${install_source}/${file_name}"
+
+# Refuse symlinks, dot components, foreign ownership and group/world-writable
+# ancestors. Create missing components privately, checking each after creation.
+validate_install_directory() {
+    local path=$1 current=/ part owner mode uid
+    [[ $path == /* && $path != / && $path != *//* ]] || { log_error 'Invalid installation directory'; return 1; }
+    uid=$EUID
+    local -a parts
+    IFS=/ read -r -a parts <<< "${path#/}"
+    for part in "${parts[@]}"; do
+        [[ -n $part && $part != . && $part != .. ]] || { log_error 'Invalid installation directory component'; return 1; }
+        current="${current%/}/$part"
+        if [[ -L $current ]]; then log_error 'Symlink in installation directory'; return 1; fi
+        if [[ ! -e $current ]]; then
+            (umask 077; mkdir "$current") || return 1
         fi
-        expected=$(awk -v name="$file_name" '$2 == name && $1 ~ /^[[:xdigit:]]+$/ && length($1) == 64 { print tolower($1) }' "$checksum_file")
-        if [ -z "$expected" ] || [ "${#expected}" -ne 64 ]; then
-            log_error "Release checksum missing or ambiguous for $file_name"
-            exit 1
-        fi
-        if command -v sha256sum >/dev/null 2>&1; then
-            actual=$(sha256sum "$staged_agent" | awk '{print $1}')
-        elif command -v shasum >/dev/null 2>&1; then
-            actual=$(shasum -a 256 "$staged_agent" | awk '{print $1}')
-        elif command -v sha256 >/dev/null 2>&1; then
-            actual=$(sha256 -q "$staged_agent")
+        [[ -d $current ]] || { log_error 'Non-directory in installation path'; return 1; }
+        if stat -c '%u %a' "$current" >/dev/null 2>&1; then
+            read -r owner mode < <(stat -c '%u %a' "$current")
         else
-            log_error "No SHA-256 tool available to verify the release binary"
-            exit 1
+            read -r owner mode < <(stat -f '%u %Lp' "$current") || return 1
         fi
-        if [ "$actual" != "$expected" ]; then
-            log_error "Agent checksum mismatch for $file_name"
-            exit 1
+        if [[ $owner != 0 && $owner != "$uid" ]] || (( (8#$mode & 0022) != 0 )); then
+            log_error 'Unsafe installation directory ownership or mode'; return 1
         fi
-        log_success "Verified $file_name against release checksums"
-        ;;
-esac
-
-# Set executable permissions
-chmod +x "$staged_agent"
-uninstall_previous
-mv -f "$staged_agent" "$komari_agent_path"
-rm -rf "$staging_dir"
-trap - EXIT
-log_success "Komari-agent installed to ${GREEN}$komari_agent_path${NC}"
-
+    done
+}
 # Detect init system and configure service
 log_step "Configuring system service..."
 
@@ -443,40 +508,191 @@ detect_init_system() {
 
 init_system=$(detect_init_system)
 log_info "Detected init system: ${GREEN}$init_system${NC}"
+case $init_system in
+    systemd|openrc) ;;
+    *) log_error "Unsupported init system: $init_system (only systemd and fresh OpenRC are supported)"; exit 1 ;;
+esac
 
-# Handle each init system
-if [ "$init_system" = "nixos" ]; then
-    log_warning "NixOS detected. System services must be configured declaratively."
-    log_info "Please add the following to your NixOS configuration:"
-    echo ""
-    echo -e "${CYAN}systemd.services.${service_name} = {${NC}"
-    echo -e "${CYAN}  description = \"Komari Agent Service\";${NC}"
-    echo -e "${CYAN}  after = [ \"network.target\" ];${NC}"
-    echo -e "${CYAN}  wantedBy = [ \"multi-user.target\" ];${NC}"
-    echo -e "${CYAN}  serviceConfig = {${NC}"
-    echo -e "${CYAN}    Type = \"simple\";${NC}"
-    echo -e "${CYAN}    ExecStart = \"${komari_agent_path} ${komari_args}\";${NC}"
-    echo -e "${CYAN}    WorkingDirectory = \"${target_dir}\";${NC}"
-    echo -e "${CYAN}    Restart = \"always\";${NC}"
-    echo -e "${CYAN}    User = \"root\";${NC}"
-    echo -e "${CYAN}  };${NC}"
-    echo -e "${CYAN}};${NC}"
-    echo ""
-    log_info "Then run: sudo nixos-rebuild switch"
-    log_warning "Service not started automatically on NixOS. Please rebuild your configuration."
-elif [ "$init_system" = "openrc" ]; then
+if [[ $init_system == openrc && ! $target_dir =~ ^/[A-Za-z0-9_./-]+$ ]]; then
+    log_error "OpenRC requires an install path without shell metacharacters or spaces"
+    exit 1
+fi
+
+
+verify_systemd_execstart() {
+    local effective=$1 actual
+    # systemctl show reports the resolved executable, after unit/drop-in parsing.
+    # Only accept one unambiguous, unescaped path; comments cannot supply it.
+    [[ $effective == \{\ path=*' ; '* && $effective == *' }' &&
+       $effective != *$'\n'* && $effective != *'} {'* ]] || return 1
+    actual=${effective#\{ path=}
+    actual=${actual%% ; *}
+    [[ -n $actual && $actual == "$komari_agent_path" ]] || {
+        log_error 'Existing systemd ExecStart targets a different executable'; return 1;
+    }
+}
+
+verify_existing_service() {
+    local file='' fragment='' state='' owner='' mode='' effective=''
+    case $init_system in
+        systemd)
+            file="/etc/systemd/system/${service_name}.service"
+            state=$(systemctl show "${service_name}.service" -p LoadState --value) || return 1
+            fragment=$(systemctl show "${service_name}.service" -p FragmentPath --value) || return 1
+            if [[ $state != not-found && $fragment != "$file" ]]; then
+                log_error 'Existing systemd service has foreign provenance'; return 1
+            fi
+            if [[ $state != not-found ]]; then
+                local dropins
+                dropins=$(systemctl show "${service_name}.service" -p DropInPaths --value) || return 1
+                [[ -z $dropins ]] || { log_error 'Existing systemd service has unverified drop-ins'; return 1; }
+            fi ;;
+        openrc)
+            file="/etc/init.d/${service_name}"
+            [[ ! -e $file && ! -L $file ]] || { log_error 'OpenRC upgrades require manual migration; existing service was not changed'; return 1; } ;;
+        *) log_error 'Unsupported init system'; return 1 ;;
+    esac
+    if [[ -e $file || -L $file ]]; then
+        [[ -f $file && ! -L $file ]] || { log_error 'Unsafe service file'; return 1; }
+        if stat -c '%u %a' "$file" >/dev/null 2>&1; then
+            read -r owner mode < <(stat -c '%u %a' "$file")
+        else
+            read -r owner mode < <(stat -f '%u %Lp' "$file") || return 1
+        fi
+        [[ $owner == 0 || $owner == "$EUID" ]] && (( (8#$mode & 0022) == 0 )) || {
+            log_error 'Unsafe service file ownership or mode'; return 1;
+        }
+        grep -Fxq '# komari-agent installer' "$file" || {
+            log_error 'Existing service lacks installer provenance'; return 1;
+        }
+        case $init_system in
+            systemd)
+                [[ $state != not-found ]] || return 1
+                effective=$(systemctl show "${service_name}.service" -p ExecStart --value) || return 1
+                if [[ $effective =~ (^|[[:space:]])(--?token|--?cf-access-client-secret)(=|[[:space:]]|$) ||
+                      $effective =~ (^|[[:space:]])-t(=|[[:space:]]|[^[:space:]]) ]]; then
+                    log_error 'Existing service contains credential arguments; manual migration required'
+                    return 1
+                fi
+                verify_systemd_execstart "$effective" || return 1 ;;
+            *) log_error 'Cannot verify existing service executable'; return 1 ;;
+        esac
+    elif [[ $init_system == systemd && $state != not-found ]]; then
+        log_error 'Existing service has no verified installer file'; return 1
+    elif [[ $init_system == systemd && ( -e $komari_agent_path || -e $target_dir/agent-config.json ) ]]; then
+        log_error 'Existing Agent artifacts have no verified installer service'; return 1
+    fi
+    for file in "$komari_agent_path" "$target_dir/agent-config.json" "$target_dir/agent-service.sh"; do
+        [[ ! -L $file ]] || { log_error 'Symlink at existing Agent artifact'; return 1; }
+    done
+}
+verify_existing_service || exit 1
+if [[ $init_system == openrc && ( -e $komari_agent_path || -e $target_dir/agent-config.json || -e $target_dir/agent-service.sh ) ]]; then
+    log_error 'OpenRC artifacts already exist; manual migration required before installation'
+    exit 1
+fi
+install_dependencies
+log_step "Creating installation directory: ${GREEN}$target_dir${NC}"
+validate_install_directory "$target_dir" || exit 1
+
+verify_started_service() {
+    local state domain
+    sleep 2
+    case $1 in
+        systemd) systemctl is-active --quiet "${service_name}.service" || return 1 ;;
+        openrc) rc-service "$service_name" status >/dev/null 2>&1 || return 1 ;;
+
+        *) return 1 ;;
+    esac
+}
+
+staging_dir=$(mktemp -d "${target_dir}/.agent-download.XXXXXXXX") || exit 1
+trap 'if [[ ${transaction_pending:-no} == yes ]]; then rollback_install; fi; if [[ ${retain_staging:-no} != yes ]]; then rm -rf "$staging_dir"; fi; [[ -z ${config_tmp:-} ]] || rm -f "$config_tmp"' EXIT
+trap 'exit 1' INT TERM
+staged_agent="${staging_dir}/${file_name}"
+
+# Download and check the new binary before removing a working installation.
+log_step "Downloading $file_name from the pinned release..."
+log_info "URL: ${CYAN}$download_url${NC}"
+if ! curl --fail --show-error -L -o "$staged_agent" "$download_url"; then
+    log_error "Download failed"
+    exit 1
+fi
+
+if [ -n "$install_sha256" ]; then
+    expected=${install_sha256,,}
+else
+    checksum_file="${staging_dir}/SHA256SUMS.txt"
+    if ! curl --fail --show-error -L -o "$checksum_file" "${install_source}/SHA256SUMS.txt"; then
+        log_error "Unable to download release checksums"
+        exit 1
+    fi
+    expected=$(awk -v name="$file_name" '$2 == name && $1 ~ /^[[:xdigit:]]+$/ && length($1) == 64 { print tolower($1) }' "$checksum_file")
+    if [ -z "$expected" ] || [ "${#expected}" -ne 64 ]; then
+        log_error "Release checksum missing or ambiguous for $file_name"
+        exit 1
+    fi
+fi
+if command -v sha256sum >/dev/null 2>&1; then
+    actual=$(sha256sum "$staged_agent" | awk '{print $1}')
+elif command -v shasum >/dev/null 2>&1; then
+    actual=$(shasum -a 256 "$staged_agent" | awk '{print $1}')
+elif command -v sha256 >/dev/null 2>&1; then
+    actual=$(sha256 -q "$staged_agent")
+else
+    log_error "No SHA-256 tool available to verify the release binary"
+    exit 1
+fi
+if [ "$actual" != "$expected" ]; then
+    log_error "Agent checksum mismatch for $file_name"
+    exit 1
+fi
+log_success "Verified $file_name against SHA-256 checksum"
+
+# Set executable permissions
+chmod +x "$staged_agent"
+# Only the private JSON config carries runtime credentials, never service argv.
+umask 077
+config_path="${target_dir}/agent-config.json"
+config_tmp=$(mktemp "${target_dir}/.agent-config.XXXXXXXX") || exit 1
+printf '{"token":"%s","endpoint":"%s","cf_access_client_secret":"%s"}\n' \
+    "$(json_escape "$agent_token")" "$(json_escape "$agent_endpoint")" "$(json_escape "$agent_cf_secret")" > "$config_tmp"
+chmod 600 "$config_tmp" || exit 1
+komari_args+=("--config" "$config_path")
+# Serialize each Agent argument for the destination format before writing service files.
+shell_command=$(shell_quote "$komari_agent_path")
+systemd_command=$(systemd_quote "$komari_agent_path")
+shell_args=""
+for arg in "${komari_args[@]}"; do
+    shell_args+=" $(shell_quote "$arg")"
+    systemd_command+=" $(systemd_quote "$arg")"
+done
+# Stage service definitions; no working artifact is replaced until rollback
+# copies and service state have been captured.
+if [ "$init_system" = "openrc" ]; then
     # OpenRC service configuration
     log_info "Using OpenRC for service management"
     service_file="/etc/init.d/${service_name}"
-    cat > "$service_file" << EOF
+    # OpenRC may eval command_args. Put caller arguments only in a shell-quoted
+    # private wrapper; its path is restricted to safe literal characters.
+    wrapper="${target_dir}/agent-service.sh"
+    staged_wrapper="${staging_dir}/agent-service.sh"
+    staged_service="${staging_dir}/service"
+    cat > "$staged_wrapper" << EOF
+#!/bin/sh
+exec ${shell_command}${shell_args}
+EOF
+    chmod 700 "$staged_wrapper"
+    cat > "$staged_service" << EOF
 #!/sbin/openrc-run
+# komari-agent installer
 
 name="Komari Agent Service"
 description="Komari monitoring agent"
-command="${komari_agent_path}"
-command_args="${komari_args}"
+command=$(shell_quote "$wrapper")
+command_args=""
 command_user="root"
-directory="${target_dir}"
+directory=$(shell_quote "$target_dir")
 pidfile="/run/${service_name}.pid"
 retry="SIGTERM/30"
 supervisor=supervise-daemon
@@ -487,24 +703,22 @@ depend() {
 }
 EOF
 
-    # Set permissions and enable service
-    chmod +x "$service_file"
-    rc-update add ${service_name} default
-    rc-service ${service_name} start
-    log_success "OpenRC service configured and started"
+    chmod 700 "$staged_service" || exit 1
 elif [ "$init_system" = "systemd" ]; then
     # Systemd service configuration
     log_info "Using systemd for service management"
     service_file="/etc/systemd/system/${service_name}.service"
-    cat > "$service_file" << EOF
+    staged_service="${staging_dir}/service"
+    cat > "$staged_service" << EOF
 [Unit]
+# komari-agent installer
 Description=Komari Agent Service
 After=network.target
 
 [Service]
 Type=simple
-ExecStart=${komari_agent_path} ${komari_args}
-WorkingDirectory=${target_dir}
+ExecStart=${systemd_command}
+WorkingDirectory=$(systemd_quote "$target_dir")
 Restart=always
 User=root
 
@@ -512,173 +726,100 @@ User=root
 WantedBy=multi-user.target
 EOF
 
-    # Reload systemd and start service
-    systemctl daemon-reload
-    systemctl enable ${service_name}.service
-    systemctl start ${service_name}.service
-    log_success "Systemd service configured and started"
-elif [ "$init_system" = "procd" ]; then
-    # procd service configuration (OpenWrt)
-    log_info "Using procd for service management"
-    service_file="/etc/init.d/${service_name}"
-    cat > "$service_file" << EOF
-#!/bin/sh /etc/rc.common
-
-START=99
-STOP=10
-
-USE_PROCD=1
-
-PROG="${komari_agent_path}"
-ARGS="${komari_args}"
-
-start_service() {
-    procd_open_instance
-    procd_set_param command \$PROG \$ARGS
-    procd_set_param respawn
-    procd_set_param stdout 1
-    procd_set_param stderr 1
-    procd_set_param user root
-    procd_close_instance
-}
-
-stop_service() {
-    killall \$(basename \$PROG)
-}
-
-reload_service() {
-    stop
-    start
-}
-EOF
-
-    # Set permissions and enable service
-    chmod +x "$service_file"
-    /etc/init.d/${service_name} enable
-    /etc/init.d/${service_name} start
-    log_success "procd service configured and started"
-elif [ "$init_system" = "launchd" ]; then
-    # macOS launchd service configuration
-    log_info "Using launchd for service management"
-    
-    # Determine if this should be a system or user service based on installation directory
-    if [[ "$target_dir" =~ ^/Users/.* ]] || [ "$EUID" -ne 0 ]; then
-        # User-level service (LaunchAgent)
-        plist_dir="$HOME/Library/LaunchAgents"
-        plist_file="$plist_dir/com.komari.${service_name}.plist"
-        log_info "Installing as user-level service (LaunchAgent)"
-        mkdir -p "$plist_dir"
-        service_user="$(whoami)"
-        log_dir="$HOME/Library/Logs"
-    else
-        # System-level service (LaunchDaemon)
-        plist_dir="/Library/LaunchDaemons"
-        plist_file="$plist_dir/com.komari.${service_name}.plist"
-        log_info "Installing as system-level service (LaunchDaemon)"
-        service_user="root"
-        log_dir="/var/log"
-    fi
-    
-    # Create the launchd plist file
-    cat > "$plist_file" << EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>com.komari.${service_name}</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>${komari_agent_path}</string>
-EOF
-    
-    # Add program arguments if provided
-    if [ -n "$komari_args" ]; then
-        echo "$komari_args" | xargs -n1 printf "        <string>%s</string>\n" >> "$plist_file"
-    fi
-    
-    cat >> "$plist_file" << EOF
-    </array>
-    <key>WorkingDirectory</key>
-    <string>${target_dir}</string>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>KeepAlive</key>
-    <true/>
-    <key>UserName</key>
-    <string>${service_user}</string>
-    <key>StandardOutPath</key>
-    <string>${log_dir}/${service_name}.log</string>
-    <key>StandardErrorPath</key>
-    <string>${log_dir}/${service_name}.log</string>
-</dict>
-</plist>
-EOF
-    
-    # Load and start the service
-    if [[ "$target_dir" =~ ^/Users/.* ]] || [ "$EUID" -ne 0 ]; then
-        # User-level service
-        if launchctl bootstrap gui/$(id -u) "$plist_file"; then
-            log_success "User-level launchd service configured and started"
-        else
-            log_error "Failed to load user-level launchd service"
-            exit 1
-        fi
-    else
-        # System-level service
-        if launchctl bootstrap system "$plist_file"; then
-            log_success "System-level launchd service configured and started"
-        else
-            log_error "Failed to load system-level launchd service"
-            exit 1
-        fi
-    fi
-elif [ "$init_system" = "upstart" ]; then
-    # Upstart service configuration
-    log_info "Using upstart for service management"
-    service_file="/etc/init/${service_name}.conf"
-    cat > "$service_file" << EOF
-# KOMARI Agent
-description "Komari Agent Service"
-
-chdir ${target_dir}
-start on filesystem or runlevel [2345]
-stop on runlevel [!2345]
-
-respawn
-respawn limit 10 5
-umask 022
-
-console none
-
-pre-start script
-    test -x ${komari_agent_path} || { stop; exit 0; }
-end script
-
-# Start
-script
-    exec ${komari_agent_path} ${komari_args}
-end script
-EOF
-    # enable Upstart unit
-    initctl reload-configuration
-    initctl start ${service_name}
-    log_success "Upstart service configured and started"
-else
-    log_error "Unsupported or unknown init system detected: $init_system"
-    log_error "Supported init systems: systemd, openrc, procd, launchd"
-    exit 1
+    chmod 600 "$staged_service" || exit 1
 fi
 
-echo ""
-echo -e "${WHITE}===========================================${NC}"
-if [ -f /etc/NIXOS ]; then
-    log_success "Komari-agent binary installed!"
-    log_warning "NixOS requires declarative service configuration."
-    log_info "Please add the service configuration to your NixOS config and rebuild."
-else
-    log_success "Komari-agent installation completed!"
-fi
-log_config "Service: ${GREEN}$service_name${NC}"
-log_config "Arguments: ${GREEN}$komari_args${NC}"
-echo -e "${WHITE}===========================================${NC}"
+# Backups remain private until the replacement is confirmed running. If
+# rollback itself fails, retain them for manual recovery.
+rollback_install() {
+    local path name failed=0
+    transaction_pending=no
+    if [[ $init_system == systemd ]]; then
+        systemctl stop "${service_name}.service" >/dev/null 2>&1 || :
+    else
+        rc-service "$service_name" stop >/dev/null 2>&1 || :
+    fi
+    for name in agent agent-config.json service agent-service.sh; do
+        case $name in
+            agent) path=$komari_agent_path ;;
+            agent-config.json) path=$config_path ;;
+            service) path=$service_file ;;
+            agent-service.sh) [[ $init_system == openrc ]] || continue; path=$wrapper ;;
+        esac
+        if [[ -f $staging_dir/backup-$name ]]; then
+            cp -p "$staging_dir/backup-$name" "$path" || failed=1
+        else
+            rm -f "$path" || failed=1
+        fi
+    done
+    if [[ $init_system == systemd ]]; then
+        systemctl daemon-reload || failed=1
+        if [[ $previous_enabled == yes ]]; then
+            systemctl enable "${service_name}.service" || failed=1
+        else
+            systemctl disable "${service_name}.service" || failed=1
+        fi
+        if [[ $previous_running == yes ]]; then
+            systemctl start "${service_name}.service" || failed=1
+            systemctl is-active --quiet "${service_name}.service" || failed=1
+        fi
+    else
+        rc-update del "$service_name" default >/dev/null 2>&1 || :
+    fi
+    if (( failed )); then
+        retain_staging=yes
+        log_error "Rollback incomplete; recovery copies retained in $staging_dir"
+        return 1
+    fi
+    log_error 'Installation failed; previous artifacts and service state restored'
+}
+
+commit_install() {
+    local path name
+    previous_running=no previous_enabled=no
+    if [[ $init_system == systemd ]]; then
+        if systemctl is-active --quiet "${service_name}.service"; then previous_running=yes; fi
+        if systemctl is-enabled --quiet "${service_name}.service"; then previous_enabled=yes; fi
+    fi
+    for name in agent agent-config.json service agent-service.sh; do
+        case $name in
+            agent) path=$komari_agent_path ;;
+            agent-config.json) path=$config_path ;;
+            service) path=$service_file ;;
+            agent-service.sh) [[ $init_system == openrc ]] || continue; path=$wrapper ;;
+        esac
+        if [[ -e $path ]]; then
+            [[ -f $path && ! -L $path ]] || return 1
+            cp -p "$path" "$staging_dir/backup-$name" || return 1
+        fi
+    done
+    # Keep the old unit enabled throughout the upgrade.
+    transaction_pending=yes
+    if [[ $previous_running == yes ]]; then
+        systemctl stop "${service_name}.service" || { rollback_install; return 1; }
+    fi
+    if ! mv -f "$staged_agent" "$komari_agent_path" ||
+       ! mv -f "$config_tmp" "$config_path" ||
+       { [[ $init_system == openrc ]] && ! mv -f "$staged_wrapper" "$wrapper"; } ||
+       ! mv -f "$staged_service" "$service_file"; then
+        rollback_install
+        return 1
+    fi
+    if [[ $init_system == systemd ]]; then
+        systemctl daemon-reload &&
+            { [[ $previous_enabled == yes ]] || systemctl enable "${service_name}.service"; } &&
+            systemctl start "${service_name}.service" &&
+            verify_started_service systemd || { rollback_install; return 1; }
+    else
+        rc-update add "$service_name" default &&
+            rc-service "$service_name" start &&
+            verify_started_service openrc || { rollback_install; return 1; }
+    fi
+    transaction_pending=no
+    return 0
+}
+
+commit_install || exit 1
+rm -rf "$staging_dir" || exit 1
+trap - EXIT
+log_success "Komari-agent installation completed; service is running"

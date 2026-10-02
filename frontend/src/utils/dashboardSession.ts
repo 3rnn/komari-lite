@@ -12,9 +12,11 @@ type DashboardSessionRecord<T> = {
   data: T;
 };
 
-export type DashboardSessionStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
+export type DashboardSessionStorage = Pick<Storage, "getItem" | "setItem" | "removeItem"> & Partial<Pick<Storage, "key" | "length">>;
 
 export const DASHBOARD_SESSION_MAX_AGE_MS = 10 * 60 * 1000;
+const DASHBOARD_SESSION_PREFIX = "komari:admin-dashboard:v1:";
+let sessionEnded = false;
 
 function activeSessionStorage(): DashboardSessionStorage | null {
   if (typeof window === "undefined") return null;
@@ -26,7 +28,45 @@ function activeSessionStorage(): DashboardSessionStorage | null {
 }
 
 function storageKey(kind: DashboardSessionKind, accountKey: string): string {
-  return `komari:admin-dashboard:v1:${encodeURIComponent(accountKey || "authenticated")}:${kind}`;
+  return `${DASHBOARD_SESSION_PREFIX}${encodeURIComponent(accountKey || "authenticated")}:${kind}`;
+}
+
+export function purgeLegacyDashboardResponses(options?: { storage?: DashboardSessionStorage | null }): void {
+  const storage = options?.storage === undefined ? activeSessionStorage() : options.storage;
+  if (!storage) return;
+  try {
+    if (!storage.key || typeof storage.length !== "number") return;
+    for (let index = storage.length - 1; index >= 0; index--) {
+      const key = storage.key(index);
+      if (key?.startsWith(DASHBOARD_SESSION_PREFIX) && (key.endsWith(":summary") || key.endsWith(":charts"))) {
+        storage.removeItem(key);
+      }
+    }
+  } catch {
+    // Storage may be unavailable in private browsing or restricted contexts.
+  }
+}
+
+// The entry bundle imports this module even on the login page: purge prior-version payloads eagerly.
+purgeLegacyDashboardResponses();
+
+export function clearDashboardSession(options?: { storage?: DashboardSessionStorage | null }): void {
+  if (!options) sessionEnded = true;
+  const storage = options?.storage === undefined ? activeSessionStorage() : options.storage;
+  if (!storage) return;
+  try {
+    if (!storage.key || typeof storage.length !== "number") return;
+    for (let index = storage.length - 1; index >= 0; index--) {
+      const key = storage.key(index);
+      if (key?.startsWith(DASHBOARD_SESSION_PREFIX)) storage.removeItem(key);
+    }
+  } catch {
+    // Disabled storage must not prevent logout.
+  }
+}
+
+export function isDashboardUnauthorized(reason: unknown): boolean {
+  return typeof reason === "object" && reason !== null && "status" in reason && reason.status === 401;
 }
 
 export function readDashboardSession<T>(
@@ -42,7 +82,16 @@ export function readDashboardSession<T>(
   const storage = options?.storage === undefined ? activeSessionStorage() : options.storage;
   if (!storage) return null;
   const key = storageKey(kind, accountKey);
+  let removalAttempted = false;
+  const remove = () => {
+    removalAttempted = true;
+    storage.removeItem(key);
+  };
   try {
+    if (sessionEnded || kind === "summary" || kind === "charts") {
+      remove(); // Drop legacy responses, even if their old TTL is still valid.
+      return null;
+    }
     const raw = storage.getItem(key);
     if (!raw) return null;
     const record = JSON.parse(raw) as Partial<DashboardSessionRecord<T>>;
@@ -56,12 +105,14 @@ export function readDashboardSession<T>(
       || now - record.savedAt > maxAgeMs
       || !("data" in record)
     ) {
-      storage.removeItem(key);
+      remove();
       return null;
     }
     return record.data as T;
   } catch {
-    storage.removeItem(key);
+    if (!removalAttempted) {
+      try { remove(); } catch { /* Restricted storage must not interrupt rendering. */ }
+    }
     return null;
   }
 }
@@ -74,8 +125,12 @@ export function writeDashboardSession<T>(
   options?: { now?: number; storage?: DashboardSessionStorage | null },
 ): void {
   const storage = options?.storage === undefined ? activeSessionStorage() : options.storage;
-  if (!storage) return;
+  if (!storage || sessionEnded) return;
   try {
+    if (kind === "summary" || kind === "charts") {
+      storage.removeItem(storageKey(kind, accountKey));
+      return;
+    }
     storage.setItem(storageKey(kind, accountKey), JSON.stringify({
       key: dataKey,
       savedAt: options?.now ?? Date.now(),

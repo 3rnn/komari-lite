@@ -1261,6 +1261,13 @@ func (s *Store) Query(ctx context.Context, query Query) ([]Point, error) {
 		}
 		return restoreVirtualPingLossPoints(points), nil
 	}
+	if query.WorkBudget > 0 {
+		points, err := s.queryRelationalRawBudgeted(ctx, query)
+		if err != nil || !virtualLoss {
+			return points, err
+		}
+		return restoreVirtualPingLossPoints(points), nil
+	}
 	where, args := s.buildWhere(query)
 	order := "ASC"
 	if query.Order == OrderDesc {

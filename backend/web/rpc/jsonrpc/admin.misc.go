@@ -11,6 +11,7 @@ import (
 	"github.com/komari-monitor/komari/database/auditlog"
 	"github.com/komari-monitor/komari/database/clients"
 	"github.com/komari-monitor/komari/database/metricstore"
+	"github.com/komari-monitor/komari/database/models"
 	"github.com/komari-monitor/komari/database/records"
 	"github.com/komari-monitor/komari/database/tasks"
 	"github.com/komari-monitor/komari/pkg/config"
@@ -29,11 +30,11 @@ func init() {
 	RegisterWithGroupAndMeta("getSessions", rpc.RoleAdmin, adminGetSessions, &rpc.MethodMeta{
 		Name:    "admin:getSessions",
 		Summary: "List all login sessions",
-		Returns: "{ current: string, data: Session[] }",
+		Returns: "{ current: string, data: Session[] } (session/current are non-bearer IDs)",
 	})
 	RegisterWithGroupAndMeta("deleteSession", rpc.RoleAdmin, adminDeleteSession, &rpc.MethodMeta{
 		Name:    "admin:deleteSession",
-		Summary: "Delete a session by token",
+		Summary: "Delete a session by non-bearer ID",
 		Returns: "null",
 	})
 	RegisterWithGroupAndMeta("deleteAllSessions", rpc.RoleAdmin, adminDeleteAllSessions, &rpc.MethodMeta{
@@ -63,6 +64,26 @@ func init() {
 	})
 }
 
+// sessionView explicitly allows only nonsecret fields into the browser response.
+// Keep the `session` key for existing clients, but its value is no longer a token.
+type sessionView struct {
+	UUID            string    `json:"uuid"`
+	Session         string    `json:"session"`
+	UserAgent       string    `json:"user_agent"`
+	IP              string    `json:"ip"`
+	LoginMethod     string    `json:"login_method"`
+	LatestOnline    time.Time `json:"latest_online"`
+	LatestUserAgent string    `json:"latest_user_agent"`
+	LatestIP        string    `json:"latest_ip"`
+	Expires         time.Time `json:"expires"`
+	CreatedAt       time.Time `json:"created_at"`
+}
+
+func publicSession(s models.Session) sessionView {
+	return sessionView{s.UUID, accounts.SessionID(s.Session), s.UserAgent, s.Ip,
+		s.LoginMethod, s.LatestOnline, s.LatestUserAgent, s.LatestIp, s.Expires, s.CreatedAt}
+}
+
 func adminGetSessions(ctx context.Context, _ *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
 	ss, err := accounts.GetAllSessions()
 	if err != nil {
@@ -70,9 +91,15 @@ func adminGetSessions(ctx context.Context, _ *rpc.JsonRpcRequest) (any, *rpc.Jso
 	}
 	current := ""
 	if meta := rpc.MetaFromContext(ctx); meta != nil {
-		current = meta.SessionToken
+		if meta.SessionToken != "" {
+			current = accounts.SessionID(meta.SessionToken)
+		}
 	}
-	return map[string]any{"current": current, "data": ss}, nil
+	views := make([]sessionView, 0, len(ss))
+	for _, s := range ss {
+		views = append(views, publicSession(s))
+	}
+	return map[string]any{"current": current, "data": views}, nil
 }
 
 func adminDeleteSession(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
@@ -83,7 +110,7 @@ func adminDeleteSession(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc
 	if params.Session == "" {
 		return nil, rpc.MakeError(rpc.InvalidParams, "session is required", nil)
 	}
-	if err := accounts.DeleteSession(params.Session); err != nil {
+	if err := accounts.DeleteSessionByID(params.Session); err != nil {
 		return nil, rpc.MakeError(rpc.InternalError, "Failed to delete session: "+err.Error(), nil)
 	}
 	actor, ip := auditActor(ctx)

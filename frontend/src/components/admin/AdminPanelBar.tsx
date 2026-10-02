@@ -20,6 +20,8 @@ import {
 } from "@/utils/adminMenu";
 import { useSettings } from "@/lib/api";
 import { preloadAdminRoute } from "@/routes";
+import { logoutAdminSession } from "@/utils/adminRevocation";
+import { toast } from "sonner";
 
 // Convert JSON configuration into type-safe menu items (base static menu).
 const parsedMenuConfig = menuConfig as {
@@ -255,7 +257,9 @@ const AdminPanelBar = ({ content }: AdminPanelBarProps) => {
   };
 
   function logout() {
-    window.open("/api/logout", "_self");
+    void logoutAdminSession(() => { window.open("/", "_self"); }).catch((error: unknown) => {
+      toast.error(error instanceof Error ? error.message : "Logout failed; server session may still be active. Retry after reloading.");
+    });
   }
 
   const renderIcon = (

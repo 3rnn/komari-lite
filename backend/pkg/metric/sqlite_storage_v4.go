@@ -294,6 +294,7 @@ func (s *Store) createSQLiteV4PointBlocks(ctx context.Context, tx *sql.Tx) error
 			CHECK(point_count > 0)
 		) WITHOUT ROWID`, s.tables.pointBlocks, s.tables.series, s.tables.pointAxes),
 		fmt.Sprintf(`CREATE INDEX IF NOT EXISTS %s_point_blocks_time_idx ON %s (start_nano, end_nano)`, s.cfg.TablePrefix, s.tables.pointBlocks),
+		fmt.Sprintf(`CREATE INDEX IF NOT EXISTS %spoint_blocks_end_idx ON %s (series_id, end_nano)`, s.cfg.TablePrefix, s.tables.pointBlocks),
 	}
 	for _, statement := range statements {
 		if _, err := tx.ExecContext(ctx, statement); err != nil {
@@ -331,6 +332,10 @@ type sqliteV4StoredPoint struct {
 	block  sqliteV4BlockPoint
 }
 
+// ErrQueryWorkBudgetExceeded means the query was rejected in full; callers
+// should narrow the range or request an aggregate rather than use partial data.
+var ErrQueryWorkBudgetExceeded = errors.New("metric: raw query work budget exceeded")
+
 func (s *Store) querySQLiteV4Snapshot(ctx context.Context, query Query) ([]Point, error) {
 	tx, err := s.reader().BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
@@ -349,7 +354,7 @@ func (s *Store) querySQLiteV4Snapshot(ctx context.Context, query Query) ([]Point
 
 func (s *Store) querySQLiteV4(ctx context.Context, q querier, query Query) ([]Point, error) {
 	query = query.normalized()
-	series, err := s.sqliteV4MatchingSeries(ctx, q, query.MetricName, query.EntityID, query.Tags)
+	series, err := s.sqliteV4MatchingSeriesBounded(ctx, q, query.MetricName, query.EntityID, query.Tags, query.WorkBudget)
 	if err != nil || len(series) == 0 {
 		return nil, err
 	}
@@ -361,18 +366,34 @@ func (s *Store) querySQLiteV4(ctx context.Context, q querier, query Query) ([]Po
 	stored := make(map[sqliteV4PointKey]sqliteV4StoredPoint)
 
 	seriesWhere, seriesArgs := sqliteV4SeriesIDClause(series)
+	if query.WorkBudget > 0 {
+		if err := s.checkSQLiteV4QueryWorkBudget(ctx, q, seriesWhere, seriesArgs, startNano, endNano, query.WorkBudget); err != nil {
+			return nil, err
+		}
+	}
 	blockArgs := append(append([]any{}, seriesArgs...), startNano, endNano)
+	blockTable := s.tables.pointBlocks
+	if query.WorkBudget > 0 {
+		blockTable += " AS b INDEXED BY " + s.cfg.TablePrefix + "point_blocks_end_idx"
+	} else {
+		blockTable += " AS b"
+	}
 	blockRows, err := q.QueryContext(ctx, fmt.Sprintf(
 		`SELECT b.series_id, b.start_nano, b.end_nano, b.point_count, b.codec, b.checksum, b.payload,
 		        b.axis_id, a.codec, a.checksum, a.payload
-		 FROM %s AS b LEFT JOIN %s AS a ON a.id = b.axis_id
+		 FROM %s LEFT JOIN %s AS a ON a.id = b.axis_id
 		 WHERE b.series_id IN (%s) AND b.end_nano >= ? AND b.start_nano <= ?`,
-		s.tables.pointBlocks, s.tables.pointAxes, seriesWhere,
+		blockTable, s.tables.pointAxes, seriesWhere,
 	), blockArgs...)
 	if err != nil {
 		return nil, err
 	}
+	decodedBytesRemaining := sqliteV4BudgetedPayloadBytes
 	for blockRows.Next() {
+		if err := ctx.Err(); err != nil {
+			_ = blockRows.Close()
+			return nil, err
+		}
 		var seriesID, blockStart, blockEnd int64
 		var count, codec int
 		var checksum int64
@@ -383,7 +404,12 @@ func (s *Store) querySQLiteV4(ctx context.Context, q querier, query Query) ([]Po
 			_ = blockRows.Close()
 			return nil, err
 		}
-		points, err := s.decodeSQLitePointBlockCached(codec, count, uint32(checksum), payload, axisID, axisCodec, axisChecksum, axisPayload)
+		var points []sqliteV4BlockPoint
+		if query.WorkBudget > 0 {
+			points, err = decodeSQLitePointBlockBudgeted(codec, count, uint32(checksum), payload, axisCodec, axisChecksum, axisPayload, &decodedBytesRemaining)
+		} else {
+			points, err = s.decodeSQLitePointBlockCached(codec, count, uint32(checksum), payload, axisID, axisCodec, axisChecksum, axisPayload)
+		}
 		if err != nil {
 			_ = blockRows.Close()
 			return nil, fmt.Errorf("metric: decode SQLite V4 block series=%d start=%d: %w", seriesID, blockStart, err)
@@ -406,6 +432,9 @@ func (s *Store) querySQLiteV4(ctx context.Context, q querier, query Query) ([]Po
 	if err := blockRows.Close(); err != nil {
 		return nil, err
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 
 	hotArgs := append(append([]any{}, seriesArgs...), startNano, endNano)
 	hotRows, err := q.QueryContext(ctx, fmt.Sprintf(
@@ -417,6 +446,10 @@ func (s *Store) querySQLiteV4(ctx context.Context, q querier, query Query) ([]Po
 		return nil, err
 	}
 	for hotRows.Next() {
+		if err := ctx.Err(); err != nil {
+			_ = hotRows.Close()
+			return nil, err
+		}
 		var seriesID int64
 		var point sqliteV4BlockPoint
 		var value float64
@@ -484,7 +517,107 @@ func (s *Store) querySQLiteV4(ctx context.Context, q querier, query Query) ([]Po
 	return result, nil
 }
 
+// The maximum compressed bytes and maximum inflated bytes for a public raw query.
+// Legacy/unrestricted internal reads retain their original codec behavior.
+const sqliteV4BudgetedPayloadBytes = 4 << 20
+
+// Check metadata before selecting any block payload. A partially overlapping
+// block costs its entire point_count to decode; hot rows consume the remainder.
+// Counting hot rows with LIMIT ensures an excessive range never scans them all.
+func (s *Store) checkSQLiteV4QueryWorkBudget(ctx context.Context, q querier, seriesWhere string, seriesArgs []any, startNano, endNano int64, budget int) error {
+	remainingBytes := sqliteV4BudgetedPayloadBytes
+	remaining := budget
+	// Seek each series by end_nano, never from its oldest start_nano.
+	// LIMIT applies to indexed candidates before testing their start boundary;
+	// excess future blocks fail closed instead of scanning an unbounded tail.
+	for _, seriesID := range seriesArgs {
+		rows, err := q.QueryContext(ctx, fmt.Sprintf(
+			`SELECT b.start_nano, b.point_count, length(b.payload), COALESCE(length(a.payload), 0)
+			 FROM %s AS b INDEXED BY %spoint_blocks_end_idx
+			 LEFT JOIN %s AS a ON a.id = b.axis_id
+			 WHERE b.series_id = ? AND b.end_nano >= ? ORDER BY b.end_nano LIMIT ?`,
+			s.tables.pointBlocks, s.cfg.TablePrefix, s.tables.pointAxes), seriesID, startNano, budget+1)
+		if err != nil {
+			return err
+		}
+		candidates := 0
+		for rows.Next() {
+			if err := ctx.Err(); err != nil {
+				_ = rows.Close()
+				return err
+			}
+			candidates++
+			if candidates > budget {
+				_ = rows.Close()
+				return ErrQueryWorkBudgetExceeded
+			}
+			var blockStart int64
+			var count, payloadBytes, axisBytes int
+			if err := rows.Scan(&blockStart, &count, &payloadBytes, &axisBytes); err != nil {
+				_ = rows.Close()
+				return err
+			}
+			if blockStart > endNano {
+				continue
+			}
+			if count > remaining || count <= 0 || payloadBytes <= 0 || payloadBytes > remainingBytes || axisBytes > remainingBytes-payloadBytes {
+				_ = rows.Close()
+				return ErrQueryWorkBudgetExceeded
+			}
+			remainingBytes -= payloadBytes + axisBytes
+			remaining -= count
+		}
+		if err := rows.Err(); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		if err := rows.Close(); err != nil {
+			return err
+		}
+	}
+	args := append(append([]any{}, seriesArgs...), startNano, endNano, remaining+1)
+	rows, err := q.QueryContext(ctx, fmt.Sprintf(
+		`SELECT COALESCE(length(CAST(labels AS BLOB)), 0) FROM %s WHERE series_id IN (%s) AND ts_nano >= ? AND ts_nano <= ? LIMIT ?`,
+		s.tables.pointValues, seriesWhere), args...)
+	if err != nil {
+		return err
+	}
+	for rows.Next() {
+		if err := ctx.Err(); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		var labelBytes int
+		if err := rows.Scan(&labelBytes); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		remaining--
+		if remaining < 0 || labelBytes < 0 || labelBytes > remainingBytes {
+			_ = rows.Close()
+			return ErrQueryWorkBudgetExceeded
+		}
+		remainingBytes -= labelBytes
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return err
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+	return ctx.Err()
+}
+
 func (s *Store) sqliteV4MatchingSeries(ctx context.Context, q querier, metricName, entityID string, tags map[string]string) ([]sqliteV4Series, error) {
+	return s.sqliteV4MatchingSeriesBounded(ctx, q, metricName, entityID, tags, 0)
+}
+
+// Raw queries bound discovery before decoding tags or building an IN clause.
+// Reserve three SQLite variables for the hot-point budget check (range + LIMIT).
+const sqliteV4BudgetedSeriesLimit = 999 - 3
+
+func (s *Store) sqliteV4MatchingSeriesBounded(ctx context.Context, q querier, metricName, entityID string, tags map[string]string, workBudget int) ([]sqliteV4Series, error) {
 	var args []any
 	var parts []string
 	if strings.TrimSpace(metricName) != "" {
@@ -495,24 +628,81 @@ func (s *Store) sqliteV4MatchingSeries(ctx context.Context, q querier, metricNam
 		args = append(args, entityID)
 		parts = append(parts, "entity_id = ?")
 	}
-	for _, key := range sortedKeys(tags) {
-		args = append(args, tags[key])
-		parts = append(parts, s.dialect.jsonExtractEquals("tags", key, "?"))
+	if workBudget == 0 {
+		for _, key := range sortedKeys(tags) {
+			args = append(args, tags[key])
+			parts = append(parts, s.dialect.jsonExtractEquals("tags", key, "?"))
+		}
 	}
 	where := "1 = 1"
 	if len(parts) > 0 {
 		where = strings.Join(parts, " AND ")
 	}
-	rows, err := q.QueryContext(ctx, fmt.Sprintf(
-		`SELECT id, metric_name, entity_id, tags_hash, tags FROM %s WHERE %s ORDER BY id`,
-		s.tables.series, where,
-	), args...)
+	statement := fmt.Sprintf(`SELECT id, metric_name, entity_id, tags_hash, tags FROM %s WHERE %s ORDER BY id`, s.tables.series, where)
+	seriesLimit := 0
+	if workBudget > 0 {
+		// The UNIQUE(metric_name, entity_id, tags_hash) index supplies this
+		// order without sorting every candidate before the LIMIT.
+		statement = fmt.Sprintf(`SELECT id, metric_name, entity_id, tags_hash, tags FROM %s WHERE %s ORDER BY metric_name, entity_id, tags_hash`, s.tables.series, where)
+		seriesLimit = workBudget
+		if seriesLimit > sqliteV4BudgetedSeriesLimit {
+			seriesLimit = sqliteV4BudgetedSeriesLimit
+		}
+		statement += ` LIMIT ?`
+		args = append(args, seriesLimit+1)
+		// Inspect bounded candidates' sizes before selecting or decoding tags.
+		// A row over the limit is rejected without fetching its tag value.
+		sizeRows, err := q.QueryContext(ctx, fmt.Sprintf(
+			`SELECT length(CAST(tags AS BLOB)) FROM %s WHERE %s ORDER BY metric_name, entity_id, tags_hash LIMIT ?`, s.tables.series, where), args...)
+		if err != nil {
+			return nil, err
+		}
+		remainingBytes := sqliteV4BudgetedPayloadBytes
+		count := 0
+		for sizeRows.Next() {
+			if err := ctx.Err(); err != nil {
+				_ = sizeRows.Close()
+				return nil, err
+			}
+			count++
+			if count > seriesLimit {
+				_ = sizeRows.Close()
+				return nil, ErrQueryWorkBudgetExceeded
+			}
+			var size int
+			if err := sizeRows.Scan(&size); err != nil {
+				_ = sizeRows.Close()
+				return nil, err
+			}
+			if size < 0 || size > remainingBytes {
+				_ = sizeRows.Close()
+				return nil, ErrQueryWorkBudgetExceeded
+			}
+			remainingBytes -= size
+		}
+		if err := sizeRows.Err(); err != nil {
+			_ = sizeRows.Close()
+			return nil, err
+		}
+		if err := sizeRows.Close(); err != nil {
+			return nil, err
+		}
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+	}
+	rows, err := q.QueryContext(ctx, statement, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	var result []sqliteV4Series
+	candidates := 0
 	for rows.Next() {
+		if workBudget > 0 && candidates == seriesLimit {
+			return nil, ErrQueryWorkBudgetExceeded
+		}
+		candidates++
 		var item sqliteV4Series
 		var rawTags any
 		if err := rows.Scan(&item.id, &item.metricName, &item.entityID, &item.tagsHash, &rawTags); err != nil {
@@ -525,6 +715,19 @@ func (s *Store) sqliteV4MatchingSeries(ctx context.Context, q querier, metricNam
 		item.tags, err = decodeMapString(item.tagsJSON)
 		if err != nil {
 			return nil, err
+		}
+		if workBudget > 0 {
+			matched := true
+			for key, value := range tags {
+				actual, exists := item.tags[key]
+				if !exists || actual != value {
+					matched = false
+					break
+				}
+			}
+			if !matched {
+				continue
+			}
 		}
 		result = append(result, item)
 	}

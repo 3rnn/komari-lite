@@ -1,6 +1,8 @@
 package accounts
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net"
@@ -14,6 +16,35 @@ import (
 	"github.com/komari-monitor/komari/utils/geoip"
 	"github.com/komari-monitor/komari/utils/messageSender"
 )
+
+// SessionID is a non-bearer identifier derived from a high-entropy session token.
+// It must never be accepted as an authentication credential.
+func SessionID(token string) string {
+	digest := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(digest[:])
+}
+
+// DeleteSessionByID resolves a public session ID to its private token and
+// deletes only the matching session. No token is returned to the caller.
+func DeleteSessionByID(id string) error {
+	if len(id) != sha256.Size*2 {
+		return errors.New("invalid session ID")
+	}
+	if _, err := hex.DecodeString(id); err != nil {
+		return errors.New("invalid session ID")
+	}
+	db := dbcore.GetDBInstance()
+	var sessions []models.Session
+	if err := db.Select("session").Find(&sessions).Error; err != nil {
+		return err
+	}
+	for _, session := range sessions {
+		if SessionID(session.Session) == id {
+			return DeleteSession(session.Session)
+		}
+	}
+	return nil // Deletion of an already-removed session is idempotent.
+}
 
 // GetAllSessions Get all sessions
 func GetAllSessions() (sessions []models.Session, err error) {

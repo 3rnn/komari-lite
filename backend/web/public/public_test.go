@@ -69,6 +69,45 @@ func TestIsSafePathAllowsDotDotFilenameButRejectsTraversal(t *testing.T) {
 	}
 }
 
+func TestStaticThemeFilesRejectGlassRollbackBackup(t *testing.T) {
+	t.Chdir(t.TempDir())
+	gin.SetMode(gin.TestMode)
+	const backupID = "Glass.backup-2026-10-02T00-00-00.000Z-deadbeef"
+	for themeID, content := range map[string]string{
+		DefaultTheme: "active-theme-asset",
+		backupID:     "rollback-theme-asset",
+	} {
+		assetDir := filepath.Join(DataDir, ThemesDir, themeID, DistDir)
+		if err := os.MkdirAll(assetDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(assetDir, "asset.js"), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	router := gin.New()
+	Static(router.Group("/"), router.NoRoute)
+	for _, tc := range []struct {
+		id, body string
+		status   int
+	}{
+		{DefaultTheme, "active-theme-asset", http.StatusOK},
+		{backupID, "", http.StatusNotFound},
+	} {
+		t.Run(tc.id, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/themes/"+tc.id+"/dist/asset.js", nil))
+			if recorder.Code != tc.status || recorder.Body.String() != tc.body {
+				t.Fatalf("theme %q: status=%d body=%q, want status=%d body=%q", tc.id, recorder.Code, recorder.Body.String(), tc.status, tc.body)
+			}
+		})
+	}
+	if got, err := os.ReadFile(filepath.Join(DataDir, ThemesDir, backupID, DistDir, "asset.js")); err != nil || string(got) != "rollback-theme-asset" {
+		t.Fatalf("rollback asset was not retained on disk: content=%q err=%v", got, err)
+	}
+}
+
 func TestEmbeddedThemeSourcesContainNoHanCharacters(t *testing.T) {
 	for _, root := range []string{"bundledThemes/Glass", "rescueTheme"} {
 		err := fs.WalkDir(PublicFS, root, func(name string, entry fs.DirEntry, walkErr error) error {

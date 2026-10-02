@@ -32,13 +32,13 @@ test("the deploy command always derives its download source from the live domain
   assert.match(source, /window\.location\.origin/);
   assert.match(source, /normalizeOptionalServiceUrl\(configured\)/);
   assert.match(source, /fromSetting: Boolean\(configured\)/);
-  // Both command builders use the shared resolver instead of duplicated inline logic.
+  // The supported per-node command uses the shared resolver.
   assert.equal(
     (source.match(/resolveAgentSource\(settings\?\.script_domain\)\.host/g) ?? []).length,
-    2,
+    1,
   );
-  // Both dialogs identify the download source.
-  assert.equal((source.match(/<AgentSourceHint /g) ?? []).length, 2);
+  // The per-node dialog identifies the download source.
+  assert.equal((source.match(/<AgentSourceHint /g) ?? []).length, 1);
   for (const key of [
     "installSource",
     "installSourceFromSetting",

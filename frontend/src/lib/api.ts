@@ -1,5 +1,6 @@
 import React from "react";
 import { toast } from "sonner";
+import { adminRequestInvalidated, getAdminRevocationGeneration, registerAdminCacheClearer, revokeAdminSession } from "@/utils/adminRevocation";
 
 /**
  * API utility functions for settings management
@@ -39,14 +40,18 @@ const createDefaultSettings = (): SettingsResponse => ({
 });
 
 let pendingSettingsRequest: Promise<SettingsResponse> | null = null;
+registerAdminCacheClearer(() => { pendingSettingsRequest = null; });
 
 function getSettingsDeduplicated(): Promise<SettingsResponse> {
   if (pendingSettingsRequest) return pendingSettingsRequest;
 
-  pendingSettingsRequest = getSettings().finally(() => {
-    pendingSettingsRequest = null;
+  const request = getSettings();
+  let tracked: Promise<SettingsResponse>;
+  tracked = request.finally(() => {
+    if (pendingSettingsRequest === tracked) pendingSettingsRequest = null;
   });
-  return pendingSettingsRequest;
+  pendingSettingsRequest = tracked;
+  return tracked;
 }
 
 /**
@@ -54,14 +59,18 @@ function getSettingsDeduplicated(): Promise<SettingsResponse> {
  * @returns Promise containing the settings data
  */
 export async function getSettings(): Promise<SettingsResponse> {
+  const generation = getAdminRevocationGeneration();
   try {
     const response = await fetch("/api/admin/settings");
+    adminRequestInvalidated(generation);
+    if (response.status === 401) revokeAdminSession();
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
     const data = await response.json();
+    adminRequestInvalidated(generation);
     const settingsPayload = data["data"];
 
     if (
@@ -81,7 +90,9 @@ export async function getSettings(): Promise<SettingsResponse> {
 
     return settings as SettingsResponse;
   } catch (error) {
-    console.error("Failed to fetch settings:", error);
+    if (!(error instanceof DOMException && error.name === "AbortError")) {
+      console.error("Failed to fetch settings:", error);
+    }
     throw error;
   }
 }
@@ -94,6 +105,7 @@ export async function getSettings(): Promise<SettingsResponse> {
 export async function updateSettings(
   settings: Partial<SettingsResponse>
 ): Promise<void> {
+  const generation = getAdminRevocationGeneration();
   const response = await fetch("/api/admin/settings", {
     method: "POST",
     headers: {
@@ -101,6 +113,8 @@ export async function updateSettings(
     },
     body: JSON.stringify(settings),
   });
+  adminRequestInvalidated(generation);
+  if (response.status === 401) revokeAdminSession();
 
   if (!response.ok) {
     let message = `HTTP error! status: ${response.status}`;

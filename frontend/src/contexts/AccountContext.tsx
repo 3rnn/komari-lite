@@ -5,6 +5,7 @@ import {
   type Account,
   type AccountPreferences,
 } from "@/utils/adminAuth";
+import { getAdminRevocationGeneration, isAdminLogoutPending, revokeAdminSession, subscribeAdminRevocation } from "@/utils/adminRevocation";
 
 // Context
 export interface AccountContextType {
@@ -27,15 +28,42 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<Error | null>(null);
 
+  const requestSequence = React.useRef(0);
+  const accountIdentity = React.useRef<string | null>(null);
+
+  React.useEffect(() => subscribeAdminRevocation(() => {
+    requestSequence.current++;
+    accountIdentity.current = null;
+    setAccount({ logged_in: false, uuid: "", username: "", sso_id: "", sso_type: "", "2fa_enabled": false });
+    setError(null);
+    setLoading(false);
+  }), []);
+
   const refresh = React.useCallback(async () => {
+    if (isAdminLogoutPending()) return;
+    const sequence = ++requestSequence.current;
+    const generation = getAdminRevocationGeneration();
     setLoading(true);
     setError(null);
     try {
-      setAccount(await fetchAccount());
+      const next = await fetchAccount(fetch, () => sequence === requestSequence.current);
+      if (sequence === requestSequence.current && generation === getAdminRevocationGeneration() && !isAdminLogoutPending()) {
+        const nextIdentity = next.logged_in ? next.uuid || next.username || "authenticated" : null;
+        if (accountIdentity.current !== nextIdentity && (accountIdentity.current !== null || !nextIdentity)) {
+          // /api/me can replace an authenticated session without returning 401.
+          revokeAdminSession();
+        }
+        accountIdentity.current = nextIdentity;
+        setAccount(next);
+        setError(null);
+        setLoading(false);
+      }
     } catch (err) {
-      setError(err instanceof Error ? err : new Error(String(err)));
+      if (sequence === requestSequence.current && generation === getAdminRevocationGeneration() && !isAdminLogoutPending()) {
+        setError(err instanceof Error ? err : new Error(String(err)));
+      }
     } finally {
-      setLoading(false);
+      if (sequence === requestSequence.current && generation === getAdminRevocationGeneration()) setLoading(false);
     }
   }, []);
 
@@ -45,7 +73,9 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const updatePreferences = React.useCallback(
     async (preferences: AccountPreferences) => {
+      const generation = getAdminRevocationGeneration();
       await saveAccountPreferences(preferences);
+      if (generation !== getAdminRevocationGeneration()) return;
       setAccount((current) =>
         current?.logged_in
           ? {

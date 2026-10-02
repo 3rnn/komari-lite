@@ -3,6 +3,20 @@ import type {
   DashboardAlertKind,
   DashboardAlertLatest,
 } from "@/utils/dashboard";
+import { adminRequestInvalidated, getAdminRevocationGeneration, registerAdminCacheClearer, revokeAdminSession } from "@/utils/adminRevocation";
+
+export function visibleRouteAlertItems<T>(items: T[], loadedIdentity: string, currentIdentity: string): T[] {
+  return loadedIdentity === currentIdentity ? items : [];
+}
+
+// A cached promise may resolve after logout even though its cache was cleared.
+export function currentRouteAlertItems(
+  response: DashboardAlertItemsResponse,
+  requestGeneration: number,
+  revoked: boolean,
+): DashboardAlertItemsResponse["items"] | null {
+  return revoked || requestGeneration !== getAdminRevocationGeneration() ? null : response.items;
+}
 
 export const serverAlertKinds = new Set<DashboardAlertKind>([
   "offline",
@@ -17,6 +31,15 @@ const alertItemsCache = new Map<string, {
   response: DashboardAlertItemsResponse;
 }>();
 const pendingAlertItems = new Map<string, Promise<DashboardAlertItemsResponse>>();
+let alertCacheGeneration = 0;
+
+export function clearDashboardAlertItemsCache(): void {
+  alertCacheGeneration++;
+  alertItemsCache.clear();
+  pendingAlertItems.clear();
+}
+
+registerAdminCacheClearer(clearDashboardAlertItemsCache);
 
 function alertItemsCacheKey(kind: DashboardAlertKind, accountKey: string): string {
   return `${accountKey}:${kind}`;
@@ -64,16 +87,26 @@ export async function requestDashboardAlertItems(
 ): Promise<DashboardAlertItemsResponse> {
   const cached = getDashboardAlertItemsSnapshot(kind, accountKey);
   if (cached) return cached;
+  const generation = alertCacheGeneration;
+  const revocationGeneration = getAdminRevocationGeneration();
   const params = new URLSearchParams({ kind });
   const response = await fetch(`/api/admin/dashboard/alerts?${params}`, {
     cache: "no-store",
     signal,
   });
+  adminRequestInvalidated(revocationGeneration);
+  if (response.status === 401) revokeAdminSession();
+  if (signal?.aborted && response.status !== 401) throw new DOMException("Alert route changed", "AbortError");
+  if (generation !== alertCacheGeneration && response.status !== 401) throw new DOMException("Alert request invalidated", "AbortError");
   if (!response.ok) {
     const payload = await response.json().catch(() => null);
-    throw new Error(payload?.message || `HTTP ${response.status}`);
+    throw Object.assign(new Error(payload?.message || `HTTP ${response.status}`), { status: response.status });
   }
   const data = await response.json() as DashboardAlertItemsResponse;
+  adminRequestInvalidated(revocationGeneration);
+  if (signal?.aborted) throw new DOMException("Alert route changed", "AbortError");
+  // A response from before logout/revocation must not reach a newly mounted route.
+  if (generation !== alertCacheGeneration) throw new DOMException("Alert request invalidated", "AbortError");
   const normalized = { ...data, items: Array.isArray(data.items) ? data.items : [] };
   alertItemsCache.set(alertItemsCacheKey(kind, accountKey), {
     expiresAt: Date.now() + ALERT_ITEMS_CACHE_TTL_MS,

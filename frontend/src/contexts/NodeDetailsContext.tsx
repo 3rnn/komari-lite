@@ -1,6 +1,8 @@
 import React from "react";
 import { useAccount } from "@/contexts/AccountContext";
 import { isAdminNodeBootstrapLoading } from "@/utils/adminAuth";
+import { subscribeAdminRevocation } from "@/utils/adminRevocation";
+import { adminNodeRequest } from "@/utils/adminNodeRequest";
 
 export type NodeDetail = {
   uuid: string;
@@ -68,7 +70,7 @@ async function hydrateLegacyDeploymentStatuses(nodes: NodeDetail[]) {
   return Promise.all(nodes.map(async (node) => {
     if (hasDeploymentStatus(node)) return node;
     try {
-      const response = await fetch(`/api/admin/client/${node.uuid}/deployment-profile`, {
+      const response = await adminNodeRequest(`/api/admin/client/${node.uuid}/deployment-profile`, {
         cache: "no-store",
       });
       if (!response.ok) return { ...node, deployment_status: "" as const };
@@ -89,10 +91,29 @@ const NodeDetailsProviderValue: React.FC<{ children: React.ReactNode }> = ({
   const [loadedAccount, setLoadedAccount] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const requestSequence = React.useRef(0);
+  const lastAccountKey = React.useRef<string | null>(null);
   const activeRequestAccount = React.useRef<string | null>(null);
+  React.useEffect(() => subscribeAdminRevocation(() => {
+    requestSequence.current++;
+    activeRequestAccount.current = null;
+    setNodeDetail([]);
+    setError(null);
+    setLoadedAccount(null);
+  }), []);
   const accountKey = account?.logged_in
     ? account.uuid || "__authenticated__"
     : null;
+  React.useEffect(() => {
+    if (lastAccountKey.current === accountKey) return;
+    const previous = lastAccountKey.current;
+    lastAccountKey.current = accountKey;
+    if (!previous) return;
+    requestSequence.current++;
+    activeRequestAccount.current = null;
+    setNodeDetail([]);
+    setError(null);
+    setLoadedAccount(null);
+  }, [accountKey]);
   const isLoading = isAdminNodeBootstrapLoading(
     accountLoading,
     accountKey,
@@ -105,8 +126,9 @@ const NodeDetailsProviderValue: React.FC<{ children: React.ReactNode }> = ({
     activeRequestAccount.current = targetAccount;
     setError(null);
 
-    fetch("/api/admin/client/list", { cache: "no-store" })
+    adminNodeRequest("/api/admin/client/list", { cache: "no-store" })
       .then((response) => {
+        if (sequence !== requestSequence.current) throw new DOMException("Node request invalidated", "AbortError");
         if (!response.ok) {
           throw new Error(`Failed to fetch node details (${response.status})`);
         }

@@ -42,6 +42,7 @@ func registerPublicRoutes(r *gin.Engine) {
 	// Keep REST handlers for non-JSON or special workflows.
 	r.POST("/api/login", public_api.Login)
 	r.GET("/api/logout", public_api.Logout)
+	r.POST("/api/logout", public_api.PostLogout)
 	r.GET("/api/oauth", public_api.OAuth)
 	r.GET("/api/oauth_callback", public_api.OAuthCallback)
 	r.GET("/api/mjpeg_live", public_api.MjpegLiveHandler)

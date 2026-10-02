@@ -46,3 +46,18 @@ func TestRegisterUsesOnlyChunkedArchiveUploadRoutes(t *testing.T) {
 		}
 	}
 }
+
+func TestRegisterLogoutMethods(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	Register(engine)
+	routes := make(map[string]bool)
+	for _, route := range engine.Routes() {
+		routes[route.Method+" "+route.Path] = true
+	}
+	for _, method := range []string{"GET", "POST"} {
+		if !routes[method+" /api/logout"] {
+			t.Errorf("missing %s /api/logout", method)
+		}
+	}
+}

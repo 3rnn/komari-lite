@@ -87,10 +87,20 @@ func encodeSQLiteV6PointAxis(points []sqliteV4BlockPoint) ([]byte, error) {
 }
 
 func decodeSQLiteV6PointAxis(codec, expectedCount int, expectedChecksum uint32, payload []byte) ([]int64, error) {
+	return decodeSQLiteV6PointAxisBudgeted(codec, expectedCount, expectedChecksum, payload, nil)
+}
+
+func decodeSQLiteV6PointAxisBudgeted(codec, expectedCount int, expectedChecksum uint32, payload []byte, remaining *int) ([]int64, error) {
 	if codec != sqliteV6PointAxisCodec || len(payload) < 2 || crc32.ChecksumIEEE(payload) != expectedChecksum {
 		return nil, fmt.Errorf("metric: invalid SQLite V6 shared point axis")
 	}
-	raw, err := inflateSQLiteV4Payload(payload)
+	var raw []byte
+	var err error
+	if remaining != nil {
+		raw, err = inflateSQLiteV4PointPayloadBudgeted(payload, remaining)
+	} else {
+		raw, err = inflateSQLiteV4Payload(payload)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -215,10 +225,20 @@ func encodeSQLiteV6PointValues(points []sqliteV4BlockPoint) ([]byte, error) {
 }
 
 func decodeSQLiteV6PointValues(expectedCount int, expectedChecksum uint32, payload []byte, timestamps []int64) ([]sqliteV4BlockPoint, error) {
+	return decodeSQLiteV6PointValuesBudgeted(expectedCount, expectedChecksum, payload, timestamps, nil)
+}
+
+func decodeSQLiteV6PointValuesBudgeted(expectedCount int, expectedChecksum uint32, payload []byte, timestamps []int64, remaining *int) ([]sqliteV4BlockPoint, error) {
 	if len(payload) < 2 || crc32.ChecksumIEEE(payload) != expectedChecksum {
 		return nil, fmt.Errorf("metric: invalid SQLite V6 shared point values")
 	}
-	raw, err := inflateSQLiteV4Payload(payload)
+	var raw []byte
+	var err error
+	if remaining != nil {
+		raw, err = inflateSQLiteV4PointPayloadBudgeted(payload, remaining)
+	} else {
+		raw, err = inflateSQLiteV4Payload(payload)
+	}
 	if err != nil {
 		return nil, err
 	}

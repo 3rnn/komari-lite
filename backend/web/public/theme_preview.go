@@ -47,7 +47,9 @@ func setThemeStaticCacheHeaders(c *gin.Context, requestPath string) {
 }
 
 func serveThemeFile(c *gin.Context, themeID, relativePath string) {
-	if !validThemeID(themeID) {
+	// The Glass upgrade keeps rollback copies beside the installed theme, but
+	// they are not public themes and must not be addressable as theme IDs.
+	if !validThemeID(themeID) || strings.HasPrefix(themeID, DefaultTheme+".backup-") {
 		c.Status(http.StatusNotFound)
 		return
 	}

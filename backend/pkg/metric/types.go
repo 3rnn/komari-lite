@@ -281,6 +281,10 @@ type Query struct {
 	//
 	// Limit limits the number of original points returned.
 	Limit int `json:"limit,omitempty"`
+	// WorkBudget bounds raw points examined by SQLite V4 (including points in
+	// overlapping blocks). Zero leaves ordinary internal query semantics intact.
+	// This is an internal resource limit, not a response page size.
+	WorkBudget int `json:"-"`
 	// Offset skips this many raw points before returning results.
 	//
 	// Offset skips the specified number of original points before returning the result.
@@ -304,7 +308,7 @@ func (q Query) Validate() error {
 	if q.End.Before(q.Start) {
 		return fmt.Errorf("%w: end time cannot be before start time", ErrInvalidArgument)
 	}
-	if q.Limit < 0 || q.Offset < 0 {
+	if q.Limit < 0 || q.Offset < 0 || q.WorkBudget < 0 {
 		return fmt.Errorf("%w: limit and offset cannot be negative", ErrInvalidArgument)
 	}
 	switch q.Order {

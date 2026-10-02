@@ -86,15 +86,23 @@ func TestLogin(t *testing.T) {
 
 			// Assert the response body.
 			if tt.expectedStatus == http.StatusOK {
-				// For successful cases, we only check the response structure, not the specific session token
+				// Successful login delivers its bearer token only in the HttpOnly cookie.
 				assert.Equal(t, "success", response["status"])
 				assert.Equal(t, "", response["message"])
-				data, ok := response["data"].(map[string]interface{})
-				assert.True(t, ok)
-				setCookie, ok := data["set-cookie"].(map[string]interface{})
-				assert.True(t, ok)
-				assert.NotEmpty(t, setCookie["session_token"])
-				assert.Contains(t, strings.Join(w.Header().Values("Set-Cookie"), "\n"), "session_token=")
+				assert.NotContains(t, response, "data")
+				cookies := w.Result().Cookies()
+				if assert.Len(t, cookies, 1) {
+					cookie := cookies[0]
+					assert.Equal(t, "session_token", cookie.Name)
+					assert.True(t, cookie.HttpOnly)
+					assert.Equal(t, http.SameSiteLaxMode, cookie.SameSite)
+					assert.Equal(t, "/", cookie.Path)
+					assert.Equal(t, sessionCookieMaxAge, cookie.MaxAge)
+					assert.NotEmpty(t, cookie.Value)
+					assert.NotContains(t, w.Body.String(), cookie.Value)
+					_, err := accounts.GetSession(cookie.Value)
+					assert.NoError(t, err)
+				}
 			} else {
 				assert.Equal(t, tt.expectedBody, response)
 			}
@@ -103,6 +111,139 @@ func TestLogin(t *testing.T) {
 	// Clear test data
 	accounts.DeleteAccountByUsername("testuser")
 	accounts.DeleteAllSessions()
+}
+
+func TestPostLogoutDeletesSessionAndClearsCookie(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	token, err := accounts.CreateSession("logout-user", sessionCookieMaxAge, "", "", "password")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer accounts.DeleteSession(token)
+
+	router := gin.New()
+	router.POST("/api/logout", PostLogout)
+	request := httptest.NewRequest(http.MethodPost, "https://monitor.example/api/logout", nil)
+	request.Header.Set("Origin", "https://monitor.example")
+	request.AddCookie(&http.Cookie{Name: "session_token", Value: token})
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	assert.Equal(t, http.StatusOK, response.Code)
+	assert.JSONEq(t, `{"status":"success","message":""}`, response.Body.String())
+	if cookies := response.Result().Cookies(); assert.Len(t, cookies, 1) {
+		assert.Equal(t, "session_token", cookies[0].Name)
+		assert.Equal(t, "", cookies[0].Value)
+		assert.True(t, cookies[0].MaxAge < 0)
+		assert.Equal(t, "/", cookies[0].Path)
+		assert.True(t, cookies[0].HttpOnly)
+	}
+	_, err = accounts.GetSession(token)
+	assert.Error(t, err, "logged-out cookie must not authenticate again")
+}
+
+func TestPostLogoutRejectsUntrustedOriginsWithoutDeletingSession(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	cases := []struct {
+		name, origin, remoteAddr, forwardedHost, authorization string
+	}{
+		{name: "missing origin"},
+		{name: "cross origin", origin: "https://evil.example"},
+		{name: "scheme mismatch", origin: "http://monitor.example"},
+		{name: "malformed origin", origin: "https://monitor.example/path"},
+		{name: "spoofed forwarded host", origin: "https://evil.example", remoteAddr: "203.0.113.8:4555", forwardedHost: "evil.example"},
+		{name: "authorization is not a bypass", origin: "https://evil.example", authorization: "Bearer untrusted"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			token, err := accounts.CreateSession("logout-user", sessionCookieMaxAge, "", "", "password")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer accounts.DeleteSession(token)
+			router := gin.New()
+			router.POST("/api/logout", PostLogout)
+			request := httptest.NewRequest(http.MethodPost, "https://monitor.example/api/logout", nil)
+			if tc.origin != "" {
+				request.Header.Set("Origin", tc.origin)
+			}
+			if tc.remoteAddr != "" {
+				request.RemoteAddr = tc.remoteAddr
+			}
+			request.Header.Set("X-Forwarded-Host", tc.forwardedHost)
+			request.Header.Set("Authorization", tc.authorization)
+			request.AddCookie(&http.Cookie{Name: "session_token", Value: token})
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, request)
+			assert.Equal(t, http.StatusForbidden, response.Code)
+			assert.Empty(t, response.Header().Values("Set-Cookie"))
+			_, err = accounts.GetSession(token)
+			assert.NoError(t, err, "rejected POST must leave the session intact")
+		})
+	}
+}
+
+func TestPostLogoutRequiresLiveSessionCookie(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.POST("/api/logout", PostLogout)
+	for _, tc := range []struct{ name, token string }{
+		{name: "missing cookie"},
+		{name: "invalid cookie", token: "not-a-session"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodPost, "https://monitor.example/api/logout", nil)
+			request.Header.Set("Origin", "https://monitor.example")
+			if tc.token != "" {
+				request.AddCookie(&http.Cookie{Name: "session_token", Value: tc.token})
+			}
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, request)
+			assert.Equal(t, http.StatusUnauthorized, response.Code)
+			assert.Empty(t, response.Header().Values("Set-Cookie"))
+		})
+	}
+}
+
+func TestLegacyGetLogoutStillRedirects(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	token, err := accounts.CreateSession("logout-user", sessionCookieMaxAge, "", "", "password")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer accounts.DeleteSession(token)
+	router := gin.New()
+	router.GET("/api/logout", Logout)
+	request := httptest.NewRequest(http.MethodGet, "https://monitor.example/api/logout", nil)
+	request.AddCookie(&http.Cookie{Name: "session_token", Value: token})
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	assert.Equal(t, http.StatusFound, response.Code)
+	assert.Equal(t, "/", response.Header().Get("Location"))
+	_, err = accounts.GetSession(token)
+	assert.Error(t, err)
+}
+
+func TestPostLogoutBehindTrustedReverseProxy(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	token, err := accounts.CreateSession("logout-user", sessionCookieMaxAge, "", "", "password")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer accounts.DeleteSession(token)
+	router := gin.New()
+	router.POST("/api/logout", PostLogout)
+	request := httptest.NewRequest(http.MethodPost, "http://internal:8080/api/logout", nil)
+	request.RemoteAddr = "127.0.0.1:44000"
+	request.Header.Set("Origin", "https://monitor.example")
+	request.Header.Set("X-Forwarded-Host", "monitor.example")
+	request.Header.Set("X-Forwarded-Proto", "https")
+	request.AddCookie(&http.Cookie{Name: "session_token", Value: token})
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	assert.Equal(t, http.StatusOK, response.Code)
+	_, err = accounts.GetSession(token)
+	assert.Error(t, err)
 }
 
 func TestSessionCookieSecureFollowsRequestScheme(t *testing.T) {

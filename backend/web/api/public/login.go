@@ -4,12 +4,15 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/komari-monitor/komari/database/accounts"
 	"github.com/komari-monitor/komari/database/auditlog"
 	"github.com/komari-monitor/komari/pkg/config"
 	"github.com/komari-monitor/komari/utils"
 	"github.com/komari-monitor/komari/web/api"
+	"github.com/komari-monitor/komari/web/security"
 
 	"github.com/gin-gonic/gin"
 )
@@ -93,8 +96,39 @@ func Login(c *gin.Context) {
 	}
 	setSessionCookie(c, session, sessionCookieMaxAge)
 	auditlog.Log(c.ClientIP(), uuid, "logged in (password)", "login")
-	api.RespondSuccess(c, gin.H{"set-cookie": gin.H{"session_token": session}})
+	// The HttpOnly cookie is the only delivery channel for the bearer token.
+	api.RespondSuccess(c, nil)
 }
+func PostLogout(c *gin.Context) {
+	// Logout is a cookie-authenticated state change: CORS allowlists, API keys,
+	// and a missing Origin must not authorize a cross-site POST.
+	origin := c.GetHeader("Origin")
+	parsed, err := url.Parse(origin)
+	if origin == "" || err != nil || parsed.Host == "" || parsed.Scheme != utils.GetScheme(c) ||
+		parsed.User != nil || parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" ||
+		parsed.Opaque != "" || strings.TrimSpace(origin) != origin ||
+		!security.OriginMatchesRequest(origin, c.Request) {
+		api.RespondError(c, http.StatusForbidden, "Origin not allowed")
+		return
+	}
+	session, err := c.Cookie("session_token")
+	if err != nil || session == "" {
+		api.RespondError(c, http.StatusUnauthorized, "Unauthorized.")
+		return
+	}
+	if _, err := accounts.GetSession(session); err != nil {
+		api.RespondError(c, http.StatusUnauthorized, "Unauthorized.")
+		return
+	}
+	if err := accounts.DeleteSession(session); err != nil {
+		api.RespondError(c, http.StatusInternalServerError, "Failed to delete session")
+		return
+	}
+	setSessionCookie(c, "", -1)
+	auditlog.Log(c.ClientIP(), "", "logged out", "logout")
+	api.RespondSuccess(c, nil)
+}
+
 func Logout(c *gin.Context) {
 	session, _ := c.Cookie("session_token")
 	accounts.DeleteSession(session)

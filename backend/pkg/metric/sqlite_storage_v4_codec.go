@@ -173,6 +173,10 @@ func encodeSQLiteV4Block(points []sqliteV4BlockPoint) (sqliteV4EncodedBlock, err
 }
 
 func decodeSQLiteV4Block(codec, expectedCount int, expectedChecksum uint32, payload []byte) ([]sqliteV4BlockPoint, error) {
+	return decodeSQLiteV4BlockBudgeted(codec, expectedCount, expectedChecksum, payload, nil)
+}
+
+func decodeSQLiteV4BlockBudgeted(codec, expectedCount int, expectedChecksum uint32, payload []byte, remaining *int) ([]sqliteV4BlockPoint, error) {
 	if codec != sqliteV4BlockCodec {
 		return nil, fmt.Errorf("metric: unsupported SQLite V4 point block codec %d", codec)
 	}
@@ -186,7 +190,21 @@ func decodeSQLiteV4Block(codec, expectedCount int, expectedChecksum uint32, payl
 	switch payload[0] {
 	case sqliteV4PayloadRaw:
 		raw = payload[1:]
+		if remaining != nil {
+			if len(raw) > *remaining {
+				return nil, ErrQueryWorkBudgetExceeded
+			}
+			*remaining -= len(raw)
+		}
 	case sqliteV4PayloadDeflate:
+		if remaining != nil {
+			var err error
+			raw, err = inflateSQLiteV4PointPayloadBudgeted(payload, remaining)
+			if err != nil {
+				return nil, err
+			}
+			break
+		}
 		reader := flate.NewReader(bytes.NewReader(payload[1:]))
 		decompressed, err := io.ReadAll(io.LimitReader(reader, 128<<20))
 		closeErr := reader.Close()

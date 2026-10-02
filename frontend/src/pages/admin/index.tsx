@@ -1,8 +1,7 @@
 import AppDialogContent from "@/components/AppDialogContent";
 import {
-  quotePowerShellArg,
-  quoteShellArg,
-  quoteShellArgs,
+  windowsInstallCommand,
+  linuxInstallCommand,
 } from "@/utils/shellQuote";
 import { publicVersion } from "@/utils/version";
 import { normalizeOptionalServiceUrl } from "@/utils/serviceUrl";
@@ -36,15 +35,13 @@ import {
   GripVertical,
   Pencil,
   Plus,
-  Radar,
   RotateCw,
   Save,
   Send,
-  Settings,
   Trash2Icon,
   XCircle,
 } from "lucide-react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { Trans, useTranslation } from "react-i18next";
 import {
   DndContext,
@@ -101,10 +98,14 @@ import {
 import { useAdminDefaultPageSize } from "@/hooks/useAdminDefaultPageSize";
 import { useAdminNodeLiveData } from "@/hooks/use-admin-node-live-data";
 import {
+  currentRouteAlertItems,
   getDashboardAlertItemsSnapshot,
   requestDashboardAlertItems,
   serverAlertKinds,
+  visibleRouteAlertItems,
 } from "@/utils/adminAlertFilters";
+import { getAdminRevocationGeneration, subscribeAdminRevocation } from "@/utils/adminRevocation";
+import { adminNodeRequest, postAdminNode } from "@/utils/adminNodeRequest";
 import { useAccount } from "@/contexts/AccountContext";
 import type {
   DashboardAlertAffectedItem,
@@ -128,7 +129,7 @@ const NodeDetailsPage = () => {
 const PREVIOUS_PAGE_DROP_ID = "admin-node-previous-page";
 const NEXT_PAGE_DROP_ID = "admin-node-next-page";
 // Pin both installers and Agent binaries to the matching published Release.
-const agentReleaseVersion = "1.0.14";
+const agentReleaseVersion = "1.0.15";
 const agentReleaseSource = `https://github.com/3rnn/komari-lite/releases/download/v${agentReleaseVersion}`;
 
 const Layout = () => {
@@ -136,7 +137,7 @@ const Layout = () => {
   const { account } = useAccount();
   const accountKey = account?.uuid || account?.username || "authenticated";
   const { nodeDetail, isLoading, error, refresh } = useNodeDetails();
-  const { settings, loading: settingsLoading } = useSettings();
+  const { settings } = useSettings();
   const { liveData, available } = useAdminNodeLiveData();
   const [searchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState("");
@@ -144,22 +145,33 @@ const Layout = () => {
   const routeNode = searchParams.get("node")?.trim() || "";
   const alertParam = searchParams.get("alert")?.trim() as DashboardAlertKind | null;
   const routeAlert = alertParam && serverAlertKinds.has(alertParam) ? alertParam : null;
+  const alertIdentity = `${accountKey}:${routeAlert ?? ""}`;
   const initialAlertSnapshot = routeAlert
     ? getDashboardAlertItemsSnapshot(routeAlert, accountKey)
     : null;
   const [alertItems, setAlertItems] = useState<DashboardAlertAffectedItem[]>(
     initialAlertSnapshot?.items ?? [],
   );
+  const [loadedAlertIdentity, setLoadedAlertIdentity] = useState(alertIdentity);
   const [alertFilterLoading, setAlertFilterLoading] = useState(
     Boolean(routeAlert && !initialAlertSnapshot),
   );
   const [alertFilterError, setAlertFilterError] = useState("");
+  const alertRevokedRef = React.useRef(false);
+  useEffect(() => subscribeAdminRevocation(() => {
+    alertRevokedRef.current = true;
+    setAlertItems([]);
+    setAlertFilterLoading(false);
+    setAlertFilterError("HTTP 401");
+  }), []);
   const onlineSet = React.useMemo(
     () => new Set(liveData?.data.online ?? []),
     [liveData?.data.online],
   );
 
   useEffect(() => {
+    if (alertRevokedRef.current) return;
+    setLoadedAlertIdentity(alertIdentity);
     if (!routeAlert) {
       setAlertItems([]);
       setAlertFilterLoading(false);
@@ -174,11 +186,16 @@ const Layout = () => {
       return;
     }
     const controller = new AbortController();
+    const requestGeneration = getAdminRevocationGeneration();
     setAlertFilterLoading(true);
     setAlertFilterError("");
     void requestDashboardAlertItems(routeAlert, controller.signal, accountKey)
-      .then((response) => setAlertItems(response.items))
+      .then((response) => {
+        const items = currentRouteAlertItems(response, requestGeneration, alertRevokedRef.current);
+        if (!controller.signal.aborted && items) setAlertItems(items);
+      })
       .catch((requestError) => {
+        if (controller.signal.aborted || alertRevokedRef.current) return;
         if (requestError instanceof DOMException && requestError.name === "AbortError") return;
         setAlertItems([]);
         setAlertFilterError(requestError instanceof Error ? requestError.message : String(requestError));
@@ -187,11 +204,11 @@ const Layout = () => {
         if (!controller.signal.aborted) setAlertFilterLoading(false);
       });
     return () => controller.abort();
-  }, [accountKey, routeAlert]);
+  }, [accountKey, routeAlert, alertIdentity]);
 
   const alertItemOrder = React.useMemo(
-    () => new Map(alertItems.map((item, index) => [item.node_uuid, index])),
-    [alertItems],
+    () => new Map(visibleRouteAlertItems(alertItems, loadedAlertIdentity, alertIdentity).map((item, index) => [item.node_uuid, index])),
+    [alertItems, loadedAlertIdentity, alertIdentity],
   );
   const filteredNodes = React.useMemo(
     () => {
@@ -252,8 +269,6 @@ const Layout = () => {
       <Header
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
-        settings={settings}
-        settingsLoading={settingsLoading}
         showStatusSummary={!isEmpty}
         total={nodeDetail.length}
         online={onlineSet.size}
@@ -380,168 +395,17 @@ function AgentSourceHint({ scriptDomain }: { scriptDomain?: string | null }) {
   );
 }
 
-const AutoDiscoverySection = ({
-  settings,
-  loading,
-}: {
-  settings: any;
-  loading?: boolean;
-}) => {
+function CredentialHistoryHint() {
   const { t } = useTranslation();
-  const adKey: string = settings?.auto_discovery_key || "";
-  const enabled = Boolean(adKey);
-
-  const [selectedPlatform, setSelectedPlatform] =
-    React.useState<Platform>("linux");
-
-  const generateCommand = () => {
-    const host = resolveAgentSource(settings?.script_domain).host;
-    const args: string[] = [
-      "-e", host,
-      "--auto-discovery", adKey,
-      "--disable-web-ssh",
-      "--disable-auto-update",
-      "--install-source", agentReleaseSource,
-      "--install-version", agentReleaseVersion,
-    ];
-
-    const scriptUrl =
-      selectedPlatform === "windows"
-        ? `${agentReleaseSource}/install.ps1`
-        : `${agentReleaseSource}/install.sh`;
-
-    let finalCommand = "";
-    switch (selectedPlatform) {
-      case "linux":
-        finalCommand =
-          `wget -qO- ${quoteShellArg(scriptUrl)} | sudo bash -s -- ` +
-          quoteShellArgs(args);
-        break;
-      case "windows":
-        finalCommand =
-          `powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ` +
-          `"iwr ${quotePowerShellArg(scriptUrl)}` +
-          ` -UseBasicParsing -OutFile 'install.ps1'; &` +
-          ` '.\\install.ps1'`;
-        args.forEach((arg) => {
-          finalCommand += ` ${quotePowerShellArg(arg)}`;
-        });
-        finalCommand += `"`;
-        break;
-      case "macos":
-        finalCommand =
-          `zsh <(curl -sL ${quoteShellArg(scriptUrl)}) ` +
-          quoteShellArgs(args);
-        break;
-    }
-    return finalCommand;
-  };
-
-  const copyToClipboard = async (text: string) => {
-    try {
-      await writeClipboardText(text);
-      toast.success(t("copy_success", "Copied!"));
-    } catch (err) {
-      console.error("Failed to copy text: ", err);
-    }
-  };
-
-  if (loading) {
-    return (
-      <Flex align="center" justify="center" mt="4" py="4">
-        <Loading text="" />
-      </Flex>
-    );
-  }
-
-  if (!enabled) {
-    return (
-      <Callout.Root color="blue" mt="4" size="1">
-        <Callout.Icon>
-          <Radar size={16} />
-        </Callout.Icon>
-        <Callout.Text>
-          <Flex direction="column" gap="2" align="start">
-            <Text weight="bold">
-              {t("admin.nodeTable.autoDiscovery.tryIt", "Try auto discovery")}
-            </Text>
-            <Text size="2">
-              {t(
-                "admin.nodeTable.autoDiscovery.disabledDescription",
-                "With auto discovery enabled, you no longer need to add nodes one by one. Just run a single command on the target server and the Agent will register and come online automatically using the key. Ideal for deploying many servers at once."
-              )}
-            </Text>
-            <Link to="/admin/settings/general">
-              <Button variant="soft" size="1">
-                <Settings size={14} />
-                {t(
-                  "admin.nodeTable.autoDiscovery.goToSettings",
-                  "Go to General settings to enable auto discovery"
-                )}
-              </Button>
-            </Link>
-          </Flex>
-        </Callout.Text>
-      </Callout.Root>
-    );
-  }
-
-  return (
-    <Flex direction="column" gap="3" mt="4">
-      <Flex direction="column" gap="1">
-        <Flex gap="2" align="center">
-          <Radar size={16} />
-          <Text weight="bold">
-            {t("admin.nodeTable.autoDiscovery.title", "Auto discovery")}
-          </Text>
-        </Flex>
-        <Text size="2" color="gray">
-          {t(
-            "admin.nodeTable.autoDiscovery.enabledDescription",
-            "Run the command below on the target server. The Agent will register and come online automatically, no manual node creation needed."
-          )}
-        </Text>
-      </Flex>
-
-      <SegmentedControl.Root
-        className="admin-install-platforms"
-        value={selectedPlatform}
-        onValueChange={(value) => setSelectedPlatform(value as Platform)}
-      >
-        <SegmentedControl.Item value="linux">Linux</SegmentedControl.Item>
-        <SegmentedControl.Item value="windows">Windows</SegmentedControl.Item>
-        <SegmentedControl.Item value="macos">macOS</SegmentedControl.Item>
-      </SegmentedControl.Root>
-
-
-      <Flex direction="column" gap="2">
-        <label className="text-sm font-bold">
-          {t("admin.nodeTable.generatedCommand", "Command")}
-        </label>
-        <TextArea
-          disabled
-          className="w-full"
-          style={{ minHeight: "80px" }}
-          value={generateCommand()}
-        />
-        <AgentSourceHint scriptDomain={settings?.script_domain} />
-      </Flex>
-      <Button
-        style={{ width: "100%" }}
-        onClick={() => copyToClipboard(generateCommand())}
-      >
-        <Copy size={16} />
-        {t("copy")}
-      </Button>
-    </Flex>
-  );
-};
+  return <Text as="div" size="1" color="amber">{t(
+    "admin.nodeTable.commandHistoryWarning",
+    "This one-click command contains a token or discovery key. Pasting it into a shell may save the credential in shell history; use a private session and clear any saved history afterward.",
+  )}</Text>;
+}
 
 const Header = ({
   searchTerm,
   setSearchTerm,
-  settings,
-  settingsLoading,
   showStatusSummary,
   total,
   online,
@@ -551,8 +415,6 @@ const Header = ({
 }: {
   searchTerm: string;
   setSearchTerm: (term: string) => void;
-  settings: any;
-  settingsLoading: boolean;
   showStatusSummary: boolean;
   total: number;
   online: number;
@@ -569,11 +431,7 @@ const Header = ({
     setDialogOpen(true);
     setLoading(true);
     try {
-      await fetch("/api/admin/client/add", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name || "" }),
-      });
+      await postAdminNode("/api/admin/client/add", { name: name || "" });
       refresh();
     } catch (error) {
       toast.error(
@@ -635,10 +493,6 @@ const Header = ({
                 {t("admin.nodeTable.addNode")}
               </Button>
             </Flex>
-            <AutoDiscoverySection
-              settings={settings}
-              loading={settingsLoading}
-            />
           </AppDialogContent>
         </Dialog.Root>
         </Flex>
@@ -908,11 +762,7 @@ const NodeTable = ({
         return acc;
       }, {} as Record<string, number>);
 
-      await fetch("/api/admin/client/order", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(orderData),
-      });
+      await postAdminNode("/api/admin/client/order", orderData);
       // Do not refresh: it would overwrite the local ordering.
     } catch {
       toast.error(t("admin.nodeTable.errorRefreshNodeList"));
@@ -992,7 +842,7 @@ const NodeTable = ({
   );
 };
 
-type Platform = "linux" | "windows" | "macos" | "docker";
+type Platform = "linux" | "windows";
 
 type TrafficUsage = { up: number; down: number };
 type SignedTrafficUsage = { up: number; down: number };
@@ -1079,7 +929,7 @@ function TrafficCalibrationButton({ node }: { node: NodeDetail }) {
     setAvailable(true);
     setSnapshot(null);
     try {
-      const response = await fetch(`/api/admin/client/${node.uuid}/traffic-calibration`, {
+      const response = await adminNodeRequest(`/api/admin/client/${node.uuid}/traffic-calibration`, {
         cache: "no-store",
         signal: controller.signal,
       });
@@ -1121,7 +971,7 @@ function TrafficCalibrationButton({ node }: { node: NodeDetail }) {
     setSaving(true);
     setError("");
     try {
-      const response = await fetch(`/api/admin/client/${node.uuid}/traffic-calibration`, {
+      const response = await adminNodeRequest(`/api/admin/client/${node.uuid}/traffic-calibration`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1301,14 +1151,14 @@ function RotateTokenButton({ node }: { node: NodeDetail }) {
     setRotating(true);
     setError("");
     try {
-      const response = await fetch("/api/admin/client/token/rotate", {
+      const response = await adminNodeRequest("/api/admin/client/token/rotate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           uuid: node.uuid,
           ...(twoFactorCode ? { "2fa_code": twoFactorCode } : {}),
         }),
-      });
+      }, true);
       const payload = await response.json();
       if (!response.ok) {
         if (response.status === 401) {
@@ -1409,9 +1259,7 @@ function DeleteButton({ node }: { node: NodeDetail }) {
   const handleDelete = async () => {
     try {
       setDeleting(true);
-      await fetch(`/api/admin/client/${node.uuid}/remove`, {
-        method: "POST",
-      });
+      await postAdminNode(`/api/admin/client/${node.uuid}/remove`);
       toast.success(`Delete ${node.name}`);
       setOpen(false);
       refresh();
@@ -1570,7 +1418,7 @@ function GenerateCommandButton({ node, settings }: { node: NodeDetail, settings:
     if (!open) return;
     const controller = new AbortController();
     setLoadingProfile(true);
-    fetch(`/api/admin/client/${node.uuid}/deployment-profile`, {
+    adminNodeRequest(`/api/admin/client/${node.uuid}/deployment-profile`, {
       cache: "no-store",
       signal: controller.signal,
     })
@@ -1581,7 +1429,7 @@ function GenerateCommandButton({ node, settings }: { node: NodeDetail, settings:
         return response.json() as Promise<DeploymentProfileResponse>;
       })
       .then(({ profile, saved, delivery_state }) => {
-        setSelectedPlatform(profile.platform || "linux");
+        setSelectedPlatform(profile.platform === "windows" ? "windows" : "linux");
         setInstallOptions({
           disableWebSsh: true,
           disableAutoUpdate: true,
@@ -1631,7 +1479,7 @@ function GenerateCommandButton({ node, settings }: { node: NodeDetail, settings:
         window.clearInterval(timer);
         return;
       }
-      void fetch(`/api/admin/client/${node.uuid}/deployment-profile`, {
+      void adminNodeRequest(`/api/admin/client/${node.uuid}/deployment-profile`, {
         cache: "no-store",
         signal: controller.signal,
       })
@@ -1734,24 +1582,10 @@ function GenerateCommandButton({ node, settings }: { node: NodeDetail, settings:
     let finalCommand = "";
     switch (selectedPlatform) {
       case "linux":
-        finalCommand =
-          `wget -qO- ${quoteShellArg(scriptUrl)} | sudo bash -s -- ` +
-          quoteShellArgs(args);
+        finalCommand = linuxInstallCommand(scriptUrl, args);
         break;
       case "windows":
-        finalCommand =
-          `powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ` +
-          `"iwr ${quotePowerShellArg(scriptUrl)}` +
-          ` -UseBasicParsing -OutFile 'install.ps1'; &` +
-          ` '.\\install.ps1'`;
-        args.forEach((arg) => {
-          finalCommand += ` ${quotePowerShellArg(arg)}`;
-        });
-        finalCommand += `"`;
-        break;
-      case "macos":
-        finalCommand =
-          `zsh <(curl -sL ${quoteShellArg(scriptUrl)}) ` + quoteShellArgs(args);
+        finalCommand = windowsInstallCommand(scriptUrl, args);
         break;
     }
     return finalCommand;
@@ -1790,7 +1624,7 @@ function GenerateCommandButton({ node, settings }: { node: NodeDetail, settings:
         )
       : null;
     try {
-      const response = await fetch(
+      const response = await adminNodeRequest(
         `/api/admin/client/${node.uuid}/deployment-profile`,
         {
           method: "POST",
@@ -1932,7 +1766,6 @@ function GenerateCommandButton({ node, settings }: { node: NodeDetail, settings:
             <SegmentedControl.Item value="windows">
               Windows
             </SegmentedControl.Item>
-            <SegmentedControl.Item value="macos">macOS</SegmentedControl.Item>
           </SegmentedControl.Root>
 
           <Flex direction="column" gap="2" className="[&_label]:font-normal">
@@ -2291,6 +2124,7 @@ function GenerateCommandButton({ node, settings }: { node: NodeDetail, settings:
               />
             </div>
             <AgentSourceHint scriptDomain={settings?.script_domain} />
+            <CredentialHistoryHint />
           </Flex>
           <Flex direction="column" gap="2">
             <Button
@@ -2422,7 +2256,7 @@ function EditButton({ node }: { node: NodeDetail }) {
       if (trafficResetAllowance !== (node.traffic_reset_allowance ?? 0)) {
         payload.traffic_reset_allowance = trafficResetAllowance;
       }
-      const response = await fetch(`/api/admin/client/${node.uuid}/edit`, {
+      const response = await adminNodeRequest(`/api/admin/client/${node.uuid}/edit`, {
         method: "POST",
         body: JSON.stringify(payload),
         headers: {
@@ -2879,7 +2713,7 @@ function BillingButton({ node }: { node: NodeDetail }) {
       const rawCurrency = (formData.get("currency") as string) || "$";
       const currencyValue = currencyForStorage(rawCurrency);
 
-      await fetch(`/api/admin/client/${node.uuid}/edit`, {
+      await adminNodeRequest(`/api/admin/client/${node.uuid}/edit`, {
         method: "POST",
         body: JSON.stringify({
           price,
