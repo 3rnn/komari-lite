@@ -203,6 +203,13 @@ systemd_quote() {
     value=${value//%/%%}
     printf '"%s"' "$value"
 }
+# WorkingDirectory= is a single path, not an ExecStart argument list. Quotes
+# become literal path characters there and make an absolute path invalid.
+systemd_workdir() {
+    local value=${1//\\/\\\\}
+    value=${value//%/%%}
+    printf '%s' "$value"
+}
 xml_escape() {
     local value=${1//&/\&amp;}
     value=${value//</\&lt;}
@@ -718,7 +725,7 @@ After=network.target
 [Service]
 Type=simple
 ExecStart=${systemd_command}
-WorkingDirectory=$(systemd_quote "$target_dir")
+WorkingDirectory=$(systemd_workdir "$target_dir")
 Restart=always
 User=root
 

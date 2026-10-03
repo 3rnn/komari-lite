@@ -24,6 +24,22 @@ def function(source, name):
 
 
 class InstallerSecurity(unittest.TestCase):
+    @unittest.skipUnless(shutil.which('systemd-analyze'), 'systemd-analyze unavailable')
+    def test_generated_systemd_working_directory_is_valid(self):
+        source = SH.read_text()
+        self.assertIn('WorkingDirectory=$(systemd_workdir "$target_dir")', source)
+        quote = function(source, 'systemd_workdir')
+        with tempfile.TemporaryDirectory() as temp:
+            directory = pathlib.Path(temp) / 'agent space%'
+            directory.mkdir()
+            quoted = subprocess.run(['bash', '-c', quote + '\nsystemd_workdir "$1"', '--', str(directory)],
+                                    capture_output=True, text=True, check=True).stdout
+            unit = pathlib.Path(temp) / 'komari-workdir-check.service'
+            unit.write_text('[Unit]\nDescription=working directory regression\n'
+                            '[Service]\nExecStart=/usr/bin/true\nWorkingDirectory=' + quoted + '\n')
+            check = subprocess.run(['systemd-analyze', 'verify', str(unit)], capture_output=True, text=True)
+            self.assertEqual(check.returncode, 0, check.stderr)
+
     def test_windows_acl_mask_contains_only_explicit_mutation_rights(self):
         source = PS.read_text()
         directory = source[source.index('function Assert-TrustedDirectory'):source.index('try { $InstallDir =')]
