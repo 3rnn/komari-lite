@@ -94,11 +94,12 @@ test("single-target latency marks only its own strip as thin and keeps loss unch
   const loss = renderToStaticMarkup(jsx(rC, { label: "Packet loss", value: "0.0%", bars }));
   assert.match(latency, /ping-timeline[^\"]*ping-latency/);
   assert.doesNotMatch(loss, /ping-latency/);
+  assert.doesNotMatch(loss, /rounded-full/);
   assert.match(latency, /min-h-0 flex-1/);
   assert.match(loss, /min-h-0 flex-1/);
 });
 
-test("multi-target latency removes every colored label dot and narrows all latency strips", () => {
+test("multi-target latency and packet loss remove colored label dots", () => {
   const { rD } = pingRenderers();
   const rows = ["CT", "CU", "CM"].map((label, index) => ({
     id: index + 1, name: label, label, color: "#fb7185",
@@ -111,6 +112,7 @@ test("multi-target latency removes every colored label dot and narrows all laten
   for (const label of ["CT", "CU", "CM"]) assert.match(latency, new RegExp(`>${label}<`));
   assert.equal((latency.match(/ping-latency/g) ?? []).length, 3);
   assert.doesNotMatch(latency, /size-2 shrink-0 rounded-full|background-color:#fb7185/);
-  assert.equal((loss.match(/size-2 shrink-0 rounded-full/g) ?? []).length, 3, "packet-loss legends stay unchanged");
+  for (const label of ["CT", "CU", "CM"]) assert.match(loss, new RegExp(`>${label}<`));
+  assert.doesNotMatch(loss, /size-2 shrink-0 rounded-full|background-color:#fb7185/);
   assert.doesNotMatch(loss, /ping-latency/);
 });

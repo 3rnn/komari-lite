@@ -15,6 +15,7 @@ const v1010FixturePrefix = "frontend/tests/fixtures/glass-v1010/";
 const priorFixturePrefix = "frontend/tests/fixtures/glass-v1012/";
 const installedFixturePrefix = "frontend/tests/fixtures/glass-v1016/";
 const installedPingFixturePrefix = "frontend/tests/fixtures/glass-v1016-ping/";
+const installedLatencyFixturePrefix = "frontend/tests/fixtures/glass-v1016-latency/";
 const priorHashes = new Map([
   ["komari-theme.json", "022143c717a12cf44e5af525bd61cf596ace4ef1415914d2ee71a65e42a2d284"],
   ["dist/index.html", "abb776b0255d54da4b5a8f8b0a34054c8e797b48e18fb029bf51ede40263674c"],
@@ -373,6 +374,39 @@ test("customized current ping CSS is rejected without modifying the installation
   const { parent, root, html } = deployedPingFixture(t);
   const css = join(root, "dist/glass-visual-ebb062ca.css");
   writeFileSync(css, "user customized");
+  const applied = run(root, true);
+  assert.notEqual(applied.status, 0);
+  assert.deepEqual(readdirSync(parent), ["Glass"]);
+  assert.deepEqual(readFileSync(join(root, "dist/index.html")), html);
+});
+
+function deployedLatencyFixture(t) {
+  const { parent, root } = fixture(t);
+  const html = readFileSync(join(repo, installedLatencyFixturePrefix, "index.html.fixture"));
+  assert.equal(createHash("sha256").update(html).digest("hex"), "c02a01067ce13058ce59c626707262a9c7e34e69909f2b096e87cff3fc43c247");
+  writeFileSync(join(root, "dist/index.html"), html);
+  copyFileSync(join(repo, priorFixturePrefix, "komari-theme.json"), join(root, "komari-theme.json"));
+  copyFileSync(join(repo, prefix, "dist/_next/static/chunks/3859ru-d2e6b2f6.js"), join(root, "dist/_next/static/chunks/3859ru-d2e6b2f6.js"));
+  copyFileSync(join(repo, prefix, "dist/glass-visual-b543e07d.css"), join(root, "dist/glass-visual-b543e07d.css"));
+  return { parent, root, html };
+}
+
+test("installed latency-only theme safely upgrades to dot-free packet loss", (t) => {
+  const { parent, root, html } = deployedLatencyFixture(t);
+  const dry = run(root);
+  assert.equal(dry.status, 0, dry.stderr);
+  assert.deepEqual(readdirSync(parent), ["Glass"]);
+  const applied = run(root, true);
+  assert.equal(applied.status, 0, applied.stderr);
+  const backup = join(parent, readdirSync(parent).find((name) => name.startsWith("Glass.backup-")));
+  assert.deepEqual(readFileSync(join(backup, "dist/index.html")), html);
+  assert.equal(readFileSync(join(root, "user-note.txt"), "utf8"), "retain me");
+  assert.deepEqual(readFileSync(join(root, "dist/index.html")), readFileSync(join(repo, prefix, "dist/index.html")));
+});
+
+test("customized installed latency theme is rejected without modifying it", (t) => {
+  const { parent, root, html } = deployedLatencyFixture(t);
+  writeFileSync(join(root, "dist/_next/static/chunks/3859ru-d2e6b2f6.js"), "user customized");
   const applied = run(root, true);
   assert.notEqual(applied.status, 0);
   assert.deepEqual(readdirSync(parent), ["Glass"]);
