@@ -13,6 +13,7 @@ const fixturePrefix = "frontend/tests/fixtures/glass-vendor/";
 const v109FixturePrefix = "frontend/tests/fixtures/glass-v109/";
 const v1010FixturePrefix = "frontend/tests/fixtures/glass-v1010/";
 const priorFixturePrefix = "frontend/tests/fixtures/glass-v1012/";
+const installedFixturePrefix = "frontend/tests/fixtures/glass-v1016/";
 const priorHashes = new Map([
   ["komari-theme.json", "022143c717a12cf44e5af525bd61cf596ace4ef1415914d2ee71a65e42a2d284"],
   ["dist/index.html", "abb776b0255d54da4b5a8f8b0a34054c8e797b48e18fb029bf51ede40263674c"],
@@ -308,3 +309,37 @@ for (const changed of priorHashes.keys()) {
     assert.equal(readFileSync(join(root, "user-note.txt"), "utf8"), "retain me");
   });
 }
+
+function deployedGlassFixture(t) {
+  const { parent, root } = fixture(t);
+  const html = readFileSync(join(repo, installedFixturePrefix, "index.html.fixture"));
+  assert.equal(createHash("sha256").update(html).digest("hex"), "1920bc513d67a9226195e1ac31e87ae58957a25f044b5bbbc8019e57680f1f4b");
+  writeFileSync(join(root, "dist/index.html"), html);
+  copyFileSync(join(repo, priorFixturePrefix, "komari-theme.json"), join(root, "komari-theme.json"));
+  copyFileSync(join(repo, prefix, "dist/_next/static/chunks/3859ru-36ef0bd8.js"), join(root, "dist/_next/static/chunks/3859ru-36ef0bd8.js"));
+  copyFileSync(join(repo, prefix, "dist/glass-visual-5dee188d.css"), join(root, "dist/glass-visual-5dee188d.css"));
+  return { parent, root, html };
+}
+
+test("exact deployed Glass upgrades to denser palette with its original HTML backed up", (t) => {
+  const { parent, root, html } = deployedGlassFixture(t);
+  const dry = run(root);
+  assert.equal(dry.status, 0, dry.stderr);
+  assert.deepEqual(readdirSync(parent), ["Glass"]);
+  const applied = run(root, true);
+  assert.equal(applied.status, 0, applied.stderr);
+  const backup = join(parent, readdirSync(parent).find((name) => name.startsWith("Glass.backup-")));
+  assert.deepEqual(readFileSync(join(backup, "dist/index.html")), html);
+  assert.equal(readFileSync(join(root, "user-note.txt"), "utf8"), "retain me");
+  assert.deepEqual(readFileSync(join(root, "dist/index.html")), readFileSync(join(repo, prefix, "dist/index.html")));
+});
+
+test("deployed Glass with modified visual CSS is refused without changing files", (t) => {
+  const { parent, root, html } = deployedGlassFixture(t);
+  const css = join(root, "dist/glass-visual-5dee188d.css");
+  writeFileSync(css, "customized");
+  const applied = run(root, true);
+  assert.notEqual(applied.status, 0);
+  assert.deepEqual(readdirSync(parent), ["Glass"]);
+  assert.deepEqual(readFileSync(join(root, "dist/index.html")), html);
+});

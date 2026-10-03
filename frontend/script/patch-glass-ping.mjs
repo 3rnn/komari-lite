@@ -24,6 +24,11 @@ function replaceOnce(before, after) {
 const model = readFileSync(new URL("glass-ping-view.mjs", import.meta.url), "utf8")
   .replace(/^export function /gm, "function ");
 replaceOnce("function rP({node:e", `${model}\nfunction rP({node:e`);
+// Denser strips represent more *actual* samples, never interpolated values.
+replaceOnce('i=Math.min(20,t.length),a=Math.max(1,(n-r)/i)', 'i=Math.min(32,t.length),a=Math.max(1,(n-r)/i)');
+replaceOnce('function rw(e){return Array.from({length:20}', 'function rw(e){return Array.from({length:32}');
+replaceOnce('"grid items-end gap-px opacity-85 transition-opacity duration-150 group-hover/ping-panel:opacity-100"', '"ping-timeline grid items-end gap-px opacity-85 transition-opacity duration-150 group-hover/ping-panel:opacity-100"');
+replaceOnce('group-hover/ping-bar:scale-y-[1.6]', 'group-hover/ping-bar:scale-y-[1.15]');
 replaceOnce(
   "function rP({node:e,pingEnabled:t,showCarrierPing:r,pingTaskSelection:n,onClick:i}){var a;let o=",
   "function rP({node:e,pingEnabled:t,showCarrierPing:r,pingTaskSelection:n,onClick:i}){var a;const selection=resolveNodePingSelection(r,n,e.display_ping_task_ids,e.display_ping_task_id);r=selection.showAll;n=selection;let o=",

@@ -13,6 +13,18 @@ const knownVersions = [
     ["dist/index.html", "abb776b0255d54da4b5a8f8b0a34054c8e797b48e18fb029bf51ede40263674c"],
     ["dist/_next/static/chunks/3859ru-36ef0bd8.js", "36ef0bd863581ea218f5c4d2a183145132a780792c07d46dc97276d27345f9ea"],
   ]),
+  // The currently deployed v1.0.16 Glass has the same core chunk but a newer HTML/CSS.
+  new Map([
+    ["komari-theme.json", "022143c717a12cf44e5af525bd61cf596ace4ef1415914d2ee71a65e42a2d284"],
+    ["dist/index.html", "1920bc513d67a9226195e1ac31e87ae58957a25f044b5bbbc8019e57680f1f4b"],
+    ["dist/_next/static/chunks/3859ru-36ef0bd8.js", "36ef0bd863581ea218f5c4d2a183145132a780792c07d46dc97276d27345f9ea"],
+  ]),
+  // Short-lived, pinned first-pass ping palette; retain a safe upgrade path.
+  new Map([
+    ["komari-theme.json", "022143c717a12cf44e5af525bd61cf596ace4ef1415914d2ee71a65e42a2d284"],
+    ["dist/index.html", "a7265b3e9b31871f6dc32a80ea4a86cfb639dc304287790b704f4ff5d9103501"],
+    ["dist/_next/static/chunks/3859ru-52a576f3.js", "52a576f38c88d693c83f0fe0aec8ed76aea839cbdbcafde9c21b7718ebe11bc5"],
+  ]),
   new Map([
     ["komari-theme.json", "d2594e16f56f4a2160ccc873468588be96add67bf15ce09eb205e397fd7b8f60"],
     ["dist/index.html", "9c2a14485bbb7f70daec0b3b13010e50cb2fd3ebc7311faa23c792c2f98b03bd"],
@@ -41,6 +53,8 @@ const knownVersions = [
 ];
 const knownVisualStyles = new Map([
   ["glass-visual-fc179bf5.css", "fc179bf571b818b324c1d86465b8a6ee4bc590d551c90f5d50463e9937a3b3fd"],
+  ["glass-visual-5dee188d.css", "5dee188db03783d3db47dbe65c148f1a07fa1747fd12983607dee5c6948b9169"],
+  ["glass-visual-b3511731.css", "b35117319b1ad40b5515250a018c04f93301646be082192514270573ffe281ff"],
 ]);
 const source = fileURLToPath(new URL("../../backend/web/public/bundledThemes/Glass/", import.meta.url));
 const args = process.argv.slice(2);

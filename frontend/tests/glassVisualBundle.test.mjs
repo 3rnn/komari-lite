@@ -64,3 +64,15 @@ test("header icon and segmented controls have opaque hover, selected and keyboar
   assert.match(rule(".segment-btn:focus-visible"), /outline:\s*2px solid var\(--ring\)/);
   assert.match(rule(".icon-btn:focus-visible"), /outline:\s*2px solid var\(--ring\)/);
 });
+
+test("ping strips use a restrained five-step palette in light and dark modes", () => {
+  for (const name of ["ping-good", "ping-calm", "ping-watch", "ping-high", "ping-critical"]) {
+    assert.match(rule(":root"), new RegExp(`--${name}:\\s*#[0-9a-f]{6}\\b`));
+    assert.match(rule(".dark"), new RegExp(`--${name}:\\s*#[0-9a-f]{6}\\b`));
+  }
+  const colors = ["good", "calm", "watch", "high", "critical"];
+  for (const [index, name] of colors.entries()) {
+    assert.match(visualSource, new RegExp(`\\.node-card \\.group\\\\/ping-panel \\.bg-signal-${index + 1}\\s*\\{[^}]*background-color:\\s*var\\(--ping-${name}\\)`));
+  }
+  assert.match(visualSource, /\.node-card \.group\\\/ping-panel \.ping-timeline\s*\{[^}]*max-height:\s*10px/);
+});
