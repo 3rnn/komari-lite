@@ -14,6 +14,7 @@ const v109FixturePrefix = "frontend/tests/fixtures/glass-v109/";
 const v1010FixturePrefix = "frontend/tests/fixtures/glass-v1010/";
 const priorFixturePrefix = "frontend/tests/fixtures/glass-v1012/";
 const installedFixturePrefix = "frontend/tests/fixtures/glass-v1016/";
+const installedPingFixturePrefix = "frontend/tests/fixtures/glass-v1016-ping/";
 const priorHashes = new Map([
   ["komari-theme.json", "022143c717a12cf44e5af525bd61cf596ace4ef1415914d2ee71a65e42a2d284"],
   ["dist/index.html", "abb776b0255d54da4b5a8f8b0a34054c8e797b48e18fb029bf51ede40263674c"],
@@ -338,6 +339,40 @@ test("deployed Glass with modified visual CSS is refused without changing files"
   const { parent, root, html } = deployedGlassFixture(t);
   const css = join(root, "dist/glass-visual-5dee188d.css");
   writeFileSync(css, "customized");
+  const applied = run(root, true);
+  assert.notEqual(applied.status, 0);
+  assert.deepEqual(readdirSync(parent), ["Glass"]);
+  assert.deepEqual(readFileSync(join(root, "dist/index.html")), html);
+});
+
+function deployedPingFixture(t) {
+  const { parent, root } = fixture(t);
+  const html = readFileSync(join(repo, installedPingFixturePrefix, "index.html.fixture"));
+  assert.equal(createHash("sha256").update(html).digest("hex"), "e172f917818ddb087c24a6c5fdfce6ae3513240b5649d09685a36a3d99b3648d");
+  writeFileSync(join(root, "dist/index.html"), html);
+  copyFileSync(join(repo, priorFixturePrefix, "komari-theme.json"), join(root, "komari-theme.json"));
+  copyFileSync(join(repo, prefix, "dist/_next/static/chunks/3859ru-13dad3d8.js"), join(root, "dist/_next/static/chunks/3859ru-13dad3d8.js"));
+  copyFileSync(join(repo, prefix, "dist/glass-visual-ebb062ca.css"), join(root, "dist/glass-visual-ebb062ca.css"));
+  return { parent, root, html };
+}
+
+test("current installed ping Glass safely upgrades and retains its prior layout", (t) => {
+  const { parent, root, html } = deployedPingFixture(t);
+  const dry = run(root);
+  assert.equal(dry.status, 0, dry.stderr);
+  assert.deepEqual(readdirSync(parent), ["Glass"]);
+  const applied = run(root, true);
+  assert.equal(applied.status, 0, applied.stderr);
+  const backup = join(parent, readdirSync(parent).find((name) => name.startsWith("Glass.backup-")));
+  assert.deepEqual(readFileSync(join(backup, "dist/index.html")), html);
+  assert.equal(readFileSync(join(root, "user-note.txt"), "utf8"), "retain me");
+  assert.deepEqual(readFileSync(join(root, "dist/index.html")), readFileSync(join(repo, prefix, "dist/index.html")));
+});
+
+test("customized current ping CSS is rejected without modifying the installation", (t) => {
+  const { parent, root, html } = deployedPingFixture(t);
+  const css = join(root, "dist/glass-visual-ebb062ca.css");
+  writeFileSync(css, "user customized");
   const applied = run(root, true);
   assert.notEqual(applied.status, 0);
   assert.deepEqual(readdirSync(parent), ["Glass"]);

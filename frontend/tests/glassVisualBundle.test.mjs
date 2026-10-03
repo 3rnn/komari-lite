@@ -76,3 +76,8 @@ test("ping strips use a restrained five-step palette in light and dark modes", (
   }
   assert.match(visualSource, /\.node-card \.group\\\/ping-panel \.ping-timeline\s*\{[^}]*max-height:\s*10px/);
 });
+
+test("latency sample width changes without changing strip height or packet-loss bars", () => {
+  assert.match(visualSource, /\.node-card \.group\\\/ping-panel \.ping-timeline\.ping-latency \.group\\\/ping-bar > span:first-child\s*\{[^}]*width:\s*min\(68%,\s*4px\)/);
+  assert.doesNotMatch(visualSource, /\.ping-timeline\.ping-latency[^}]*\b(?:height|max-height|min-height)\s*:/);
+});

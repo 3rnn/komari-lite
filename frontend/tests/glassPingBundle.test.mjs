@@ -3,6 +3,8 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { runInNewContext } from "node:vm";
+import { jsx, jsxs } from "react/jsx-runtime";
+import { renderToStaticMarkup } from "react-dom/server";
 
 const dist = new URL("../../backend/web/public/bundledThemes/Glass/dist/", import.meta.url);
 const html = readFileSync(new URL("index.html", dist), "utf8");
@@ -73,4 +75,42 @@ test("timeline buckets preserve sparse samples and aggregate dense real samples"
 test("the 32-column strip has its own compact class and a subtle hover", () => {
   assert.match(code, /className:t9\("ping-timeline grid items-end gap-px/);
   assert.match(code, /group-hover\/ping-bar:scale-y-\[1\.15\]/);
+});
+
+function pingRenderers() {
+  const start = code.indexOf("function rC(");
+  const end = code.indexOf("function rz()", start);
+  assert.ok(start > 0 && end > start, "extract the shipped single/multi ping renderers");
+  return runInNewContext(`${code.slice(start, end)};({ rC, rD })`, {
+    L: { jsx, jsxs },
+    t9: (...classes) => classes.filter(Boolean).join(" "),
+  });
+}
+
+test("single-target latency marks only its own strip as thin and keeps loss unchanged", () => {
+  const { rC } = pingRenderers();
+  const bars = [{ key: "sample-1", className: "bg-signal-1", tooltip: "12 ms" }];
+  const latency = renderToStaticMarkup(jsx(rC, { label: "Latency · CU", value: "12 ms", bars, latency: true }));
+  const loss = renderToStaticMarkup(jsx(rC, { label: "Packet loss", value: "0.0%", bars }));
+  assert.match(latency, /ping-timeline[^\"]*ping-latency/);
+  assert.doesNotMatch(loss, /ping-latency/);
+  assert.match(latency, /min-h-0 flex-1/);
+  assert.match(loss, /min-h-0 flex-1/);
+});
+
+test("multi-target latency removes every colored label dot and narrows all latency strips", () => {
+  const { rD } = pingRenderers();
+  const rows = ["CT", "CU", "CM"].map((label, index) => ({
+    id: index + 1, name: label, label, color: "#fb7185",
+    latencyDisplay: `${index + 1} ms`, lossDisplay: "0.0%",
+    latencyBars: [{ key: `latency-${index}`, className: "bg-signal-1", tooltip: "1 ms" }],
+    lossBars: [{ key: `loss-${index}`, className: "bg-signal-1", tooltip: "0.0%" }],
+  }));
+  const latency = renderToStaticMarkup(jsx(rD, { title: "Latency", rows, loading: false, kind: "latency" }));
+  const loss = renderToStaticMarkup(jsx(rD, { title: "Packet loss", rows, loading: false, kind: "loss" }));
+  for (const label of ["CT", "CU", "CM"]) assert.match(latency, new RegExp(`>${label}<`));
+  assert.equal((latency.match(/ping-latency/g) ?? []).length, 3);
+  assert.doesNotMatch(latency, /size-2 shrink-0 rounded-full|background-color:#fb7185/);
+  assert.equal((loss.match(/size-2 shrink-0 rounded-full/g) ?? []).length, 3, "packet-loss legends stay unchanged");
+  assert.doesNotMatch(loss, /ping-latency/);
 });

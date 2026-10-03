@@ -25,6 +25,12 @@ const knownVersions = [
     ["dist/index.html", "a7265b3e9b31871f6dc32a80ea4a86cfb639dc304287790b704f4ff5d9103501"],
     ["dist/_next/static/chunks/3859ru-52a576f3.js", "52a576f38c88d693c83f0fe0aec8ed76aea839cbdbcafde9c21b7718ebe11bc5"],
   ]),
+  // Current installed ping theme before the latency-only width/legend adjustment.
+  new Map([
+    ["komari-theme.json", "022143c717a12cf44e5af525bd61cf596ace4ef1415914d2ee71a65e42a2d284"],
+    ["dist/index.html", "e172f917818ddb087c24a6c5fdfce6ae3513240b5649d09685a36a3d99b3648d"],
+    ["dist/_next/static/chunks/3859ru-13dad3d8.js", "13dad3d889d56444ed0d101b98f89621cebe1e8ba64ac515eb0b61f5c1debc4a"],
+  ]),
   new Map([
     ["komari-theme.json", "d2594e16f56f4a2160ccc873468588be96add67bf15ce09eb205e397fd7b8f60"],
     ["dist/index.html", "9c2a14485bbb7f70daec0b3b13010e50cb2fd3ebc7311faa23c792c2f98b03bd"],
@@ -55,6 +61,7 @@ const knownVisualStyles = new Map([
   ["glass-visual-fc179bf5.css", "fc179bf571b818b324c1d86465b8a6ee4bc590d551c90f5d50463e9937a3b3fd"],
   ["glass-visual-5dee188d.css", "5dee188db03783d3db47dbe65c148f1a07fa1747fd12983607dee5c6948b9169"],
   ["glass-visual-b3511731.css", "b35117319b1ad40b5515250a018c04f93301646be082192514270573ffe281ff"],
+  ["glass-visual-ebb062ca.css", "ebb062cabd84536e3ec061eb91a819c09cd493f396b2724d1a1c1f80ac4000f3"],
 ]);
 const source = fileURLToPath(new URL("../../backend/web/public/bundledThemes/Glass/", import.meta.url));
 const args = process.argv.slice(2);
