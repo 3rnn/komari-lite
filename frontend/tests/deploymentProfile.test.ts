@@ -30,7 +30,7 @@ test("deployment settings are restored and saved per node", () => {
 
 test("one-click Agent command uses the pinned GitHub Release installers and binaries", () => {
   assert.match(source, /--install-source/);
-  assert.match(source, /const agentReleaseVersion = "1\.0\.15";/);
+  assert.match(source, /const agentReleaseVersion = "1\.0\.16";/);
   assert.match(source, /const agentReleaseSource = `https:\/\/github\.com\/3rnn\/komari-lite\/releases\/download\/v\$\{agentReleaseVersion\}`;/);
   assert.equal((source.match(/"--install-source", agentReleaseSource/g) ?? []).length, 1);
   assert.equal((source.match(/selectedPlatform === "windows"\s*\? `\$\{agentReleaseSource\}\/install\.ps1`\s*:\s*`\$\{agentReleaseSource\}\/install\.sh`/g) ?? []).length, 1);
