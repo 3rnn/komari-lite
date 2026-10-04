@@ -211,7 +211,14 @@ def state_dir(a, create=False):
         mode = directory.lstat()
         require(stat.S_ISDIR(mode.st_mode) and mode.st_uid == 0 and not mode.st_mode & 0o022,
                 'upgrade state has a non-root-owned, writable or linked ancestor: ' + str(directory))
-    require(path.stat().st_mode & 0o005 == 0o005, 'gate cannot read upgrade state directory')
+    if path.stat().st_mode & 0o005 != 0o005:
+        # The bootstrap uses umask 077. An explicit User=root panel runs its
+        # ExecStartPre gate as root, so a root-private 0700 state directory is
+        # readable without exposing the upgrade journal or changing modes.
+        # A non-root panel still needs the ordinary traversable 0755 state.
+        require(stat.S_IMODE(path.stat().st_mode) == 0o700 and
+                command([a.systemctl, 'show', '-p', 'User', a.service]).strip() == 'User=root',
+                'gate cannot read upgrade state directory')
     backups = path/'backups'
     if create: backups.mkdir(mode=0o700, exist_ok=True)
     require(backups.is_dir() and not backups.is_symlink() and backups.stat().st_uid == 0 and

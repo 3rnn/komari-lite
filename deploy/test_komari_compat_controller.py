@@ -1,6 +1,7 @@
 """Regression checks for the pinned compatibility recovery controller."""
 import hashlib
 import importlib.util
+import os
 from pathlib import Path
 import stat
 import tempfile
@@ -109,5 +110,29 @@ class CompatControllerTests(unittest.TestCase):
             self.assertEqual(stat.S_IMODE(theme.stat().st_mode), 0o700)
             self.assertEqual((theme/'komari-theme.json').stat().st_uid, theme.stat().st_uid)
             self.assertEqual(db.read_bytes(), b'database fixture')
+
+    def test_root_service_gate_accepts_private_state_created_under_bootstrap_umask(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            a = types.SimpleNamespace(state_dir=str(Path(tmp)/'state'), systemctl='/usr/bin/systemctl',
+                                      service='komari.service')
+            old_umask = os.umask(0o077)
+            try:
+                with mock.patch.object(controller, 'command', return_value='User=root\n'):
+                    state = controller.state_dir(a, create=True)
+                    self.assertEqual(controller.state_dir(a, create=True), state)
+                    controller.gate(a)
+            finally:
+                os.umask(old_umask)
+            self.assertEqual(stat.S_IMODE(state.stat().st_mode), 0o700)
+            self.assertEqual(stat.S_IMODE((state/'backups').stat().st_mode), 0o700)
+
+    def test_private_state_still_refused_for_non_root_service(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            state = Path(tmp)/'state'; state.mkdir(mode=0o700)
+            a = types.SimpleNamespace(state_dir=str(state), systemctl='/usr/bin/systemctl',
+                                      service='komari.service')
+            with mock.patch.object(controller, 'command', return_value='User=komari\n'), \
+                 self.assertRaisesRegex(RuntimeError, 'gate cannot read'):
+                controller.state_dir(a, create=True)
 
 if __name__ == '__main__': unittest.main()
