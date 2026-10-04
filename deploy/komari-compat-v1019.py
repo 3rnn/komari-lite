@@ -7,7 +7,7 @@ fetches an exact 33-file old-stock compatibility bundle from this repository.
 """
 import argparse
 import hashlib
-from http.client import HTTPConnection
+from http.client import HTTPConnection, HTTPException
 import json
 import os
 from pathlib import Path
@@ -365,7 +365,7 @@ def main(argv=None):
             run_manager(stage)
         return 0
     except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError,
-            subprocess.TimeoutExpired, sqlite3.DatabaseError, zipfile.BadZipFile,
+            subprocess.TimeoutExpired, sqlite3.DatabaseError, zipfile.BadZipFile, HTTPException,
             json.JSONDecodeError, EOFError) as exc:
         print(('Status failed: ' if args.action == 'status' else 'Stopped/failed: ') + str(exc), file=sys.stderr)
         if args.action == 'update':

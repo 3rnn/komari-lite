@@ -1,5 +1,6 @@
 """Safety tests for the v1.0.16/33-file Glass -> v1.0.19 updater."""
 import hashlib
+from http.client import HTTPException
 import io
 import importlib.util
 import json
@@ -88,9 +89,15 @@ class CompatTests(unittest.TestCase):
                 connection.return_value.getresponse.return_value = response
                 self.assertEqual(compat.main(['status']), 0)
                 connection.assert_called_once_with('127.0.0.1', 25774, timeout=5)
+                connection.return_value.request.assert_called_once_with('GET', '/api/version')
             self.assertIn('Verified',output.getvalue())
             self.assertEqual(len(calls),2)
+            self.assertEqual(calls[1][1:3], ['is-active', '--quiet'])
             self.assertTrue((state/'journal.json').exists())
+
+    def test_status_reports_http_protocol_failure_without_traceback(self):
+        with mock.patch.object(compat,'verify_status',side_effect=HTTPException('invalid HTTP')):
+            self.assertEqual(compat.main(['status']),1)
 
     def test_status_rejects_incomplete_transaction_before_claiming_success(self):
         with tempfile.TemporaryDirectory() as tmp:
