@@ -11,8 +11,8 @@ HELPER = ROOT/'komari-compat-v1019.py'
 class BootstrapTests(unittest.TestCase):
     def test_single_command_bootstrap_pins_immutable_helper(self):
         body = BOOTSTRAP.read_text()
-        self.assertIn('175843fa7d6a22c66488570e1847ced4ff5422d5', body)
-        self.assertIn('7da9490e61eaa7c2eef1c1977b666feae77c2fb33e6b149030f722465fb94069', body)
+        self.assertIn('29019b4afd7aed19862b24b5d94f48ce48737315', body)
+        self.assertIn('26947c8ffd7f0f535ca244365286e41e2182cf3b0c61a79a2542c8f9ae8604a2', body)
         self.assertIn(hashlib.sha256(HELPER.read_bytes()).hexdigest(), body)
         self.assertIn('helper_size=' + str(HELPER.stat().st_size), body)
         self.assertNotIn('/main/', body)
@@ -25,5 +25,11 @@ class BootstrapTests(unittest.TestCase):
         result = subprocess.run(['bash', str(BOOTSTRAP), 'install'], capture_output=True, text=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertRegex(result.stderr, r'check|update')
+
+    def test_read_only_status_is_supported_without_interactive_confirmation(self):
+        body = BOOTSTRAP.read_text()
+        self.assertIn('status', body)
+        self.assertIn('"$mode" == update', body)
+        self.assertIn('"$stage/k19a.py" "$mode"', body)
 
 if __name__ == '__main__': unittest.main()

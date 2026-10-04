@@ -6,8 +6,8 @@
 set -euo pipefail
 
 mode="${1:-update}"
-if [[ "$#" -gt 1 || ( "$mode" != check && "$mode" != update ) ]]; then
-    printf 'Usage: upgrade.sh [check|update]\n' >&2
+if [[ "$#" -gt 1 || ( "$mode" != check && "$mode" != update && "$mode" != status ) ]]; then
+    printf 'Usage: upgrade.sh [check|update|status]\n' >&2
     exit 2
 fi
 if [[ "$EUID" -ne 0 ]]; then
@@ -24,9 +24,9 @@ if [[ ! -x /usr/bin/python3 || ! -x /usr/bin/sha256sum || ! -x /usr/bin/stat ||
     exit 1
 fi
 
-helper_url='https://raw.githubusercontent.com/3rnn/komari-lite/175843fa7d6a22c66488570e1847ced4ff5422d5/deploy/komari-compat-v1019.py'
-helper_sha='7da9490e61eaa7c2eef1c1977b666feae77c2fb33e6b149030f722465fb94069'
-helper_size=16122
+helper_url='https://raw.githubusercontent.com/3rnn/komari-lite/29019b4afd7aed19862b24b5d94f48ce48737315/deploy/komari-compat-v1019.py'
+helper_sha='26947c8ffd7f0f535ca244365286e41e2182cf3b0c61a79a2542c8f9ae8604a2'
+helper_size=20164
 umask 077
 stage=$(/usr/bin/mktemp -d /var/lib/komari-compat.XXXXXXXXXX)
 cleanup() {
@@ -57,5 +57,5 @@ printf 'Verified fixed-commit Komari upgrade helper.\n' >&2
 if [[ "$mode" == update ]]; then
     /usr/bin/python3 "$stage/k19a.py" update </dev/tty
 else
-    /usr/bin/python3 "$stage/k19a.py" check
+    /usr/bin/python3 "$stage/k19a.py" "$mode"
 fi

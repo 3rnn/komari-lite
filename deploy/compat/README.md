@@ -53,8 +53,15 @@ This is **one command** to copy, but unlike `curl | sudo bash`, a failed
 download cannot start an incomplete shell stream. The bootstrap stages a
 fixed-commit Python helper under a root-private path, verifies its exact size
 and SHA-256 before execution, then starts `update`, which repeats the
-environment checks and requires interactive `yes`. To run its read-only
-precheck separately, use `sudo bash /root/k19.sh check`. A GitHub-hosted shell
+environment checks and requires interactive `yes`. To run its preflight
+separately, use `sudo bash /root/k19.sh check` with the **newly downloaded**
+bootstrap. After the transaction, run `sudo bash /root/k19.sh status` using
+that same new bootstrap (older copies lack this action). The `status` mode
+never stops or restarts the panel: it reads the installed binary version,
+active unit, committed journal, exact 38-file v1.0.19 stock Glass inventory,
+and direct loopback version API.
+It does **not** verify public HTTPS, Agents, or a restorable off-host backup.
+A GitHub-hosted shell
 is still root code: trust the exact commit and review it before running. The
 backend's `/agent/install.sh` installs Agents, not this panel updater, and the
 existing production backend cannot serve a new updater endpoint before it has
@@ -64,7 +71,7 @@ itself been upgraded.
 
 Obtain the exact **immutable commit permalink** from the operator's separate
 handoff message, not a moving `main` URL. The reviewed script's SHA-256 is
-`7da9490e61eaa7c2eef1c1977b666feae77c2fb33e6b149030f722465fb94069`;
+`26947c8ffd7f0f535ca244365286e41e2182cf3b0c61a79a2542c8f9ae8604a2`;
 compare this with the independently supplied handoff hash as well. Download
 that file into `/root/k19a.py` with curl/wget or transfer it from a browser.
 Do not execute a root script from `/tmp` or pipe a download to a shell. Run:
@@ -92,6 +99,20 @@ starts the service and verifies health; automatic rollback uses a verified
 snapshot. Keep the terminal connected until the command exits. If a refusal or
 rollback occurs, do not retry blindly: inspect `komari.service` and
 `/var/lib/komari-upgrade/journal.json` without disclosing credentials.
+
+## Later releases
+
+This helper is permanently pinned to **v1.0.16 + 33-file stock Glass ->
+v1.0.19**. Do **not** reuse it to update v1.0.19 to a later version, or point
+it at a moving `main`/`latest` URL. Its preflight intentionally rejects an
+already-upgraded binary. A later release needs its own reviewed, immutable
+one-command bootstrap and complete compatible theme stock inventory. The
+future release must also be tested against the root-run service layout and
+root-private upgrade state if those remain in use. After that release exists,
+publish its pinned GitHub commit URL and provide a new copyable download-and-
+run command with separate `check`, `update`, and post-upgrade `status` modes.
+There is no safe universal update command for an as-yet unpublished version;
+the release assets and actual theme migration determine the command.
 
 After success, separately verify HTTPS, public/admin pages, node connectivity,
 installed theme assets and the desired off-host backup. The transaction's
