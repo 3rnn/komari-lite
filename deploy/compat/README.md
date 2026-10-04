@@ -64,7 +64,7 @@ itself been upgraded.
 
 Obtain the exact **immutable commit permalink** from the operator's separate
 handoff message, not a moving `main` URL. The reviewed script's SHA-256 is
-`ab444b24cae80b3623d997c969f01cbe81cd7c9fbcde87d42b4a449f44af6856`;
+`7da9490e61eaa7c2eef1c1977b666feae77c2fb33e6b149030f722465fb94069`;
 compare this with the independently supplied handoff hash as well. Download
 that file into `/root/k19a.py` with curl/wget or transfer it from a browser.
 Do not execute a root script from `/tmp` or pipe a download to a shell. Run:
