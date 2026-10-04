@@ -786,52 +786,24 @@ func doInitialize() error {
 	default:
 		return fmt.Errorf("unsupported database type: %s (supported: %s)", flags.DatabaseType, flags.SupportedDatabaseTypes())
 	}
+	// Refuse databases produced by newer binaries before legacy compatibility
+	// migrations have any opportunity to modify them.
+	if err := migrations.CheckSchemaVersion(instance); err != nil {
+		return fmt.Errorf("incompatible main database: %w", err)
+	}
 	if err := migrations.Run(migrations.Context{DB: instance}); err != nil {
 		return fmt.Errorf("failed to run startup migrations: %w", err)
 	}
-	config.SetDb(instance)
+	config.BindDb(instance)
 
-	// After the configuration database is ready and before performing subsequent AutoMigrate and one-time metrics migration:
-	// Detect upgrades based on version tags in the configuration and automatically back up ./data for easy rollback.
+	// Retain the existing upgrade backup sequence for legacy installs. The
+	// standalone upgrader also snapshots the database before starting this binary.
 	backupOnVersionUpgrade()
 
-	// Automatically migrate models
-	//
-	// Note: Load/GPU/ping historical monitoring data all go to the metric store during the running period (default SQLite
-	// ./data/metrics.db, or configured MySQL/PostgreSQL). old records /
-	// The records_long_term / gpu_records / ping_records tables will no longer be created or written to.
-	// If the old table still exists during the upgrade, it will be imported and then cleaned in pkg/migrations.RunMetricStoreMigrations.
-	// models.Record / models.PingRecord / models.GPURecord structures are still as
-	// The metric store's read-write DTOs and legacy table import DTOs remain in the models package.
-
-	err = instance.AutoMigrate(
-		&models.User{},
-		&models.Client{},
-		&models.ClientDeploymentProfile{},
-		&models.Log{},
-		&models.LoadNotification{},
-		&models.LoadNotificationState{},
-		&models.MetricCleanupJob{},
-		&models.OfflineNotification{},
-		&models.TrafficReportNotification{},
-		&models.TrafficDailyLedger{},
-		&models.TrafficCalibrationAdjustment{},
-		&models.PingTask{},
-		&models.PingLossNotification{},
-		&models.OidcProvider{},
-		&models.MessageSenderProvider{},
-		&models.ThemeConfiguration{},
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create tables: %w", err)
-	}
-	if err := migrations.MigrateTrafficResetDayFromTags(instance); err != nil {
-		return fmt.Errorf("failed to migrate traffic reset days: %w", err)
-	}
-	if err := instance.AutoMigrate(
-		&models.Session{},
-	); err != nil {
-		logger.Errorf("dbcore", "Failed to create Session table, it may already exist: %v", err)
+	// Main-schema creation and changes are applied only as numbered steps.
+	// Legacy records are left intact for the separate metric-store migration.
+	if err := migrations.RunVersioned(instance); err != nil {
+		return fmt.Errorf("failed to migrate main database schema: %w", err)
 	}
 	if err := cleanupOrphanedClientData(instance); err != nil {
 		return fmt.Errorf("failed to clean orphaned client data: %w", err)

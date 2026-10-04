@@ -2,6 +2,7 @@ package migrations
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	logger "github.com/komari-monitor/komari/utils/log"
 	"reflect"
@@ -345,6 +346,9 @@ func migrateLegacyConfigToItems(db *gorm.DB) error {
 
 	var oldData legacyConfig
 	if err := db.Order("id desc").First(&oldData).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("read legacy config before migration: %w", err)
+		}
 		if err := db.Migrator().DropTable("configs"); err != nil {
 			return err
 		}

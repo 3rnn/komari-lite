@@ -768,4 +768,57 @@ When sending progress updates, include the current status and the next active st
 When the task finishes, always send an explicit `STATUS: COMPLETED` message even if a detailed summary was already provided.
 
 
+## Safe Upgrade Architecture
+
+Komari upgrades must be safe, data-preserving, repeatable, and rollback-capable.
+
+Requirements:
+
+- Separate versioned application files from persistent data.
+- Upgrading Komari must preserve existing configuration, database, user data, tokens, certificates, and runtime settings.
+- New frontend/theme/static assets must be updated with the new release.
+- Do not blindly overwrite or delete persistent data during upgrades.
+- Before every upgrade, automatically create a rollback snapshot containing:
+  - current application version
+  - configuration
+  - database backup
+  - required persistent data
+  - current frontend/theme assets if needed
+- Database schema changes must use explicit versioned migrations.
+- Migrations must be tracked and safe against repeated execution.
+- Do not assume application rollback alone is enough after a database migration.
+- If the new version requires an incompatible DB migration, rollback must restore the pre-upgrade database backup.
+- Use a staged deployment instead of overwriting the live installation directly.
+- Prefer a release-based structure such as:
+
+  /opt/komari/
+    current -> releases/<version>
+    releases/
+    data/
+    config/
+    backups/
+    upgrade/
+
+- Build/download and validate the new version before stopping the running service.
+- Upgrade sequence should be approximately:
+  1. preflight checks
+  2. verify disk space
+  3. create backup
+  4. prepare new release in staging
+  5. stop service
+  6. run required migrations
+  7. switch release
+  8. start service
+  9. run health checks
+  10. mark upgrade successful
+- Health checks should verify service status, HTTP availability, database accessibility, expected schema version, frontend assets, and fatal startup errors.
+- If any critical upgrade step or health check fails, automatically rollback to the last known-good version.
+- Interrupted upgrades must be detectable and recoverable.
+- Keep several recent rollback backups.
+- Provide a manual rollback mechanism.
+- Upgrade logic must be idempotent or explicitly state-tracked.
+- Existing `/opt/komari` installations must be migrated safely to the new layout without losing data.
+- Development reinstall workflows may still perform clean installs when explicitly requested, but production upgrade logic must never depend on deleting `/opt/komari`.
+
+When implementing upgrade-related changes, first inspect the current installer, runtime layout, database migration logic, systemd service, frontend build output, and persistent storage locations. Avoid redesigning unrelated application behavior.
 Do not claim tests, builds, deployments, pushes, or runtime checks succeeded unless they were actually performed.

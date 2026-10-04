@@ -10,8 +10,8 @@ import (
 )
 
 func main() {
-	// Version probes are consumed by the updater and must contain no log prefix.
-	if len(os.Args) > 1 && os.Args[1] == "version" {
+	// Machine-readable probes must not carry the server startup log prefix.
+	if len(os.Args) > 1 && (os.Args[1] == "version" || os.Args[1] == "schema-version" || os.Args[1] == "health") {
 		cmd.Execute()
 		return
 	}

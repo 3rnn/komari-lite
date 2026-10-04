@@ -24,12 +24,19 @@ func (ConfigItem) TableName() string {
 var (
 	db    *gorm.DB
 	SetDb = func(gdb *gorm.DB) {
-		db = gdb
+		BindDb(gdb)
+		// Retained for standalone callers and existing tests. Normal server startup
+		// uses BindDb after the versioned baseline creates the config table.
 		if err := db.AutoMigrate(&ConfigItem{}); err != nil {
 			panic("failed to migrate config item table: " + err.Error())
 		}
 	}
 )
+
+// BindDb attaches an already migrated config database without changing its schema.
+func BindDb(gdb *gorm.DB) {
+	db = gdb
+}
 
 // GetAs obtains and converts to a specified type (generic), supporting automatic conversion of numerical types
 func GetAs[T any](key string, defaul ...any) (T, error) {
