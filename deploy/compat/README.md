@@ -28,6 +28,29 @@ independently; the script cannot verify an off-host disaster-recovery backup.
 
 ## On the production VPS (after a verified independent VPS backup)
 
+For the Agent-installer-style one-line flow, use the **immutable GitHub commit
+permalink** for `deploy/compat/upgrade.sh` from the separate operator handoff.
+Do not substitute the moving `main` branch. Download the entire shell
+bootstrap to `/root` before executing it (replace the placeholder with the
+exact reviewed commit URL):
+
+```sh
+sudo curl -fLsS --proto '=https' --proto-redir '=https' -o /root/k19.sh https://raw.githubusercontent.com/3rnn/komari-lite/<PINNED_COMMIT>/deploy/compat/upgrade.sh && sudo bash /root/k19.sh
+```
+
+This is **one command** to copy, but unlike `curl | sudo bash`, a failed
+download cannot start an incomplete shell stream. The bootstrap stages a
+fixed-commit Python helper under a root-private path, verifies its exact size
+and SHA-256 before execution, then starts `update`, which repeats the
+environment checks and requires interactive `yes`. To run its read-only
+precheck separately, use `sudo bash /root/k19.sh check`. A GitHub-hosted shell
+is still root code: trust the exact commit and review it before running. The
+backend's `/agent/install.sh` installs Agents, not this panel updater, and the
+existing production backend cannot serve a new updater endpoint before it has
+itself been upgraded.
+
+### Alternative: stage and verify the Python helper yourself
+
 Obtain the exact **immutable commit permalink** from the operator's separate
 handoff message, not a moving `main` URL. The reviewed script's SHA-256 is
 `e8e19c0970a0e9cca251abfe11fb4e3f1b2981accb1a162b3382783506c80b6f`;
