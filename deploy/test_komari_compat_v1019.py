@@ -77,7 +77,7 @@ class CompatTests(unittest.TestCase):
                         dest.write_bytes(archive.read(name))
             (root/'komari').write_text('fixture')
             with closing(sqlite3.connect(root/'data/komari.db')) as db:
-                db.execute('create table configs (id integer primary key)')
+                db.execute('create table configs (key text primary key, value text)')
                 db.commit()
             state = Path(tmp)/'state'; state.mkdir()
             (state/'journal.json').write_text(json.dumps({'phase':'committed', 'target':'1.0.19'}))
@@ -110,6 +110,22 @@ class CompatTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'service executable'):
                 compat.active_panel_identity(Path('/opt/komari/releases/1.0.19/komari'))
 
+    def test_status_rejects_custom_database_unit_before_claiming_main_db_integrity(self):
+        basic = ('LoadState=loaded\nActiveState=active\nWorkingDirectory=/opt/komari\n'
+                 'User=root\nMainPID=42\nExecStart={ path=/opt/komari/komari ; '
+                 'argv[]=/opt/komari/komari server ; }\n')
+        for fields in (basic.replace(' server ;', ' server --database /other/db.sqlite ;'),
+                       basic.replace(' server ;', ' server -d /other/db.sqlite ;'),
+                       basic.replace(' server ;', ' server -d/other/db.sqlite ;'),
+                       basic + 'EnvironmentFiles=/etc/komari.env\n',
+                       basic + 'Environment=KOMARI_LISTEN=127.0.0.1:12345\n'):
+            with self.subTest(fields=fields), mock.patch.object(compat.subprocess,'run',return_value=mock.Mock(stdout=fields)), \
+                 mock.patch.object(compat.os.path,'samefile',return_value=True), \
+                 mock.patch.object(compat.Path,'read_text',return_value='42 (komari) S ' + '0 '*19 + '123'), \
+                 mock.patch.object(compat,'panel_owns_listener',return_value=True):
+                with self.assertRaisesRegex(ValueError,'custom|database|environment'):
+                    compat.active_panel_identity(Path('/opt/komari/releases/1.0.19/komari'))
+
     def test_status_rejects_old_running_binary_inode(self):
         fields = ('LoadState=loaded\nActiveState=active\nWorkingDirectory=/opt/komari\n'
                   'User=root\nMainPID=42\nExecStart={ path=/opt/komari/komari ; }\n')
@@ -135,6 +151,16 @@ class CompatTests(unittest.TestCase):
             data = Path(tmp)/'data'; data.mkdir()
             (data/'komari.db').write_bytes(b'not sqlite')
             with self.assertRaises((ValueError, sqlite3.DatabaseError)):
+                compat.check_status_databases(Path(tmp))
+
+    def test_status_rejects_external_metrics_database_configuration(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            data = Path(tmp)/'data'; data.mkdir()
+            with closing(sqlite3.connect(data/'komari.db')) as db:
+                db.execute('create table configs (key text primary key, value text)')
+                db.execute('insert into configs values (?,?)', ('metric_db_driver', '"postgres"'))
+                db.commit()
+            with self.assertRaisesRegex(ValueError,'metrics|external'):
                 compat.check_status_databases(Path(tmp))
 
     def test_status_reports_http_protocol_failure_without_traceback(self):

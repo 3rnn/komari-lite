@@ -167,7 +167,8 @@ def panel_owns_listener(pid, port=25774):
 def active_panel_identity(binary):
     result = subprocess.run([trusted_file(Path('/usr/bin/systemctl')), 'show',
                              '-p', 'LoadState', '-p', 'ActiveState', '-p', 'WorkingDirectory',
-                             '-p', 'User', '-p', 'MainPID', '-p', 'ExecStart', 'komari.service'],
+                             '-p', 'User', '-p', 'MainPID', '-p', 'ExecStart',
+                             '-p', 'Environment', '-p', 'EnvironmentFiles', 'komari.service'],
                             check=True, capture_output=True, text=True, timeout=20)
     fields = dict(row.split('=', 1) for row in result.stdout.splitlines() if '=' in row)
     require(fields.get('LoadState') == 'loaded' and fields.get('ActiveState') == 'active' and
@@ -175,6 +176,11 @@ def active_panel_identity(binary):
             'panel unit is not active in the expected layout')
     require(re.search(r'\bpath=/opt/komari/komari(?:\s|;)', fields.get('ExecStart', '')),
             'unexpected service executable')
+    require(not re.search(r'(?<![\w-])(?:--(?:database|db-type)(?:=|\s)|-[dt])',
+                          fields.get('ExecStart', '')) and
+            fields.get('EnvironmentFiles', '') in ('', 'n/a') and
+            not re.search(r'KOMARI_LISTEN\s*=', fields.get('Environment', '')),
+            'custom database or service environment needs review')
     raw_pid = fields.get('MainPID', '')
     require(raw_pid.isdecimal() and int(raw_pid) > 1, 'panel MainPID is unavailable')
     pid = int(raw_pid)
@@ -204,6 +210,17 @@ def check_status_databases(root):
         with closing(sqlite3.connect('file:' + str(path) + '?mode=ro', uri=True)) as db:
             require(db.execute('pragma quick_check').fetchone()[0] == 'ok',
                     'SQLite integrity failed: ' + name)
+            if name == 'komari.db':
+                columns = {row[1] for row in db.execute('pragma table_info(configs)')}
+                if {'key', 'value'} <= columns:
+                    rows = dict(db.execute("select key, value from configs where key in ('metric_db_driver','metric_db_dsn')"))
+                else:
+                    require({'id', 'sitename'} <= columns, 'unrecognized config schema')
+                    rows = {}
+                driver = json.loads(rows.get('metric_db_driver', '"sqlite"'))
+                dsn = json.loads(rows.get('metric_db_dsn', '"./data/metrics.db"'))
+                require(driver == 'sqlite' and dsn == './data/metrics.db',
+                        'external/custom metrics database is not covered by this status check')
 
 def verify_status():
     require(os.geteuid() == 0, 'status requires root to inspect the upgrade journal')

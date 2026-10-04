@@ -61,9 +61,13 @@ never stops or restarts the panel: it reads the installed binary version,
 active unit, committed journal, exact 38-file v1.0.19 stock Glass inventory,
 and direct loopback version API. The hardened status check also binds the
 systemd MainPID executable and listener socket to the installed v1.0.19
-binary and runs read-only SQLite integrity checks. A version string from
-an unrelated process on the same port must not count as a successful rollout.
-It does **not** verify public HTTPS, Agents, or a restorable off-host backup.
+binary and checks SQLite integrity without updating application records. SQLite
+in WAL mode may create or update its `-shm` auxiliary file even when opened with
+`mode=ro`; therefore `status` must not be described as strictly filesystem
+read-only. It does not stop/restart the service or replace the database. A
+version string from an unrelated process on the same port must not count as a
+successful rollout. It does **not** verify public HTTPS, Agents, or a restorable
+off-host backup.
 A GitHub-hosted shell
 is still root code: trust the exact commit and review it before running. The
 backend's `/agent/install.sh` installs Agents, not this panel updater, and the
