@@ -68,6 +68,42 @@ func TestVersionedBaselineFreshAndRepeated(t *testing.T) {
 	}
 }
 
+func TestVersionedAddsPublicAddressListToExistingVersionOneClients(t *testing.T) {
+	db := schemaDB(t)
+	if err := db.AutoMigrate(&models.Client{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&models.Client{UUID: "legacy-node", Token: "legacy-token", IPv4: "8.8.8.8", IPv6: "2001:4860::1"}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Migrator().DropColumn(&models.Client{}, "ip_addresses"); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Exec("PRAGMA user_version = 1").Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := RunVersioned(db); err != nil {
+		t.Fatal(err)
+	}
+	if !db.Migrator().HasColumn(&models.Client{}, "ip_addresses") {
+		t.Fatal("versioned migration did not add public address list")
+	}
+	var node models.Client
+	if err := db.First(&node, "uuid = ?", "legacy-node").Error; err != nil || node.IPv4 != "8.8.8.8" || node.IPv6 != "2001:4860::1" || len(node.IPAddresses) != 0 {
+		t.Fatalf("legacy primary addresses not preserved: %+v, err=%v", node, err)
+	}
+	if err := RunVersioned(db); err != nil {
+		t.Fatalf("repeat migration: %v", err)
+	}
+	version, err := SchemaVersion(db)
+	if err != nil || version != 2 {
+		t.Fatalf("schema version=%d err=%v", version, err)
+	}
+	if ExpectedSchemaVersion != 2 {
+		t.Fatalf("expected schema version = %d", ExpectedSchemaVersion)
+	}
+}
+
 func TestVersionedBaselineLegacyPreservesDataAndConfiguration(t *testing.T) {
 	db := schemaDB(t)
 	if err := db.AutoMigrate(&models.User{}, &models.Client{}, &appconfig.ConfigItem{}); err != nil {

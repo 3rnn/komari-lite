@@ -88,6 +88,7 @@ import { currencyForDisplay, currencyForStorage } from "@/lib/currency";
 import { localizeTokenRotationError } from "@/utils/tokenRotation";
 import { SelectOrInput } from "@/components/ui/select-or-input";
 import AdminPageTitle from "@/components/admin/AdminPageTitle";
+import AdditionalPublicAddresses from "@/components/admin/AdditionalPublicAddresses";
 import AdminActiveFilter from "@/components/admin/AdminActiveFilter";
 import AdminNodeStatusSummary, {
   type AdminNodeStatusFilter,
@@ -613,6 +614,11 @@ const SortableRow = React.memo(({
               </button>
             </div>
           )) : <span className="tabular-nums">--</span>}
+          <AdditionalPublicAddresses
+            addresses={node.ip_addresses}
+            primaryIPv4={node.ipv4}
+            primaryIPv6={node.ipv6}
+          />
         </div>
       </TableCell>
       <TableCell className="!align-middle" data-label={t("admin.nodeTable.agent", "Agent")}>
@@ -2633,6 +2639,13 @@ function DetailView({ node, online }: { node: NodeDetail; online: boolean }) {
           </div>
           <ReadOnlyDetailField label="IPv4" value={node.ipv4} copyable mono />
           <ReadOnlyDetailField label="IPv6" value={node.ipv6} copyable mono />
+          <div className="sm:col-span-2">
+            <AdditionalPublicAddresses
+              addresses={node.ip_addresses}
+              primaryIPv4={node.ipv4}
+              primaryIPv6={node.ipv6}
+            />
+          </div>
           <ReadOnlyDetailField label={t("admin.nodeDetail.clientVersion", "Client version")} value={publicVersion(node.version)} />
           <ReadOnlyDetailField label={t("admin.nodeTable.region", "Country / region")} value={getRegionDisplayName(node.region)} />
 

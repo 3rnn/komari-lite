@@ -83,6 +83,55 @@ func TestSaveClientInfoIgnoresFieldsUnknownToThePanel(t *testing.T) {
 	assert.Equal(t, int64(1014341632), stored.MemTotal)
 }
 
+func TestSaveClientInfoPersistsStructuredPublicAddressesAndLegacyScalars(t *testing.T) {
+	db := newClientTestDB(t, "multi-public-ip-report")
+	require.NoError(t, db.Create(&models.Client{UUID: "ip-node", Token: "ip-token"}).Error)
+	require.NoError(t, saveClientInfo(db, map[string]interface{}{
+		"uuid": "ip-node", "ipv4": "8.8.8.8", "ipv6": "2001:4860::1",
+		"ip_addresses": []any{
+			map[string]any{"address": "8.8.8.8", "family": "ipv4", "source": "reported", "primary": true},
+			map[string]any{"address": "9.9.9.9", "family": "ipv4", "interface": "eth1", "source": "interface"},
+			map[string]any{"address": "2001:4860::1", "family": "ipv6", "source": "reported", "primary": true},
+			map[string]any{"address": "2001:4860::2", "family": "ipv6", "interface": "eth1", "source": "interface"},
+		},
+	}))
+	var stored models.Client
+	require.NoError(t, db.First(&stored, "uuid = ?", "ip-node").Error)
+	assert.Equal(t, "8.8.8.8", stored.IPv4)
+	assert.Equal(t, "2001:4860::1", stored.IPv6)
+	require.Len(t, stored.IPAddresses, 4)
+	assert.Equal(t, "9.9.9.9", stored.IPAddresses[1].Address)
+	assert.Equal(t, "eth1", stored.IPAddresses[3].Interface)
+	var storageType string
+	require.NoError(t, db.Raw("SELECT typeof(ip_addresses) FROM clients WHERE uuid = ?", "ip-node").Scan(&storageType).Error)
+	assert.Equal(t, "text", storageType)
+
+	// A downgraded/legacy Agent has no list: keep its scalar fields but avoid
+	// showing a stale list from a previous Agent installation.
+	require.NoError(t, saveClientInfo(db, map[string]interface{}{"uuid": "ip-node", "ipv4": "1.1.1.1", "ipv6": ""}))
+	require.NoError(t, db.First(&stored, "uuid = ?", "ip-node").Error)
+	assert.Equal(t, "1.1.1.1", stored.IPv4)
+	assert.Empty(t, stored.IPAddresses)
+}
+
+func TestSaveClientInfoRejectsMalformedOrNonPublicIPAddressListWithoutDataLoss(t *testing.T) {
+	db := newClientTestDB(t, "multi-public-ip-invalid")
+	require.NoError(t, db.Create(&models.Client{UUID: "ip-node", Token: "ip-token", IPv4: "8.8.8.8"}).Error)
+	for _, reported := range []any{
+		[]any{map[string]any{"address": "10.0.0.1", "family": "ipv4"}},
+		[]any{map[string]any{"address": "9.9.9.9", "family": "ipv6"}},
+		[]any{map[string]any{"address": "9.9.9.9", "family": "ipv4", "primary": true}},
+		[]any{map[string]any{"address": "9.9.9.9", "family": "ipv4"}, map[string]any{"address": "9.9.9.9", "family": "ipv4"}},
+	} {
+		err := saveClientInfo(db, map[string]interface{}{"uuid": "ip-node", "ipv4": "8.8.8.8", "ip_addresses": reported})
+		require.Error(t, err, "invalid list: %#v", reported)
+		var stored models.Client
+		require.NoError(t, db.First(&stored, "uuid = ?", "ip-node").Error)
+		assert.Equal(t, "8.8.8.8", stored.IPv4)
+		assert.Empty(t, stored.IPAddresses)
+	}
+}
+
 func TestSaveClientInfoPlacesNewClientAfterSameRegionWithinGroup(t *testing.T) {
 	db := newClientTestDB(t, "auto-order-same-region")
 	now := time.Date(2026, 8, 19, 0, 0, 0, 0, time.UTC)

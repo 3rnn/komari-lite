@@ -1,4 +1,5 @@
 import React from "react";
+import type { PublicIPAddress } from "@/utils/publicAddresses";
 import { useAccount } from "@/contexts/AccountContext";
 import { isAdminNodeBootstrapLoading } from "@/utils/adminAuth";
 import { subscribeAdminRevocation } from "@/utils/adminRevocation";
@@ -16,6 +17,7 @@ export type NodeDetail = {
   gpu_name: string;
   ipv4: string;
   ipv6: string;
+  ip_addresses?: PublicIPAddress[];
   region: string;
   region_override: string;
   mem_total: number;

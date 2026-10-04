@@ -99,6 +99,40 @@ func TestV2BasicInfoFillsRegionFromGeoIP(t *testing.T) {
 	}
 }
 
+func TestV2BasicInfoStoresMultiplePublicAddresses(t *testing.T) {
+	flags.DatabaseType = "sqlite"
+	flags.DatabaseFile = "file:v2_basic_info_multiple_public_addresses?mode=memory&cache=shared"
+	db := dbcore.GetDBInstance()
+	const clientUUID = "client-v2-multiple-addresses"
+	if err := db.Create(&models.Client{UUID: clientUUID, Token: "token-v2-multiple-addresses"}).Error; err != nil {
+		t.Fatal(err)
+	}
+	response := handleV2RPC(clientUUID, v2.Request{
+		JSONRPC: v2.Version,
+		Method:  v2.MethodAgentBasicInfo,
+		Params: v2.BasicInfoParams{Info: map[string]interface{}{
+			"ipv4": "8.8.8.8", "ipv6": "2001:4860::1",
+			"ip_addresses": []map[string]interface{}{
+				{"address": "8.8.8.8", "family": "ipv4", "primary": true, "source": "reported"},
+				{"address": "9.9.9.9", "family": "ipv4", "interface": "eth1", "source": "interface"},
+				{"address": "2001:4860::1", "family": "ipv6", "primary": true, "source": "reported"},
+				{"address": "2001:4860::2", "family": "ipv6", "interface": "eth2", "source": "interface"},
+			},
+		}},
+		ID: "basic-info-multiple-addresses",
+	}, false)
+	if response.Error != nil {
+		t.Fatalf("v2 basic info failed: %+v", response.Error)
+	}
+	var stored models.Client
+	if err := db.First(&stored, "uuid = ?", clientUUID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if stored.IPv4 != "8.8.8.8" || stored.IPv6 != "2001:4860::1" || len(stored.IPAddresses) != 4 || stored.IPAddresses[3].Address != "2001:4860::2" {
+		t.Fatalf("basic info did not persist primary and extra identities: primary=%s/%s inventory=%+v", stored.IPv4, stored.IPv6, stored.IPAddresses)
+	}
+}
+
 func TestV2BasicInfoSynchronizesCurrentAgentRuntimeConfig(t *testing.T) {
 	flags.DatabaseType = "sqlite"
 	flags.DatabaseFile = "file:v2_basic_info_runtime_config?mode=memory&cache=shared"

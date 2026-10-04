@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"os/exec"
 	"testing"
+
+	"github.com/komari-monitor/komari/pkg/migrations"
 )
 
 func TestSchemaVersionCLIStdoutIsOnlyJSON(t *testing.T) {
@@ -15,7 +17,7 @@ func TestSchemaVersionCLIStdoutIsOnlyJSON(t *testing.T) {
 	if err := json.Unmarshal(output, &probe); err != nil {
 		t.Fatalf("stdout is not clean JSON: %q: %v", output, err)
 	}
-	if probe["schema_version"] != 1 {
+	if probe["schema_version"] != migrations.ExpectedSchemaVersion {
 		t.Fatalf("schema version=%v", probe)
 	}
 }

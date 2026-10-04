@@ -76,7 +76,7 @@ func TestHealthReadOnlyAndVersioned(t *testing.T) {
 		t.Fatal(err)
 	}
 	value, err := runReadOnlyCommand(t, "health", path)
-	if err != nil || value["ok"] != true || value["schema_version"] != float64(1) || value["expected_schema_version"] != float64(1) {
+	if err != nil || value["ok"] != true || value["schema_version"] != float64(migrations.ExpectedSchemaVersion) || value["expected_schema_version"] != float64(migrations.ExpectedSchemaVersion) {
 		t.Fatalf("health=%v err=%v", value, err)
 	}
 	after, err := os.ReadFile(path)

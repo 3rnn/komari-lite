@@ -228,6 +228,9 @@ func saveClientInfoWithAutoOrder(db *gorm.DB, update map[string]interface{}, aut
 	// Or a certain ability has been deleted from the panel). Leaving these keys in GORM will spell "no such column",
 	// The entire basic information fails to be saved - the panel will never be able to see the CPU/memory/system information of this machine.
 	update = sanitizeClientInfoUpdate(db, update)
+	if err := normalizeClientIPAddresses(update); err != nil {
+		return err
+	}
 
 	// Make sure the updated field is not empty
 	if len(update) == 0 {

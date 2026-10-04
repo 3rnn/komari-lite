@@ -111,7 +111,7 @@ func TestStartupSchemaFailurePropagatesAndRetrySucceeds(t *testing.T) {
 		t.Fatalf("retry: %v", err)
 	}
 	version, err = migrations.SchemaVersion(instance)
-	if err != nil || version != 1 {
+	if err != nil || version != migrations.ExpectedSchemaVersion {
 		t.Fatalf("retry version=%d err=%v", version, err)
 	}
 }

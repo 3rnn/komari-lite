@@ -2,7 +2,25 @@ package server
 
 import (
 	"testing"
+
+	monitoring "github.com/nuomiiiii/lite-agent/monitoring/unit"
 )
+
+func TestBasicInfoReportsStructuredPublicAddressesWithoutReplacingPrimaryFields(t *testing.T) {
+	old4, old6, oldNIC := flags.CustomIpv4, flags.CustomIpv6, flags.GetIpAddrFromNic
+	t.Cleanup(func() {
+		flags.CustomIpv4, flags.CustomIpv6, flags.GetIpAddrFromNic = old4, old6, oldNIC
+	})
+	flags.CustomIpv4, flags.CustomIpv6, flags.GetIpAddrFromNic = "8.8.8.8", "2001:4860:4860::8888", false
+	data := buildBasicInfoMap()
+	if data["ipv4"] != "8.8.8.8" || data["ipv6"] != "2001:4860:4860::8888" {
+		t.Fatalf("existing primary fields changed: ipv4=%v ipv6=%v", data["ipv4"], data["ipv6"])
+	}
+	addresses, ok := data["ip_addresses"].([]monitoring.PublicIPAddress)
+	if !ok || len(addresses) < 2 || !addresses[0].Primary || !addresses[1].Primary {
+		t.Fatalf("structured public addresses missing primary identities: %#v", data["ip_addresses"])
+	}
+}
 
 func TestBasicInfoCarriesOnlyFieldsThePanelKnows(t *testing.T) {
 	data := buildBasicInfoMap()

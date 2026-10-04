@@ -11,7 +11,7 @@ import (
 // ExpectedSchemaVersion is the latest main SQLite schema understood by this binary.
 // Add a new, immutable step for every subsequent schema change; never edit an
 // already released step. The metrics database has an independent schema version.
-const ExpectedSchemaVersion = 1
+const ExpectedSchemaVersion = 2
 
 // SchemaStep applies one schema revision in a transaction with its ledger update.
 type SchemaStep struct {
@@ -20,7 +20,17 @@ type SchemaStep struct {
 	Apply   func(*gorm.DB) error
 }
 
-var mainSchemaSteps = []SchemaStep{{Version: 1, Name: "baseline", Apply: migrateMainBaseline}}
+var mainSchemaSteps = []SchemaStep{
+	{Version: 1, Name: "baseline", Apply: migrateMainBaseline},
+	{Version: 2, Name: "client public IP addresses", Apply: migrateClientPublicIPAddresses},
+}
+
+func migrateClientPublicIPAddresses(db *gorm.DB) error {
+	if db.Migrator().HasColumn(&models.Client{}, "ip_addresses") {
+		return nil
+	}
+	return db.Migrator().AddColumn(&models.Client{}, "IPAddresses")
+}
 
 // SchemaVersion reads the main SQLite database's persistent schema ledger.
 func SchemaVersion(db *gorm.DB) (int, error) {

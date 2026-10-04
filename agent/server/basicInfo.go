@@ -74,6 +74,7 @@ func buildBasicInfoMap() map[string]interface{} {
 		"kernel_version":     kernelVersion,
 		"ipv4":               ipv4,
 		"ipv6":               ipv6,
+		"ip_addresses":       monitoring.GetPublicIPAddresses(ipv4, ipv6),
 		"mem_total":          monitoring.Ram().Total,
 		"swap_total":         monitoring.Swap().Total,
 		"disk_total":         monitoring.Disk().Total,

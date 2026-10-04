@@ -239,6 +239,9 @@ func getNodes(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpcEr
 			if node.Hidden { // Non-admin does not show hidden nodes
 				continue
 			}
+			// Additional addresses are administrator-only even when the legacy
+			// primary address masking option is enabled for guests.
+			node.IPAddresses = nil
 			if SendIpAddrToGuest {
 				if node.IPv4 != "" {
 					node.IPv4 = strings.Split(node.IPv4, ".")[0] + ".*.*.*"

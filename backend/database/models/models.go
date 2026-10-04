@@ -9,51 +9,52 @@ import (
 
 // Client represents a registered client device
 type Client struct {
-	UUID                   string     `json:"uuid,omitempty" gorm:"type:varchar(36);primaryKey"`
-	Token                  string     `json:"token,omitempty" gorm:"type:varchar(255);unique;not null"`
-	PreviousToken          string     `json:"-" gorm:"type:varchar(255);index"`
-	PreviousTokenExpiresAt *time.Time `json:"-" gorm:"type:timestamp"`
-	Name                   string     `json:"name" gorm:"type:varchar(100)"`
-	CpuName                string     `json:"cpu_name" gorm:"type:varchar(100)"`
-	Virtualization         string     `json:"virtualization" gorm:"type:varchar(50)"`
-	Arch                   string     `json:"arch" gorm:"type:varchar(50)"`
-	CpuCores               int        `json:"cpu_cores" gorm:"type:int"`
-	CpuPhysicalCores       int        `json:"cpu_physical_cores" gorm:"type:int"`
-	OS                     string     `json:"os" gorm:"type:varchar(100)"`
-	KernelVersion          string     `json:"kernel_version" gorm:"type:varchar(100)"`
-	GpuName                string     `json:"gpu_name" gorm:"type:varchar(100)"`
-	IPv4                   string     `json:"ipv4,omitempty" gorm:"type:varchar(100)"`
-	IPv6                   string     `json:"ipv6,omitempty" gorm:"type:varchar(100)"`
-	Region                 string     `json:"region" gorm:"type:varchar(100)"`
-	RegionOverride         string     `json:"region_override" gorm:"type:varchar(16);not null;default:''"`
-	Remark                 string     `json:"remark,omitempty" gorm:"type:longtext"`
-	PublicRemark           string     `json:"public_remark,omitempty" gorm:"type:longtext"`
-	MemTotal               int64      `json:"mem_total" gorm:"type:bigint"`
-	SwapTotal              int64      `json:"swap_total" gorm:"type:bigint"`
-	DiskTotal              int64      `json:"disk_total" gorm:"type:bigint"`
-	Version                string     `json:"version,omitempty" gorm:"type:varchar(100)"`
-	Weight                 int        `json:"weight" gorm:"type:int"`
-	DisplayPingTaskID      uint       `json:"display_ping_task_id" gorm:"type:int;not null;default:0"`      // Public node-card task; 0 follows theme defaults.
-	DisplayPingTaskIDs     UintArray  `json:"display_ping_task_ids" gorm:"type:text;not null;default:'[]'"` // Ordered public display selections; empty falls back to the legacy scalar.
-	Price                  float64    `json:"price"`
-	BillingCycle           int        `json:"billing_cycle"`
-	AutoRenewal            bool       `json:"auto_renewal" gorm:"default:false"` // Whether to renew automatically
-	Currency               string     `json:"currency" gorm:"type:varchar(20);default:'$'"`
-	ExpiredAt              *time.Time `json:"expired_at" gorm:"type:timestamp"`
-	Group                  string     `json:"group" gorm:"type:varchar(100)"`
-	Tags                   string     `json:"tags" gorm:"type:text"` // split by ';'
-	Hidden                 bool       `json:"hidden" gorm:"default:false"`
-	RemoteControlProtected bool       `json:"remote_control_protected" gorm:"default:false"`
-	TrafficLimit           int64      `json:"traffic_limit" gorm:"type:bigint"`
-	TrafficLimitType       string     `json:"traffic_limit_type" gorm:"type:varchar(10);default:'max'"` // Traffic threshold type: sum max min up down
-	TrafficResetDay        *int       `json:"traffic_reset_day,omitempty" gorm:"type:int"`              // nil: follow agent; 0: disabled; 1-31: monthly reset day
-	TrafficResetAllowance  int64      `json:"traffic_reset_allowance" gorm:"type:bigint;not null;default:0"`
-	TrafficResetCycle      string     `json:"traffic_reset_cycle,omitempty" gorm:"type:varchar(10);not null;default:''"`
-	EffectiveTrafficLimit  int64      `json:"effective_traffic_limit" gorm:"-"`
-	EffectiveTrafficType   string     `json:"effective_traffic_type" gorm:"-"`
-	DeploymentStatus       string     `json:"deployment_status" gorm:"-"`
-	CreatedAt              time.Time  `json:"created_at"`
-	UpdatedAt              time.Time  `json:"updated_at"`
+	UUID                   string      `json:"uuid,omitempty" gorm:"type:varchar(36);primaryKey"`
+	Token                  string      `json:"token,omitempty" gorm:"type:varchar(255);unique;not null"`
+	PreviousToken          string      `json:"-" gorm:"type:varchar(255);index"`
+	PreviousTokenExpiresAt *time.Time  `json:"-" gorm:"type:timestamp"`
+	Name                   string      `json:"name" gorm:"type:varchar(100)"`
+	CpuName                string      `json:"cpu_name" gorm:"type:varchar(100)"`
+	Virtualization         string      `json:"virtualization" gorm:"type:varchar(50)"`
+	Arch                   string      `json:"arch" gorm:"type:varchar(50)"`
+	CpuCores               int         `json:"cpu_cores" gorm:"type:int"`
+	CpuPhysicalCores       int         `json:"cpu_physical_cores" gorm:"type:int"`
+	OS                     string      `json:"os" gorm:"type:varchar(100)"`
+	KernelVersion          string      `json:"kernel_version" gorm:"type:varchar(100)"`
+	GpuName                string      `json:"gpu_name" gorm:"type:varchar(100)"`
+	IPv4                   string      `json:"ipv4,omitempty" gorm:"type:varchar(100)"`
+	IPv6                   string      `json:"ipv6,omitempty" gorm:"type:varchar(100)"`
+	IPAddresses            IPAddresses `json:"ip_addresses,omitempty" gorm:"type:text;not null;default:'[]'"`
+	Region                 string      `json:"region" gorm:"type:varchar(100)"`
+	RegionOverride         string      `json:"region_override" gorm:"type:varchar(16);not null;default:''"`
+	Remark                 string      `json:"remark,omitempty" gorm:"type:longtext"`
+	PublicRemark           string      `json:"public_remark,omitempty" gorm:"type:longtext"`
+	MemTotal               int64       `json:"mem_total" gorm:"type:bigint"`
+	SwapTotal              int64       `json:"swap_total" gorm:"type:bigint"`
+	DiskTotal              int64       `json:"disk_total" gorm:"type:bigint"`
+	Version                string      `json:"version,omitempty" gorm:"type:varchar(100)"`
+	Weight                 int         `json:"weight" gorm:"type:int"`
+	DisplayPingTaskID      uint        `json:"display_ping_task_id" gorm:"type:int;not null;default:0"`      // Public node-card task; 0 follows theme defaults.
+	DisplayPingTaskIDs     UintArray   `json:"display_ping_task_ids" gorm:"type:text;not null;default:'[]'"` // Ordered public display selections; empty falls back to the legacy scalar.
+	Price                  float64     `json:"price"`
+	BillingCycle           int         `json:"billing_cycle"`
+	AutoRenewal            bool        `json:"auto_renewal" gorm:"default:false"` // Whether to renew automatically
+	Currency               string      `json:"currency" gorm:"type:varchar(20);default:'$'"`
+	ExpiredAt              *time.Time  `json:"expired_at" gorm:"type:timestamp"`
+	Group                  string      `json:"group" gorm:"type:varchar(100)"`
+	Tags                   string      `json:"tags" gorm:"type:text"` // split by ';'
+	Hidden                 bool        `json:"hidden" gorm:"default:false"`
+	RemoteControlProtected bool        `json:"remote_control_protected" gorm:"default:false"`
+	TrafficLimit           int64       `json:"traffic_limit" gorm:"type:bigint"`
+	TrafficLimitType       string      `json:"traffic_limit_type" gorm:"type:varchar(10);default:'max'"` // Traffic threshold type: sum max min up down
+	TrafficResetDay        *int        `json:"traffic_reset_day,omitempty" gorm:"type:int"`              // nil: follow agent; 0: disabled; 1-31: monthly reset day
+	TrafficResetAllowance  int64       `json:"traffic_reset_allowance" gorm:"type:bigint;not null;default:0"`
+	TrafficResetCycle      string      `json:"traffic_reset_cycle,omitempty" gorm:"type:varchar(10);not null;default:''"`
+	EffectiveTrafficLimit  int64       `json:"effective_traffic_limit" gorm:"-"`
+	EffectiveTrafficType   string      `json:"effective_traffic_type" gorm:"-"`
+	DeploymentStatus       string      `json:"deployment_status" gorm:"-"`
+	CreatedAt              time.Time   `json:"created_at"`
+	UpdatedAt              time.Time   `json:"updated_at"`
 }
 
 // ClientDeploymentProfile stores private per-node installation preferences.
