@@ -7,6 +7,7 @@ fetches an exact 33-file old-stock compatibility bundle from this repository.
 """
 import argparse
 import hashlib
+from http.client import HTTPConnection
 import json
 import os
 from pathlib import Path
@@ -26,6 +27,9 @@ OLD_VERSION = '1.0.16'
 ROOT = Path('/opt/komari')
 STATE = Path('/var/lib/komari-upgrade')
 BUNDLE = 'Glass-33-to-38-v1.0.19.zip'
+# SHA-256 of canonical {relative_path: sha256(file_bytes)} for the 38-file
+# target in the pinned compatibility bundle. No network needed for status.
+TARGET_THEME_INVENTORY_SHA = 'ba2e823004b4aa03918e921de0de4278eb245b956e1c1f5e439a0a40788885ff'
 RELEASE = 'https://github.com/3rnn/komari-lite/releases/download/' + TAG + '/'
 COMPAT_SOURCE_COMMIT = '0216e11e2b120abde41c98b7887ee9c5fd209db3'
 COMPAT_SOURCE = ('https://raw.githubusercontent.com/3rnn/komari-lite/' +
@@ -120,6 +124,63 @@ def compare_stock(theme, bundle):
             require(stat.S_ISREG(path.lstat().st_mode), 'Glass has symlink or special file')
             current[path.relative_to(theme).as_posix()] = sha256(path)
     return current == expected, len(current)
+
+def check_target_theme(theme):
+    theme = Path(theme)
+    require(theme.is_dir() and not theme.is_symlink(), 'Glass directory missing or linked')
+    current = {}
+    for base, dirs, files in os.walk(theme, followlinks=False):
+        for name in dirs:
+            require(not (Path(base)/name).is_symlink(), 'Glass contains linked directory')
+        for name in files:
+            path = Path(base)/name
+            require(stat.S_ISREG(path.lstat().st_mode), 'Glass contains linked/special file')
+            current[path.relative_to(theme).as_posix()] = sha256(path)
+            require(len(current) <= 38, 'Glass has extra files')
+    canonical = json.dumps(current, sort_keys=True, separators=(',', ':')).encode()
+    require(len(current) == 38 and hashlib.sha256(canonical).hexdigest() == TARGET_THEME_INVENTORY_SHA,
+            'Glass is not exact v1.0.19 stock')
+
+def verify_status():
+    require(os.geteuid() == 0, 'status requires root to inspect the upgrade journal')
+    trusted_script()
+    binary = (ROOT/'komari').resolve(strict=True)
+    require(binary.is_relative_to(ROOT), 'installed binary resolves outside panel root')
+    trusted_file(binary)
+    installed = subprocess.run([str(binary), 'version', '--json'], cwd=ROOT,
+                               capture_output=True, text=True, check=True, timeout=20)
+    require(json.loads(installed.stdout).get('version') == '1.0.19',
+            'panel binary is not v1.0.19')
+    subprocess.run([trusted_file(Path('/usr/bin/systemctl')), 'is-active', '--quiet', 'komari.service'],
+                   check=True, capture_output=True, timeout=20)
+    require(STATE.is_dir() and not STATE.is_symlink() and
+            STATE.stat().st_uid == 0 and not STATE.stat().st_mode & 0o022,
+            'upgrade state directory missing or untrusted')
+    journal = STATE/'journal.json'
+    require(journal.is_file() and not journal.is_symlink() and journal.stat().st_uid == 0 and
+            not journal.stat().st_mode & 0o022, 'upgrade journal missing or untrusted')
+    trusted_file(journal)
+    record = json.loads(journal.read_text())
+    require(isinstance(record, dict) and record.get('phase') == 'committed' and
+            record.get('target') == '1.0.19',
+            'v1.0.19 transaction is not committed')
+    require((ROOT/'data').is_dir() and not (ROOT/'data').is_symlink() and
+            (ROOT/'data/theme').is_dir() and not (ROOT/'data/theme').is_symlink(),
+            'persistent theme parent is missing or linked')
+    check_target_theme(ROOT/'data/theme/Glass')
+    connection = HTTPConnection('127.0.0.1', 25774, timeout=5)
+    try:
+        connection.request('GET', '/api/version')
+        response = connection.getresponse()
+        require(response.status == 200, 'local HTTP version endpoint failed')
+        payload = response.read(64 * 1024 + 1)
+        require(len(payload) <= 64 * 1024 and
+                json.loads(payload).get('data', {}).get('version') == '1.0.19',
+                'local HTTP version differs from installed binary')
+    finally:
+        connection.close()
+    print('Verified: panel v1.0.19, active service, committed transaction, '
+          '38-file stock Glass and loopback HTTP version. Agent and public HTTPS not checked.', flush=True)
 
 
 def read_only_database_check():
@@ -270,7 +331,12 @@ def run_manager(stage):
             '--theme-bundle', str(bundle), '--theme-sha256', ASSETS[BUNDLE][0],
             '--hostname', socket.gethostname(),
             '--machine-id', Path('/etc/machine-id').read_text().strip()]
-    subprocess.run(args, check=True)  # no timeout: controller owns recovery and rollback
+    try:
+        subprocess.run(args, check=True)  # no timeout: controller owns recovery and rollback
+    except subprocess.CalledProcessError:
+        # CalledProcessError echoes every argv token, including host identity.
+        # The manager already reports its own error without dumping arguments.
+        raise ValueError('upgrade manager failed; inspect the service and transaction journal before retrying') from None
     result = subprocess.run([str(ROOT/'komari'), 'version', '--json'], cwd=ROOT,
                             capture_output=True, text=True, check=True, timeout=20)
     require(json.loads(result.stdout).get('version') == TAG.removeprefix('v'),
@@ -280,9 +346,12 @@ def run_manager(stage):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=('check','update'), nargs='?', default='check')
+    parser.add_argument('action', choices=('check','update','status'), nargs='?', default='check')
     args = parser.parse_args(argv)
     try:
+        if args.action == 'status':
+            verify_status()
+            return 0
         preflight()
         if args.action == 'check':
             return 0
@@ -298,7 +367,7 @@ def main(argv=None):
     except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError,
             subprocess.TimeoutExpired, sqlite3.DatabaseError, zipfile.BadZipFile,
             json.JSONDecodeError, EOFError) as exc:
-        print('Stopped/failed: ' + str(exc), file=sys.stderr)
+        print(('Status failed: ' if args.action == 'status' else 'Stopped/failed: ') + str(exc), file=sys.stderr)
         if args.action == 'update':
             print('If the transaction started, inspect komari.service and the upgrade journal before retrying.', file=sys.stderr)
         return 1

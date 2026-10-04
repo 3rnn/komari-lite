@@ -1,13 +1,16 @@
 """Safety tests for the v1.0.16/33-file Glass -> v1.0.19 updater."""
 import hashlib
+import io
 import importlib.util
 import json
 from pathlib import Path
 import stat
+import subprocess
 import tempfile
 import unittest
 from unittest import mock
 import zipfile
+from contextlib import redirect_stdout
 
 SCRIPT = Path(__file__).with_name('komari-compat-v1019.py')
 spec = importlib.util.spec_from_file_location('komari_compat_v1019', SCRIPT)
@@ -57,6 +60,70 @@ class CompatTests(unittest.TestCase):
              mock.patch.object(compat,'run_manager') as manager:
             self.assertEqual(compat.main(['check']),0)
             manager.assert_not_called()
+
+    def test_status_checks_committed_version_service_http_and_exact_target_theme(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)/'panel'; theme = root/'data/theme/Glass'; theme.mkdir(parents=True)
+            with zipfile.ZipFile(SCRIPT.parent/'compat/Glass-33-to-38-v1.0.19.zip') as archive:
+                for name in archive.namelist():
+                    if name.startswith('Glass/') and not name.endswith('/'):
+                        dest = theme/name[len('Glass/'):]
+                        dest.parent.mkdir(parents=True, exist_ok=True)
+                        dest.write_bytes(archive.read(name))
+            (root/'komari').write_text('fixture')
+            state = Path(tmp)/'state'; state.mkdir()
+            (state/'journal.json').write_text(json.dumps({'phase':'committed', 'target':'1.0.19'}))
+            calls = []
+            def fake_run(argv, **kwargs):
+                calls.append(argv)
+                return mock.Mock(stdout=json.dumps({'version':'1.0.19'}))
+            response = mock.Mock(status=200)
+            response.read.return_value = b'{"data":{"version":"1.0.19"}}'
+            with mock.patch.object(compat,'ROOT',root), mock.patch.object(compat,'STATE',state), \
+                 mock.patch.object(compat,'trusted_script'), mock.patch.object(compat,'trusted_file'), \
+                 mock.patch.object(compat.subprocess,'run',side_effect=fake_run), \
+                 mock.patch.object(compat,'download_verified',side_effect=AssertionError('status must not download')), \
+                 mock.patch.object(compat,'HTTPConnection',create=True) as connection, \
+                 redirect_stdout(io.StringIO()) as output:
+                connection.return_value.getresponse.return_value = response
+                self.assertEqual(compat.main(['status']), 0)
+                connection.assert_called_once_with('127.0.0.1', 25774, timeout=5)
+            self.assertIn('Verified',output.getvalue())
+            self.assertEqual(len(calls),2)
+            self.assertTrue((state/'journal.json').exists())
+
+    def test_status_rejects_incomplete_transaction_before_claiming_success(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)/'panel'; root.mkdir(); (root/'komari').write_bytes(b'fixture')
+            state = Path(tmp)/'state'; state.mkdir()
+            (state/'journal.json').write_text('{"phase":"starting","target":"1.0.19"}')
+            with mock.patch.object(compat,'ROOT',root), mock.patch.object(compat,'STATE',state), \
+                 mock.patch.object(compat,'trusted_script'), \
+                 mock.patch.object(compat,'trusted_file'), mock.patch.object(compat.subprocess,'run',
+                 return_value=mock.Mock(stdout='{"version":"1.0.19"}')), \
+                 mock.patch.object(compat,'download_verified') as download:
+                self.assertEqual(compat.main(['status']),1)
+                download.assert_not_called()
+
+    def test_status_rejects_changed_target_theme(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            theme = Path(tmp)/'Glass'; theme.mkdir()
+            (theme/'modified.js').write_bytes(b'not official')
+            with self.assertRaisesRegex(ValueError,'Glass'):
+                compat.check_target_theme(theme)
+
+    def test_manager_failure_does_not_echo_host_identity_command_arguments(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            stage = Path(tmp); (stage/'komari').write_bytes(b'fixture')
+            result = mock.Mock(stdout='{"version":"1.0.19"}')
+            failure = subprocess.CalledProcessError(1, ['manager', '--machine-id', 'HOST-IDENTITY'])
+            with mock.patch.object(compat,'ROOT',stage), \
+                 mock.patch.object(compat,'compare_stock',return_value=(True,33)), \
+                 mock.patch.object(compat,'check_persistent_mounts'), \
+                 mock.patch.object(compat.subprocess,'run',side_effect=[result,failure]):
+                with self.assertRaises(ValueError) as caught:
+                    compat.run_manager(stage)
+            self.assertNotIn('HOST-IDENTITY',str(caught.exception))
 
     def test_update_requires_interactive_confirmation_before_download(self):
         with mock.patch.object(compat,'preflight',return_value=True), \
