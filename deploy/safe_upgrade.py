@@ -16,6 +16,7 @@ import subprocess
 import sys
 import time
 import urllib.request
+import urllib.error
 import uuid
 import zipfile
 
@@ -112,6 +113,12 @@ def check_restricted_migrations(root):
 def copy_tree(src, dst):
     safe_tree(src)
     shutil.copytree(src, dst, copy_function=shutil.copy2)
+    # copytree/copy2 preserve modes and timestamps, not uid/gid. A rollback
+    # snapshot owned by root would otherwise make service data inaccessible.
+    for original in (src, *src.rglob('*')):
+        target = dst / original.relative_to(src)
+        owner = original.stat()
+        os.chown(target, owner.st_uid, owner.st_gid)
     for base, dirs, files in os.walk(dst):
         for filename in files:
             fd = os.open(Path(base)/filename, os.O_RDONLY)
@@ -414,11 +421,20 @@ def health(a, version, schema, legacy=False):
         result = info(root/'komari', 'health', root)
         require(result.get('ok') is True and result.get('schema_version') == schema and result.get('expected_schema_version') == schema, 'CLI schema/health mismatch')
     for endpoint in ('/api/version', '/api/public'):
-        with urllib.request.urlopen(a.http_base.rstrip('/') + endpoint, timeout=5) as response:
-            require(response.status == 200, 'HTTP failure: ' + endpoint)
-            if endpoint.endswith('version'):
-                payload = json.load(response)
-                require((payload.get('data') or payload.get('result') or payload).get('version') == version, 'HTTP version mismatch')
+        deadline = time.monotonic() + 30 if endpoint.endswith('version') else None
+        while True:
+            try:
+                with urllib.request.urlopen(a.http_base.rstrip('/') + endpoint, timeout=5) as response:
+                    require(response.status == 200, 'HTTP failure: ' + endpoint)
+                    if endpoint.endswith('version'):
+                        payload = json.load(response)
+                        require((payload.get('data') or payload.get('result') or payload).get('version') == version, 'HTTP version mismatch')
+                break
+            except urllib.error.URLError:
+                if deadline is None or time.monotonic() >= deadline:
+                    raise
+                command([a.systemctl, 'is-active', '--quiet', a.service])
+                time.sleep(0.5)
     with urllib.request.urlopen(a.http_base.rstrip('/') + '/', timeout=5) as response:
         require(response.status == 200, 'selected public theme unavailable')
         public_html = response.read(1024 * 1024)

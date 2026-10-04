@@ -2,13 +2,13 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-const version = "1.0.17";
+const version = "1.0.18";
 const source = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 
 test("panel, Agent, UI, and package metadata match the release tag", () => {
-  assert.match(source("../../backend/utils/version.go"), /CurrentVersion = "1\.0\.17"/);
-  assert.match(source("../../agent/utils/utils.go"), /const AgentVersion = "1\.0\.17"/);
-  assert.match(source("../src/pages/admin/index.tsx"), /const agentReleaseVersion = "1\.0\.17";/);
+  assert.match(source("../../backend/utils/version.go"), /CurrentVersion = "1\.0\.18"/);
+  assert.match(source("../../agent/utils/utils.go"), /const AgentVersion = "1\.0\.18"/);
+  assert.match(source("../src/pages/admin/index.tsx"), /const agentReleaseVersion = "1\.0\.18";/);
   const packageJSON = JSON.parse(source("../package.json"));
   const lock = JSON.parse(source("../package-lock.json"));
   assert.equal(packageJSON.version, version);

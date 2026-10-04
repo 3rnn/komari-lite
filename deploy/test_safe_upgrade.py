@@ -5,11 +5,13 @@ import threading
 import json
 import os
 from pathlib import Path
+import pwd
 import shlex
 import sqlite3
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 import zipfile
 
@@ -58,6 +60,8 @@ class UpgradeTests(unittest.TestCase):
         class Handler(BaseHTTPRequestHandler):
             def do_GET(self):
                 if self.path == '/api/version':
+                    if time.monotonic() < getattr(self.server, 'ready_at', 0):
+                        self.send_error(503); return
                     body = subprocess.check_output([str(root/'komari'), 'version', '--json'], cwd=root)
                     body = json.dumps({'data': {'version': self.server.forced_version} if getattr(self.server, 'forced_version', None) and '2.0.0' in body.decode() else json.loads(body)}).encode()
                 elif self.path == '/api/public':
@@ -124,6 +128,29 @@ class UpgradeTests(unittest.TestCase):
         self.assertTrue((self.root/'komari').is_symlink())
         self.assertTrue(list((self.state/'backups').iterdir()))
         self.assertTrue((self.root/'data'/'theme'/'Glass'/'dist'/'_next'/'static'/'chunks'/'new.js').is_file())
+
+    def test_startup_health_waits_for_first_http_response(self):
+        self.install()
+        setattr(self.server, 'ready_at', time.monotonic() + 1.0)
+        result = self.upgrade()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads((self.state/'journal.json').read_text())['phase'], 'committed')
+
+    @unittest.skipUnless(os.geteuid() == 0, 'ownership test needs root')
+    def test_snapshot_and_rollback_keep_service_data_ownership(self):
+        account = pwd.getpwnam('nobody')
+        for p in (self.root/'data').rglob('*'):
+            os.chown(p, account.pw_uid, account.pw_gid)
+        os.chown(self.root/'data', account.pw_uid, account.pw_gid)
+        self.install()
+        result = self.upgrade(env={'FAKE_BROKEN_PUBLIC': '1'})
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(json.loads((self.state/'journal.json').read_text())['phase'], 'rolled_back')
+        record = json.loads((self.state/'journal.json').read_text())
+        for path in (self.root/'data', self.root/'data'/'komari.db',
+                     self.root/'data'/'theme'/'Glass',
+                     self.state/'backups'/record['id']/'data'):
+            self.assertEqual(path.stat().st_uid, account.pw_uid, str(path))
 
     def test_broken_selected_public_page_rolls_back(self):
         self.install()
