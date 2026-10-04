@@ -32,6 +32,10 @@ panel as root a recommended configuration for new installations. The updater
 itself already runs as root; that alone did not make the old controller accept
 root-run systemd units. The dedicated compatibility controller now handles
 both explicit root and non-root service users while retaining its other guards.
+The bootstrap runs with umask 077, so an explicit root-run service may use a
+root-private mode 0700 upgrade state directory; its root-run pre-start gate and
+recovery process can read it. A non-root service still requires the original
+traversable upgrade state directory; do not weaken permissions manually.
 
 ## On the production VPS (after a verified independent VPS backup)
 

@@ -130,8 +130,8 @@ class CompatTests(unittest.TestCase):
                 compat.check_standard_unit_layout(dict(fields, **changes))
 
     def test_custom_controller_and_theme_pins_match_checked_in_artifacts(self):
-        expected_commits = {'safe_upgrade.py': '851e3ed489810dbcfd82c470ad79a8f33c3573d7',
-                            'Glass-33-to-38-v1.0.19.zip': '851e3ed489810dbcfd82c470ad79a8f33c3573d7'}
+        expected_commits = {'safe_upgrade.py': '0216e11e2b120abde41c98b7887ee9c5fd209db3',
+                            'Glass-33-to-38-v1.0.19.zip': '0216e11e2b120abde41c98b7887ee9c5fd209db3'}
         for name in expected_commits:
             target = SCRIPT.parent/'compat'/name
             digest, size, url = compat.ASSETS[name]
