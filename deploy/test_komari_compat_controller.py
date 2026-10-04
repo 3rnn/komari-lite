@@ -75,6 +75,17 @@ class CompatControllerTests(unittest.TestCase):
             with mock.patch.object(controller, 'command', return_value=fields):
                 controller.check_gate(args, require_gate=False)
 
+    def test_controller_rejects_short_database_flags_before_snapshot(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)/'panel'; root.mkdir()
+            args = types.SimpleNamespace(root=str(root), state_dir=str(Path(tmp)/'state'), systemctl='/usr/bin/systemctl', service='komari.service')
+            for flag in ('-d /srv/custom.db', '-d/srv/custom.db', '-t mysql'):
+                fields = ('WorkingDirectory=' + str(root) + '\nUser=root\nRestart=always\n'
+                          'ExecStart={ path=' + str(root/'komari') + ' ; argv[]=' + str(root/'komari') + ' server ' + flag + ' ; }\n')
+                with self.subTest(flag=flag), mock.patch.object(controller, 'command', return_value=fields):
+                    with self.assertRaisesRegex(RuntimeError, 'database|driver'):
+                        controller.check_gate(args, require_gate=False)
+
     def test_controller_still_rejects_missing_service_identity(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)/'panel'; root.mkdir()

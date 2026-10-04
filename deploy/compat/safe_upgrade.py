@@ -348,7 +348,8 @@ def check_gate(a, require_gate=True):
     # attempt a privilege/ownership migration while preserving live data.
     require(bool(fields.get('User')), 'service user must be explicit')
     require(fields.get('Restart') == 'always', 'panel must restart after restore')
-    require(not re.search(r'--(?:database|db-type)(?:=|\s)', fields.get('ExecStart', '')),
+    require(not re.search(r'(?<![\w-])(?:--(?:database|db-type)(?:=|\s)|-[dt])',
+                          fields.get('ExecStart', '')),
             'custom main database/driver in unit is unsupported')
 
 
