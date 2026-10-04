@@ -2,10 +2,12 @@
 import hashlib
 import importlib.util
 from pathlib import Path
+import stat
 import tempfile
 import types
 import unittest
 from unittest import mock
+import zipfile
 
 SCRIPT = Path(__file__).with_name('compat')/'safe_upgrade.py'
 spec = importlib.util.spec_from_file_location('compat_safe_upgrade', SCRIPT)
@@ -62,5 +64,50 @@ class CompatControllerTests(unittest.TestCase):
                     controller.restore(args, {'id':'20260101T000000-12345678'})
             stop.assert_not_called()
             self.assertTrue((root/'data').is_dir())
+
+    def test_controller_accepts_existing_root_service_without_changing_unit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)/'panel'; root.mkdir()
+            args = types.SimpleNamespace(root=str(root), state_dir=str(Path(tmp)/'state'), systemctl='/usr/bin/systemctl', service='komari.service')
+            fields = ('WorkingDirectory=' + str(root) + '\nUser=root\nRestart=always\n'
+                      'ExecStart={ path=' + str(root/'komari') + ' ; argv[]=... }\n')
+            with mock.patch.object(controller, 'command', return_value=fields):
+                controller.check_gate(args, require_gate=False)
+
+    def test_controller_still_rejects_missing_service_identity(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)/'panel'; root.mkdir()
+            args = types.SimpleNamespace(root=str(root), state_dir=str(Path(tmp)/'state'), systemctl='/usr/bin/systemctl', service='komari.service')
+            fields = ('WorkingDirectory=' + str(root) + '\nUser=\nRestart=always\n'
+                      'ExecStart={ path=' + str(root/'komari') + ' ; argv[]=... }\n')
+            with mock.patch.object(controller, 'command', return_value=fields):
+                with self.assertRaisesRegex(RuntimeError, 'service user'):
+                    controller.check_gate(args, require_gate=False)
+
+    def test_root_owned_data_snapshot_and_private_glass_keep_ownership_and_modes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)/'panel'; theme = root/'data/theme/Glass'; theme.mkdir(parents=True)
+            db = root/'data/komari.db'; db.write_bytes(b'database fixture')
+            db.chmod(0o644); theme.chmod(0o700)
+            (theme/'komari-theme.json').write_text('{}')
+            (theme/'komari-theme.json').chmod(0o600)
+            (theme/'dist').mkdir(mode=0o700)
+            bundle = Path(tmp)/'Glass.zip'
+            with zipfile.ZipFile(bundle, 'w') as archive:
+                archive.writestr('Glass/komari-theme.json', '{}')
+                archive.writestr('Glass/dist/index.html', '<html></html>')
+            snapshot = Path(tmp)/'snapshot'
+            controller.copy_tree(root/'data', snapshot)
+            for original, saved in ((db, snapshot/'komari.db'),
+                                    (theme, snapshot/'theme/Glass'),
+                                    (theme/'komari-theme.json', snapshot/'theme/Glass/komari-theme.json')):
+                self.assertEqual((original.stat().st_uid, original.stat().st_gid,
+                                  stat.S_IMODE(original.stat().st_mode)),
+                                 (saved.stat().st_uid, saved.stat().st_gid,
+                                  stat.S_IMODE(saved.stat().st_mode)))
+            controller.apply_theme(root, bundle)
+            self.assertEqual(stat.S_IMODE(theme.stat().st_mode), 0o700)
+            self.assertEqual((theme/'komari-theme.json').stat().st_uid, theme.stat().st_uid)
+            self.assertEqual(db.read_bytes(), b'database fixture')
 
 if __name__ == '__main__': unittest.main()

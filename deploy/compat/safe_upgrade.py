@@ -336,7 +336,10 @@ def check_gate(a, require_gate=True):
     require(fields.get('WorkingDirectory') == str(root), 'unexpected WorkingDirectory')
     actual_binary = re.search(r'\bpath=([^\s;]+)', fields.get('ExecStart', ''))
     require(actual_binary and actual_binary.group(1) == str(root/'komari'), 'unexpected service executable')
-    require(fields.get('User') not in ('', 'root'), 'panel must run as a non-root user')
+    # Root-owned legacy installations keep their existing explicit User=root;
+    # the upgrade controller is root already and must not change the unit or
+    # attempt a privilege/ownership migration while preserving live data.
+    require(bool(fields.get('User')), 'service user must be explicit')
     require(fields.get('Restart') == 'always', 'panel must restart after restore')
     require(not re.search(r'--(?:database|db-type)(?:=|\s)', fields.get('ExecStart', '')),
             'custom main database/driver in unit is unsupported')
