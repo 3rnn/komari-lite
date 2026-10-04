@@ -59,7 +59,10 @@ bootstrap. After the transaction, run `sudo bash /root/k19.sh status` using
 that same new bootstrap (older copies lack this action). The `status` mode
 never stops or restarts the panel: it reads the installed binary version,
 active unit, committed journal, exact 38-file v1.0.19 stock Glass inventory,
-and direct loopback version API.
+and direct loopback version API. The hardened status check also binds the
+systemd MainPID executable and listener socket to the installed v1.0.19
+binary and runs read-only SQLite integrity checks. A version string from
+an unrelated process on the same port must not count as a successful rollout.
 It does **not** verify public HTTPS, Agents, or a restorable off-host backup.
 A GitHub-hosted shell
 is still root code: trust the exact commit and review it before running. The
@@ -71,7 +74,7 @@ itself been upgraded.
 
 Obtain the exact **immutable commit permalink** from the operator's separate
 handoff message, not a moving `main` URL. The reviewed script's SHA-256 is
-`26947c8ffd7f0f535ca244365286e41e2182cf3b0c61a79a2542c8f9ae8604a2`;
+`c2d9a50385b2584134f5391f57ba36539a2cf5ed3fb6f78d60f67d6d33229ba5`;
 compare this with the independently supplied handoff hash as well. Download
 that file into `/root/k19a.py` with curl/wget or transfer it from a browser.
 Do not execute a root script from `/tmp` or pipe a download to a shell. Run:
