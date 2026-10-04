@@ -35,11 +35,13 @@ RELEASE = 'https://github.com/3rnn/komari-lite/releases/download/' + TAG + '/'
 COMPAT_SOURCE_COMMIT = '0216e11e2b120abde41c98b7887ee9c5fd209db3'
 COMPAT_SOURCE = ('https://raw.githubusercontent.com/3rnn/komari-lite/' +
                  COMPAT_SOURCE_COMMIT + '/deploy/compat/')
+CONTROLLER_SOURCE = ('https://raw.githubusercontent.com/3rnn/komari-lite/' +
+                     '41fff50fd0926d4b2cd7b035816bcbb83f688fa0/deploy/compat/')
 ASSETS = {
     'komari': ('68d1c5cd8f879e152269da36920cfecba677e8145e83ad774bd385d2ec1dff21', 29197640, RELEASE + 'komari'),
     'komari-manager.py': ('92a492be21753db126a14123304be7794787b864f039172d47e8c3ea2eb3c0fa', 22020, RELEASE + 'komari-manager.py'),
-    'safe_upgrade.py': ('1fe3c0525b3358fff7367ef5ef0b1174bcfa3e23f6f03a9d8fb9362301659cd1', 37560,
-                        COMPAT_SOURCE + 'safe_upgrade.py'),
+    'safe_upgrade.py': ('6db6232b7f01cb641c8a0bda842c7467d7374b59ccdaa163d45456b6acdebb92', 37606,
+                        CONTROLLER_SOURCE + 'safe_upgrade.py'),
     BUNDLE: ('71cc410af2b997c3e9dde065cdd35df6dd49cc37519c2dd481cc970c9090b4c6', 1597320,
              COMPAT_SOURCE + BUNDLE),
 }
@@ -327,6 +329,9 @@ def check_standard_unit_layout(fields):
             bool(fields.get('User')) and fields.get('Restart') == 'always' and
             re.search(r'\bpath=/opt/komari/komari(?:\s|;)', fields.get('ExecStart', '')),
             'unsupported unit layout or inactive service')
+    require(not re.search(r'(?<![\w-])(?:--(?:database|db-type)(?:=|\s)|-[dt])',
+                          fields.get('ExecStart', '')),
+            'custom main database/driver in unit is unsupported')
 
 
 def host_check():
@@ -364,8 +369,7 @@ def host_check():
     fields = dict(row.split('=', 1) for row in result.stdout.splitlines() if '=' in row)
     check_unit_mount_view(fields)
     check_standard_unit_layout(fields)
-    require(not re.search(r'--(?:database|db-type)(?:=|\s)', fields['ExecStart']) and
-            fields.get('EnvironmentFiles', '') in ('', 'n/a') and
+    require(fields.get('EnvironmentFiles', '') in ('', 'n/a') and
             not re.search(r'KOMARI_LISTEN\s*=', fields.get('Environment', '')),
             'custom database/listener environment needs review; no secrets printed')
     listen = re.search(r'--listen(?:=|\s+)([^\s;]+)', fields['ExecStart'])

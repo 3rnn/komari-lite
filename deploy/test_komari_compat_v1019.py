@@ -261,6 +261,16 @@ class CompatTests(unittest.TestCase):
                   'ExecStart': '{ path=/opt/komari/komari ; argv[]=... }'}
         compat.check_standard_unit_layout(fields)
 
+    def test_preflight_rejects_short_database_and_driver_flags(self):
+        fields = {'LoadState': 'loaded', 'ActiveState': 'active',
+                  'WorkingDirectory': '/opt/komari', 'User': 'root',
+                  'Restart': 'always'}
+        for args in ('-d /srv/custom.db', '-d/srv/custom.db', '-t mysql',
+                     '--database=/srv/custom.db', '--db-type mysql'):
+            fields['ExecStart'] = '{ path=/opt/komari/komari ; argv[]=/opt/komari/komari server ' + args + ' ; }'
+            with self.subTest(args=args), self.assertRaisesRegex(ValueError, 'database|driver'):
+                compat.check_standard_unit_layout(fields)
+
     def test_root_layout_does_not_allow_inactive_or_missing_service_identity(self):
         fields = {'LoadState': 'loaded', 'ActiveState': 'active',
                   'WorkingDirectory': '/opt/komari', 'User': 'root',
@@ -272,7 +282,7 @@ class CompatTests(unittest.TestCase):
                 compat.check_standard_unit_layout(dict(fields, **changes))
 
     def test_custom_controller_and_theme_pins_match_checked_in_artifacts(self):
-        expected_commits = {'safe_upgrade.py': '0216e11e2b120abde41c98b7887ee9c5fd209db3',
+        expected_commits = {'safe_upgrade.py': '41fff50fd0926d4b2cd7b035816bcbb83f688fa0',
                             'Glass-33-to-38-v1.0.19.zip': '0216e11e2b120abde41c98b7887ee9c5fd209db3'}
         for name in expected_commits:
             target = SCRIPT.parent/'compat'/name
