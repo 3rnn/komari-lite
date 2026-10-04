@@ -28,14 +28,20 @@ independently; the script cannot verify an off-host disaster-recovery backup.
 
 ## On the production VPS (after a verified independent VPS backup)
 
-Obtain the exact **immutable commit permalink** and expected script SHA-256
-from the operator's independent handoff message, not a moving `main` URL.
-Download that file into `/root/k19a.py` with curl/wget or transfer it from a
-browser. Do not execute a root script from `/tmp` or pipe a download to a
-shell. Run `sha256sum /root/k19a.py` and confirm it matches the separately
-supplied hash **before any `sudo python3` execution**. Without both the pinned
-commit URL and independently checked hash, STOP. Once verified and after an
-off-host backup, use the following separate commands:
+Obtain the exact **immutable commit permalink** from the operator's separate
+handoff message, not a moving `main` URL. The reviewed script's SHA-256 is
+`e8e19c0970a0e9cca251abfe11fb4e3f1b2981accb1a162b3382783506c80b6f`;
+compare this with the independently supplied handoff hash as well. Download
+that file into `/root/k19a.py` with curl/wget or transfer it from a browser.
+Do not execute a root script from `/tmp` or pipe a download to a shell. Run:
+
+```sh
+sha256sum /root/k19a.py
+```
+
+Confirm that the output matches the independent hash **before executing the
+script with sudo**. Without both the pinned commit URL and the hash check,
+STOP. Once verified and after an off-host backup, use these separate commands:
 
 ```sh
 sudo python3 /root/k19a.py check

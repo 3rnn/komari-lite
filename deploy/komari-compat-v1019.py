@@ -27,13 +27,16 @@ ROOT = Path('/opt/komari')
 STATE = Path('/var/lib/komari-upgrade')
 BUNDLE = 'Glass-33-to-38-v1.0.19.zip'
 RELEASE = 'https://github.com/3rnn/komari-lite/releases/download/' + TAG + '/'
+COMPAT_SOURCE_COMMIT = '57734ebc9206aefe564810895fd63d171de63029'
+COMPAT_SOURCE = ('https://raw.githubusercontent.com/3rnn/komari-lite/' +
+                 COMPAT_SOURCE_COMMIT + '/deploy/compat/')
 ASSETS = {
     'komari': ('68d1c5cd8f879e152269da36920cfecba677e8145e83ad774bd385d2ec1dff21', 29197640, RELEASE + 'komari'),
     'komari-manager.py': ('92a492be21753db126a14123304be7794787b864f039172d47e8c3ea2eb3c0fa', 22020, RELEASE + 'komari-manager.py'),
     'safe_upgrade.py': ('b6b75377f37cd67f4492a26ff861a9cea84479e8a55b58d1f5e7e5e831becefc', 36872,
-                        'https://raw.githubusercontent.com/3rnn/komari-lite/main/deploy/compat/safe_upgrade.py'),
+                        COMPAT_SOURCE + 'safe_upgrade.py'),
     BUNDLE: ('71cc410af2b997c3e9dde065cdd35df6dd49cc37519c2dd481cc970c9090b4c6', 1597320,
-             'https://raw.githubusercontent.com/3rnn/komari-lite/main/deploy/compat/' + BUNDLE),
+             COMPAT_SOURCE + BUNDLE),
 }
 
 

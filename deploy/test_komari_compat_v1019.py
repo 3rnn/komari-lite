@@ -113,11 +113,12 @@ class CompatTests(unittest.TestCase):
                 compat.check_unit_mount_view(other)
 
     def test_custom_controller_and_theme_pins_match_checked_in_artifacts(self):
+        expected_commit = '57734ebc9206aefe564810895fd63d171de63029'
         for name in ('safe_upgrade.py', 'Glass-33-to-38-v1.0.19.zip'):
             target = SCRIPT.parent/'compat'/name
             digest, size, url = compat.ASSETS[name]
             self.assertEqual(digest, hashlib.sha256(target.read_bytes()).hexdigest())
             self.assertEqual(size, target.stat().st_size)
-            self.assertIn('/main/deploy/compat/', url)
+            self.assertIn('/' + expected_commit + '/deploy/compat/', url)
 
 if __name__ == '__main__': unittest.main()
