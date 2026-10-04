@@ -416,10 +416,6 @@ class Assets(html.parser.HTMLParser):
 def health(a, version, schema, legacy=False):
     root = Path(a.root)
     command([a.systemctl, 'is-active', '--quiet', a.service])
-    db = config_check(root)
-    if not legacy:
-        result = info(root/'komari', 'health', root)
-        require(result.get('ok') is True and result.get('schema_version') == schema and result.get('expected_schema_version') == schema, 'CLI schema/health mismatch')
     for endpoint in ('/api/version', '/api/public'):
         deadline = time.monotonic() + 30 if endpoint.endswith('version') else None
         while True:
@@ -435,6 +431,12 @@ def health(a, version, schema, legacy=False):
                     raise
                 command([a.systemctl, 'is-active', '--quiet', a.service])
                 time.sleep(0.5)
+    # HTTP readiness means startup migrations have finished; checking the
+    # on-disk schema immediately after systemctl start races that migration.
+    config_check(root)
+    if not legacy:
+        result = info(root/'komari', 'health', root)
+        require(result.get('ok') is True and result.get('schema_version') == schema and result.get('expected_schema_version') == schema, 'CLI schema/health mismatch')
     with urllib.request.urlopen(a.http_base.rstrip('/') + '/', timeout=5) as response:
         require(response.status == 200, 'selected public theme unavailable')
         public_html = response.read(1024 * 1024)

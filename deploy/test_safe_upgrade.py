@@ -62,6 +62,8 @@ class UpgradeTests(unittest.TestCase):
                 if self.path == '/api/version':
                     if time.monotonic() < getattr(self.server, 'ready_at', 0):
                         self.send_error(503); return
+                    if marker := getattr(self.server, 'ready_marker', None):
+                        Path(marker).touch()
                     body = subprocess.check_output([str(root/'komari'), 'version', '--json'], cwd=root)
                     body = json.dumps({'data': {'version': self.server.forced_version} if getattr(self.server, 'forced_version', None) and '2.0.0' in body.decode() else json.loads(body)}).encode()
                 elif self.path == '/api/public':
@@ -90,7 +92,7 @@ class UpgradeTests(unittest.TestCase):
         self.url = 'http://127.0.0.1:%d' % self.server.server_port
 
     def binary(self, path, version, legacy=False):
-        path.write_text('#!/usr/bin/env python3\nimport json,sys,os\na=sys.argv[1]\nif a=="version": print(json.dumps({"version":"'+version+'"}))\nelif a=="schema-version" and not '+str(legacy)+': print(json.dumps({"schema_version":1}))\nelif a=="health" and not '+str(legacy)+': print(json.dumps({"ok":True,"schema_version":1,"expected_schema_version":1}))\nelse: sys.exit(1)\n')
+        path.write_text('#!/usr/bin/env python3\nimport json,sys,os\na=sys.argv[1]\nif a=="health" and os.environ.get("REQUIRE_HTTP_READY") and not os.path.exists(os.environ["REQUIRE_HTTP_READY"]): sys.exit(1)\nif a=="version": print(json.dumps({"version":"'+version+'"}))\nelif a=="schema-version" and not '+str(legacy)+': print(json.dumps({"schema_version":1}))\nelif a=="health" and not '+str(legacy)+': print(json.dumps({"ok":True,"schema_version":1,"expected_schema_version":1}))\nelse: sys.exit(1)\n')
         path.chmod(0o755)
 
     def username(self):
@@ -135,6 +137,15 @@ class UpgradeTests(unittest.TestCase):
         result = self.upgrade()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads((self.state/'journal.json').read_text())['phase'], 'committed')
+
+    def test_cli_schema_check_runs_after_http_reports_migration_ready(self):
+        self.install()
+        marker = self.base/'ready'
+        setattr(self.server, 'ready_at', time.monotonic() + 1.0)
+        setattr(self.server, 'ready_marker', str(marker))
+        result = self.upgrade(env={'REQUIRE_HTTP_READY': str(marker)})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(marker.is_file())
 
     @unittest.skipUnless(os.geteuid() == 0, 'ownership test needs root')
     def test_snapshot_and_rollback_keep_service_data_ownership(self):

@@ -22,7 +22,7 @@ Once a new reviewed Release publishes `komari-oneclick.py`,
 Glass versions) `Glass.zip`, bootstrap from the **same immutable tag**:
 
 ```sh
-TAG=v1.0.18 # verify this release and its asset checksums before running
+TAG=v1.0.19 # verify this release and its asset checksums before running
 curl -fL --proto '=https' --proto-redir '=https' \
   -o /root/komari-oneclick.py \
   "https://github.com/3rnn/komari-lite/releases/download/$TAG/komari-oneclick.py"
@@ -59,7 +59,8 @@ and systemd prerequisites still apply.
 The older `v1.0.16` Release does **not** include the controller scripts or
 `Glass.zip`; its binary also predates the new schema/health commands. The
 one-command path must refuse that Release. The `v1.0.17` Release has a broken
-rollback and startup readiness check; do not deploy it. The `v1.0.18` Release must contain
+rollback and startup readiness check; `v1.0.18` still races database migration.
+Do not deploy either superseded release. The `v1.0.19` Release must contain
 all four assets and a theme bundle whose old stock inventory matches the
 installed Glass tree exactly. Neither this README nor publication of a tag
 proves any host has been upgraded. Do not execute an unverified `curl|sh`
