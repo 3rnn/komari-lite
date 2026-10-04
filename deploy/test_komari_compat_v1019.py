@@ -1,10 +1,14 @@
 """Safety tests for the v1.0.16/33-file Glass -> v1.0.19 updater."""
 import hashlib
+from contextlib import closing
 from http.client import HTTPException
 import io
 import importlib.util
 import json
+import os
 from pathlib import Path
+import socket
+import sqlite3
 import stat
 import subprocess
 import tempfile
@@ -72,6 +76,9 @@ class CompatTests(unittest.TestCase):
                         dest.parent.mkdir(parents=True, exist_ok=True)
                         dest.write_bytes(archive.read(name))
             (root/'komari').write_text('fixture')
+            with closing(sqlite3.connect(root/'data/komari.db')) as db:
+                db.execute('create table configs (id integer primary key)')
+                db.commit()
             state = Path(tmp)/'state'; state.mkdir()
             (state/'journal.json').write_text(json.dumps({'phase':'committed', 'target':'1.0.19'}))
             calls = []
@@ -83,6 +90,7 @@ class CompatTests(unittest.TestCase):
             with mock.patch.object(compat,'ROOT',root), mock.patch.object(compat,'STATE',state), \
                  mock.patch.object(compat,'trusted_script'), mock.patch.object(compat,'trusted_file'), \
                  mock.patch.object(compat.subprocess,'run',side_effect=fake_run), \
+                 mock.patch.object(compat,'active_panel_identity',return_value=(42,'start')) as identity, \
                  mock.patch.object(compat,'download_verified',side_effect=AssertionError('status must not download')), \
                  mock.patch.object(compat,'HTTPConnection',create=True) as connection, \
                  redirect_stdout(io.StringIO()) as output:
@@ -91,9 +99,43 @@ class CompatTests(unittest.TestCase):
                 connection.assert_called_once_with('127.0.0.1', 25774, timeout=5)
                 connection.return_value.request.assert_called_once_with('GET', '/api/version')
             self.assertIn('Verified',output.getvalue())
-            self.assertEqual(len(calls),2)
-            self.assertEqual(calls[1][1:3], ['is-active', '--quiet'])
+            self.assertEqual(len(calls),1)
+            self.assertEqual(identity.call_count,2)
             self.assertTrue((state/'journal.json').exists())
+
+    def test_status_rejects_other_running_executable(self):
+        fields = ('LoadState=loaded\nActiveState=active\nWorkingDirectory=/opt/komari\n'
+                  'User=root\nMainPID=42\nExecStart={ path=/opt/other/komari ; }\n')
+        with mock.patch.object(compat.subprocess,'run',return_value=mock.Mock(stdout=fields)):
+            with self.assertRaisesRegex(ValueError,'service executable'):
+                compat.active_panel_identity(Path('/opt/komari/releases/1.0.19/komari'))
+
+    def test_status_rejects_old_running_binary_inode(self):
+        fields = ('LoadState=loaded\nActiveState=active\nWorkingDirectory=/opt/komari\n'
+                  'User=root\nMainPID=42\nExecStart={ path=/opt/komari/komari ; }\n')
+        with mock.patch.object(compat.subprocess,'run',return_value=mock.Mock(stdout=fields)), \
+             mock.patch.object(compat.os.path,'samefile',return_value=False):
+            with self.assertRaisesRegex(ValueError,'running executable'):
+                compat.active_panel_identity(Path('/opt/komari/releases/1.0.19/komari'))
+
+    def test_status_rejects_unexpected_http_json_shapes(self):
+        for payload in (b'null',b'[]',b'{"data":null}',b'{"data":[]}',b'{"data":{}}'):
+            with self.subTest(payload=payload), self.assertRaisesRegex(ValueError,'HTTP version'):
+                compat.check_http_version_payload(payload)
+
+    def test_listener_must_belong_to_panel_process(self):
+        with socket.socket(socket.AF_INET,socket.SOCK_STREAM) as server:
+            server.bind(('127.0.0.1',0)); server.listen(1)
+            port = server.getsockname()[1]
+            self.assertTrue(compat.panel_owns_listener(os.getpid(),port))
+        self.assertFalse(compat.panel_owns_listener(os.getpid(),port))
+
+    def test_status_rejects_corrupt_main_sqlite_without_printing_rows(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            data = Path(tmp)/'data'; data.mkdir()
+            (data/'komari.db').write_bytes(b'not sqlite')
+            with self.assertRaises((ValueError, sqlite3.DatabaseError)):
+                compat.check_status_databases(Path(tmp))
 
     def test_status_reports_http_protocol_failure_without_traceback(self):
         with mock.patch.object(compat,'verify_status',side_effect=HTTPException('invalid HTTP')):

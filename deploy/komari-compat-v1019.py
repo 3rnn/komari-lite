@@ -6,6 +6,7 @@ The official v1.0.19 release's 38-file stock bundle is NOT used. This script
 fetches an exact 33-file old-stock compatibility bundle from this repository.
 """
 import argparse
+from contextlib import closing
 import hashlib
 from http.client import HTTPConnection, HTTPException
 import json
@@ -141,6 +142,69 @@ def check_target_theme(theme):
     require(len(current) == 38 and hashlib.sha256(canonical).hexdigest() == TARGET_THEME_INVENTORY_SHA,
             'Glass is not exact v1.0.19 stock')
 
+def panel_owns_listener(pid, port=25774):
+    """Tie the loopback HTTP check to the systemd MainPID, not another server."""
+    sockets = set()
+    for fd in (Path('/proc')/str(pid)/'fd').iterdir():
+        try:
+            match = re.fullmatch(r'socket:\[(\d+)\]', os.readlink(fd))
+            if match: sockets.add(match.group(1))
+        except OSError:  # descriptors can close while we inspect them
+            continue
+    if not sockets: return False
+    for table in ('tcp', 'tcp6'):
+        for line in (Path('/proc/net')/table).read_text().splitlines()[1:]:
+            fields = line.split()
+            if len(fields) < 10 or fields[3] != '0A' or fields[9] not in sockets:
+                continue
+            address, hex_port = fields[1].split(':', 1)
+            allowed = (('00000000', '0100007F') if table == 'tcp' else
+                       ('00000000000000000000000000000000', '00000000000000000000000001000000'))
+            if address in allowed and int(hex_port, 16) == port:
+                return True
+    return False
+
+def active_panel_identity(binary):
+    result = subprocess.run([trusted_file(Path('/usr/bin/systemctl')), 'show',
+                             '-p', 'LoadState', '-p', 'ActiveState', '-p', 'WorkingDirectory',
+                             '-p', 'User', '-p', 'MainPID', '-p', 'ExecStart', 'komari.service'],
+                            check=True, capture_output=True, text=True, timeout=20)
+    fields = dict(row.split('=', 1) for row in result.stdout.splitlines() if '=' in row)
+    require(fields.get('LoadState') == 'loaded' and fields.get('ActiveState') == 'active' and
+            fields.get('WorkingDirectory') == str(ROOT) and bool(fields.get('User')),
+            'panel unit is not active in the expected layout')
+    require(re.search(r'\bpath=/opt/komari/komari(?:\s|;)', fields.get('ExecStart', '')),
+            'unexpected service executable')
+    raw_pid = fields.get('MainPID', '')
+    require(raw_pid.isdecimal() and int(raw_pid) > 1, 'panel MainPID is unavailable')
+    pid = int(raw_pid)
+    require(os.path.samefile(Path('/proc')/str(pid)/'exe', binary),
+            'running executable is not the installed v1.0.19 binary')
+    stat_line = (Path('/proc')/str(pid)/'stat').read_text()
+    require(') ' in stat_line, 'panel process identity is unavailable')
+    parts = stat_line.rsplit(') ', 1)[1].split()
+    require(len(parts) > 19, 'panel process identity is unavailable')
+    start = parts[19]
+    require(panel_owns_listener(pid), 'panel process does not own the loopback HTTP listener')
+    return pid, start
+
+def check_http_version_payload(payload):
+    result = json.loads(payload)
+    require(isinstance(result, dict) and isinstance(result.get('data'), dict) and
+            result['data'].get('version') == '1.0.19',
+            'local HTTP version differs from installed binary')
+
+def check_status_databases(root):
+    for name in ('komari.db', 'metrics.db'):
+        path = root/'data'/name
+        require((name != 'komari.db' or path.is_file()) and not path.is_symlink(),
+                'missing or linked SQLite database: ' + name)
+        if not path.exists(): continue  # metrics.db is optional
+        require(path.is_file(), 'invalid SQLite database: ' + name)
+        with closing(sqlite3.connect('file:' + str(path) + '?mode=ro', uri=True)) as db:
+            require(db.execute('pragma quick_check').fetchone()[0] == 'ok',
+                    'SQLite integrity failed: ' + name)
+
 def verify_status():
     require(os.geteuid() == 0, 'status requires root to inspect the upgrade journal')
     trusted_script()
@@ -151,8 +215,7 @@ def verify_status():
                                capture_output=True, text=True, check=True, timeout=20)
     require(json.loads(installed.stdout).get('version') == '1.0.19',
             'panel binary is not v1.0.19')
-    subprocess.run([trusted_file(Path('/usr/bin/systemctl')), 'is-active', '--quiet', 'komari.service'],
-                   check=True, capture_output=True, timeout=20)
+    identity = active_panel_identity(binary)
     require(STATE.is_dir() and not STATE.is_symlink() and
             STATE.stat().st_uid == 0 and not STATE.stat().st_mode & 0o022,
             'upgrade state directory missing or untrusted')
@@ -167,6 +230,7 @@ def verify_status():
     require((ROOT/'data').is_dir() and not (ROOT/'data').is_symlink() and
             (ROOT/'data/theme').is_dir() and not (ROOT/'data/theme').is_symlink(),
             'persistent theme parent is missing or linked')
+    check_status_databases(ROOT)
     check_target_theme(ROOT/'data/theme/Glass')
     connection = HTTPConnection('127.0.0.1', 25774, timeout=5)
     try:
@@ -174,13 +238,15 @@ def verify_status():
         response = connection.getresponse()
         require(response.status == 200, 'local HTTP version endpoint failed')
         payload = response.read(64 * 1024 + 1)
-        require(len(payload) <= 64 * 1024 and
-                json.loads(payload).get('data', {}).get('version') == '1.0.19',
-                'local HTTP version differs from installed binary')
+        require(len(payload) <= 64 * 1024, 'local HTTP version response is oversized')
+        check_http_version_payload(payload)
     finally:
         connection.close()
-    print('Verified: panel v1.0.19, active service, committed transaction, '
-          '38-file stock Glass and loopback HTTP version. Agent and public HTTPS not checked.', flush=True)
+    require(active_panel_identity(binary) == identity,
+            'panel restarted during status verification')
+    print('Verified: panel v1.0.19, active service and running binary, committed transaction, '
+          'SQLite integrity, 38-file stock Glass and panel-owned loopback HTTP. '
+          'Agent and public HTTPS not checked.', flush=True)
 
 
 def read_only_database_check():
