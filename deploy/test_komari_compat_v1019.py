@@ -112,13 +112,31 @@ class CompatTests(unittest.TestCase):
             with self.subTest(property_name=property_name), self.assertRaisesRegex(ValueError, 'mount|namespace'):
                 compat.check_unit_mount_view(other)
 
+    def test_existing_root_run_service_layout_is_accepted_without_user_migration(self):
+        fields = {'LoadState': 'loaded', 'ActiveState': 'active',
+                  'WorkingDirectory': '/opt/komari', 'User': 'root',
+                  'Restart': 'always',
+                  'ExecStart': '{ path=/opt/komari/komari ; argv[]=... }'}
+        compat.check_standard_unit_layout(fields)
+
+    def test_root_layout_does_not_allow_inactive_or_missing_service_identity(self):
+        fields = {'LoadState': 'loaded', 'ActiveState': 'active',
+                  'WorkingDirectory': '/opt/komari', 'User': 'root',
+                  'Restart': 'always',
+                  'ExecStart': '{ path=/opt/komari/komari ; argv[]=... }'}
+        for changes in ({'ActiveState': 'inactive'}, {'User': ''},
+                        {'ExecStart': '{ path=/other/komari ; }'}):
+            with self.subTest(changes=changes), self.assertRaisesRegex(ValueError, 'unsupported unit'):
+                compat.check_standard_unit_layout(dict(fields, **changes))
+
     def test_custom_controller_and_theme_pins_match_checked_in_artifacts(self):
-        expected_commit = '57734ebc9206aefe564810895fd63d171de63029'
-        for name in ('safe_upgrade.py', 'Glass-33-to-38-v1.0.19.zip'):
+        expected_commits = {'safe_upgrade.py': '851e3ed489810dbcfd82c470ad79a8f33c3573d7',
+                            'Glass-33-to-38-v1.0.19.zip': '851e3ed489810dbcfd82c470ad79a8f33c3573d7'}
+        for name in expected_commits:
             target = SCRIPT.parent/'compat'/name
             digest, size, url = compat.ASSETS[name]
             self.assertEqual(digest, hashlib.sha256(target.read_bytes()).hexdigest())
             self.assertEqual(size, target.stat().st_size)
-            self.assertIn('/' + expected_commit + '/deploy/compat/', url)
+            self.assertIn('/' + expected_commits[name] + '/deploy/compat/', url)
 
 if __name__ == '__main__': unittest.main()

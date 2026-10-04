@@ -25,6 +25,13 @@ service/DB/disk/theme checks run again under the transaction controller
 **before service stop**. Do not add or change mounts during the maintenance
 window. Review the full unit, overrides, external stores and VPS backup
 independently; the script cannot verify an off-host disaster-recovery backup.
+An existing unit with explicit `User=root` is supported without changing
+the service account or file ownership. This preserves a legacy root-owned data
+tree (including a private `Glass` directory), but does not make running the
+panel as root a recommended configuration for new installations. The updater
+itself already runs as root; that alone did not make the old controller accept
+root-run systemd units. The dedicated compatibility controller now handles
+both explicit root and non-root service users while retaining its other guards.
 
 ## On the production VPS (after a verified independent VPS backup)
 

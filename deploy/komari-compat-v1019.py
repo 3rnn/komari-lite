@@ -27,13 +27,13 @@ ROOT = Path('/opt/komari')
 STATE = Path('/var/lib/komari-upgrade')
 BUNDLE = 'Glass-33-to-38-v1.0.19.zip'
 RELEASE = 'https://github.com/3rnn/komari-lite/releases/download/' + TAG + '/'
-COMPAT_SOURCE_COMMIT = '57734ebc9206aefe564810895fd63d171de63029'
+COMPAT_SOURCE_COMMIT = '851e3ed489810dbcfd82c470ad79a8f33c3573d7'
 COMPAT_SOURCE = ('https://raw.githubusercontent.com/3rnn/komari-lite/' +
                  COMPAT_SOURCE_COMMIT + '/deploy/compat/')
 ASSETS = {
     'komari': ('68d1c5cd8f879e152269da36920cfecba677e8145e83ad774bd385d2ec1dff21', 29197640, RELEASE + 'komari'),
     'komari-manager.py': ('92a492be21753db126a14123304be7794787b864f039172d47e8c3ea2eb3c0fa', 22020, RELEASE + 'komari-manager.py'),
-    'safe_upgrade.py': ('b6b75377f37cd67f4492a26ff861a9cea84479e8a55b58d1f5e7e5e831becefc', 36872,
+    'safe_upgrade.py': ('93811149616798bc11969bf6bdca2c8c64b384d845b799cb005f013d868242d3', 37083,
                         COMPAT_SOURCE + 'safe_upgrade.py'),
     BUNDLE: ('71cc410af2b997c3e9dde065cdd35df6dd49cc37519c2dd481cc970c9090b4c6', 1597320,
              COMPAT_SOURCE + BUNDLE),
@@ -174,6 +174,16 @@ def check_unit_mount_view(fields):
     require(fields.get('PrivateMounts', 'no') in ('no', 'false', '0', ''),
             'private systemd mount namespace requires separate review')
 
+def check_standard_unit_layout(fields):
+    # Production installations can explicitly run their existing panel as
+    # User=root. This root-run compatibility path does not change that unit or
+    # migrate ownership. An omitted User= is not an explicit reviewed layout.
+    require(fields.get('LoadState') == 'loaded' and fields.get('ActiveState') == 'active' and
+            fields.get('WorkingDirectory') == str(ROOT) and
+            bool(fields.get('User')) and fields.get('Restart') == 'always' and
+            re.search(r'\bpath=/opt/komari/komari(?:\s|;)', fields.get('ExecStart', '')),
+            'unsupported unit layout or inactive service')
+
 
 def host_check():
     require(sys.version_info >= (3, 9), 'Python 3.9 or newer required')
@@ -209,11 +219,7 @@ def host_check():
                             check=True, capture_output=True, text=True, timeout=20)
     fields = dict(row.split('=', 1) for row in result.stdout.splitlines() if '=' in row)
     check_unit_mount_view(fields)
-    require(fields.get('LoadState') == 'loaded' and fields.get('ActiveState') == 'active' and
-            fields.get('WorkingDirectory') == str(ROOT) and
-            fields.get('User') not in ('', 'root') and fields.get('Restart') == 'always' and
-            re.search(r'\bpath=/opt/komari/komari(?:\s|;)', fields.get('ExecStart','')),
-            'unsupported unit layout or inactive service')
+    check_standard_unit_layout(fields)
     require(not re.search(r'--(?:database|db-type)(?:=|\s)', fields['ExecStart']) and
             fields.get('EnvironmentFiles', '') in ('', 'n/a') and
             not re.search(r'KOMARI_LISTEN\s*=', fields.get('Environment', '')),
