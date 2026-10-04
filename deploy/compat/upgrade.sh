@@ -24,9 +24,9 @@ if [[ ! -x /usr/bin/python3 || ! -x /usr/bin/sha256sum || ! -x /usr/bin/stat ||
     exit 1
 fi
 
-helper_url='https://raw.githubusercontent.com/3rnn/komari-lite/37819c5d353370eb2ea7abfad11d3f9a7279ee95/deploy/komari-compat-v1019.py'
-helper_sha='3612a72ccf8040749ec423c2e3ab64a84847ed6ae8ade3d38251bf51b0422bd8'
-helper_size=24876
+helper_url='https://raw.githubusercontent.com/3rnn/komari-lite/e8c41f12ed3a87821677925ed4095280aa7dd073/deploy/komari-compat-v1019.py'
+helper_sha='37153fa134b0395855a212c0595250c2aed294859b01f575bdbb83ac871c7e32'
+helper_size=25154
 umask 077
 stage=$(/usr/bin/mktemp -d /var/lib/komari-compat.XXXXXXXXXX)
 cleanup() {
