@@ -35,7 +35,7 @@ test("admin node table keeps persisted ordering and prioritizes identity and bil
   assert.doesNotMatch(pageSource, /ResourceStatus|TrafficQuota|ResourceUsage/);
   assert.match(pageSource, /t\("common\.group", "Group"\)/);
   assert.match(pageSource, /t\("common\.remark", "Remark"\)/);
-  assert.match(pageSource, /w-\[224px\].*admin\.nodeTable\.billing/);
+  assert.match(pageSource, /w-\[160px\].*admin\.nodeTable\.billing/);
   assert.match(pageSource, /nodeTable\.agent[\s\S]*publicVersion\(node\.version\)/);
   assert.match(pageSource, /admin-node-country-flag/);
   assert.match(pageSource, /reorderEnabled=\{!searchTerm\.trim\(\) && statusFilter === "all" && !routeNode && !routeAlert\}/);
@@ -102,8 +102,8 @@ test("admin node toolbar aligns status left and search actions right", () => {
   assert.match(statusSummarySource, /layoutId=\{reduceMotion \? undefined : "admin-node-status-highlight"\}/);
   assert.match(statusSummarySource, /whileTap=\{reduceMotion \? undefined/);
   assert.match(statusSummarySource, /onClick=\{\(\) => onValueChange\(filter\)\}/);
-  assert.match(pageSource, /flex flex-col gap-3 md:flex-row md:items-end md:justify-between/);
-  assert.match(pageSource, /showStatusSummary[\s\S]*md:ml-auto md:w-auto/);
+  assert.match(pageSource, /admin-server-toolbar/);
+  assert.match(pageSource, /showStatusSummary[\s\S]*admin-server-search/);
   assert.match(statusSummarySource, /flex h-10 items-center justify-center/);
   assert.doesNotMatch(pageSource, /style=\{\{ height: "48px" \}\}/);
   assert.doesNotMatch(pageSource, /lastReportRecent|liveRefreshInterval/);
@@ -181,16 +181,16 @@ test("wide admin tables turn into labelled row cards on mobile", () => {
 test("desktop node table keeps readable name and network columns while resizing", () => {
   assert.match(
     pageSource,
-    /admin-responsive-table admin-node-table min-w-\[1136px\] table-fixed/,
+    /admin-responsive-table admin-node-table table-fixed/,
   );
   assert.match(pageSource, /TableCell className="w-\[44px\] px-2 align-middle"/);
   assert.match(pageSource, /TableHead className="w-\[44px\]"/);
-  assert.match(pageSource, /TableHead className="w-\[190px\]"/);
-  assert.equal(pageSource.match(/TableHead className="w-\[190px\]"/g)?.length, 2);
+  assert.match(pageSource, /TableHead className="w-\[170px\]"/);
+  assert.equal(pageSource.match(/TableHead className="w-\[170px\]"/g)?.length, 2);
   assert.match(pageSource, /TableHead className="w-\[72px\] text-center"/);
   assert.equal(pageSource.match(/TableHead className="w-\[72px\]/g)?.length, 3);
   assert.match(pageSource, /TableHead className="w-\[224px\]"/);
-  assert.match(pageSource, /TableHead className="w-\[272px\]"/);
+  assert.match(pageSource, /TableHead className="w-\[160px\]"/);
   assert.match(pageSource, /text-sm hover:bg-\[var\(--accent-a2\)\][^\n]*\[&>td\]:py-1\.5/);
   assert.match(pageSource, /text-sm leading-\[1\.125rem\]/);
   assert.match(pageSource, /data-label=\{t\("admin\.nodeTable\.name"\)\}[\s\S]{0,80}title=\{node\.name\}/);

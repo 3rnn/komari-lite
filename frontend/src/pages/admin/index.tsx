@@ -130,7 +130,7 @@ const NodeDetailsPage = () => {
 const PREVIOUS_PAGE_DROP_ID = "admin-node-previous-page";
 const NEXT_PAGE_DROP_ID = "admin-node-next-page";
 // Pin both installers and Agent binaries to the matching published Release.
-const agentReleaseVersion = "1.0.20";
+const agentReleaseVersion = "1.0.19";
 const agentReleaseSource = `https://github.com/3rnn/komari-lite/releases/download/v${agentReleaseVersion}`;
 
 const Layout = () => {
@@ -455,7 +455,7 @@ const Header = ({
       >
         {t("admin.nodeTable.nodeList")}
       </AdminPageTitle>
-      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+      <div className="admin-server-toolbar">
         {showStatusSummary ? (
           <AdminNodeStatusSummary
             total={total}
@@ -465,11 +465,12 @@ const Header = ({
             onValueChange={setStatusFilter}
           />
         ) : null}
-        <Flex gap="2" className="w-full md:ml-auto md:w-auto">
+        <Flex gap="2" className="admin-server-search">
         <TextField.Root
           size="2"
           className="min-w-0 flex-1 text-sm md:w-56"
           placeholder={t("admin.nodeTable.searchByName")}
+          aria-label={t("admin.nodeTable.searchByName")}
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
@@ -780,14 +781,14 @@ const NodeTable = ({
         onDragEnd={handleDragEnd}
         onDragCancel={() => setIsDragging(false)}
       >
-        <Table className="admin-responsive-table admin-node-table min-w-[1136px] table-fixed text-sm">
+        <Table className="admin-responsive-table admin-node-table table-fixed text-sm">
           <TableHeader>
             <TableRow>
               <TableHead className="w-[44px]">
                 <span className="sr-only">{t("common.sort", "Sort")}</span>
               </TableHead>
-              <TableHead className="w-[190px]">{t("admin.nodeTable.name")}</TableHead>
-              <TableHead className="w-[190px]">
+              <TableHead className="w-[170px]">{t("admin.nodeTable.name")}</TableHead>
+              <TableHead className="w-[170px]">
                 {t("admin.nodeTable.network", "Network")}
               </TableHead>
               <TableHead className="w-[72px] text-center">
@@ -799,8 +800,8 @@ const NodeTable = ({
               <TableHead className="w-[72px]">
                 {t("common.remark", "Remark")}
               </TableHead>
-              <TableHead className="w-[224px]">{t("admin.nodeTable.billing")}</TableHead>
-              <TableHead className="w-[272px]">{t("common.action", "Action")}</TableHead>
+              <TableHead className="w-[160px]">{t("admin.nodeTable.billing")}</TableHead>
+              <TableHead className="w-[224px]">{t("common.action", "Action")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
