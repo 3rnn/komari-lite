@@ -22,7 +22,7 @@ Once a new reviewed Release publishes `komari-oneclick.py`,
 Glass versions) `Glass.zip`, bootstrap from the **same immutable tag**:
 
 ```sh
-TAG=v1.0.19 # verify this release and its asset checksums before running
+TAG=v1.0.20 # verify this release and its asset checksums before running
 curl -fL --proto '=https' --proto-redir '=https' \
   -o /root/komari-oneclick.py \
   "https://github.com/3rnn/komari-lite/releases/download/$TAG/komari-oneclick.py"

@@ -130,7 +130,7 @@ const NodeDetailsPage = () => {
 const PREVIOUS_PAGE_DROP_ID = "admin-node-previous-page";
 const NEXT_PAGE_DROP_ID = "admin-node-next-page";
 // Pin both installers and Agent binaries to the matching published Release.
-const agentReleaseVersion = "1.0.19";
+const agentReleaseVersion = "1.0.20";
 const agentReleaseSource = `https://github.com/3rnn/komari-lite/releases/download/v${agentReleaseVersion}`;
 
 const Layout = () => {
@@ -591,11 +591,9 @@ const SortableRow = React.memo(({
       <TableCell className="align-middle" data-label={t("admin.nodeTable.network", "Network")}>
         <div className="flex min-w-0 flex-col justify-center text-sm leading-[1.125rem] text-muted-foreground">
           {networkAddresses.length > 0 ? networkAddresses.map(([type, address]) => (
-            <div key={type} className="admin-address-row" title={address}>
-              <div className="min-w-0">
-                <span className="admin-address-value">{address}</span>
-                <span className="admin-address-label">{type}</span>
-              </div>
+            <div key={type} className="admin-network-primary" title={address}>
+              <span className="admin-network-protocol">{type}</span>
+              <span className="admin-address-value">{address}</span>
               <button
                 type="button"
                 className="inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-[var(--accent-a3)] hover:text-[var(--accent-11)]"
@@ -608,6 +606,7 @@ const SortableRow = React.memo(({
             </div>
           )) : <span className="tabular-nums">--</span>}
           <AdditionalPublicAddresses
+            nodeName={node.name}
             addresses={node.ip_addresses}
             primaryIPv4={node.ipv4}
             primaryIPv6={node.ipv6}
@@ -2634,6 +2633,7 @@ function DetailView({ node, online }: { node: NodeDetail; online: boolean }) {
           <ReadOnlyDetailField label="IPv6" value={node.ipv6} copyable mono />
           <div className="sm:col-span-2">
             <AdditionalPublicAddresses
+              nodeName={node.name}
               addresses={node.ip_addresses}
               primaryIPv4={node.ipv4}
               primaryIPv6={node.ipv6}
