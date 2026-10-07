@@ -383,6 +383,50 @@ body, * {
   margin-top: 0.0625rem;
 }
 
+/* Table cells inherit nowrap; address content must opt out explicitly. */
+.admin-address-row {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) 1.25rem;
+  align-items: start;
+  gap: 0.375rem;
+}
+
+.admin-address-value {
+  display: block;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font-family: var(--km-metric-font);
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-address-label {
+  display: block;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  color: var(--gray-10);
+  font-size: 0.6875rem;
+  line-height: 1rem;
+}
+
+.admin-additional-addresses {
+  white-space: normal;
+}
+
+.admin-additional-address-list {
+  min-width: 0;
+  max-width: 100%;
+  max-height: 14rem;
+  overflow-y: auto;
+}
+
+.admin-node-row:has(.admin-additional-addresses[open]) > td {
+  vertical-align: top !important;
+}
+
 .admin-agent-config-status {
   display: inline-flex;
   min-height: 1.25rem;

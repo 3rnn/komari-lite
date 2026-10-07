@@ -32,19 +32,21 @@ export default function AdditionalPublicAddresses({ addresses, primaryIPv4, prim
 
   return (
     <details
-      className="min-w-0 max-w-full text-xs text-muted-foreground"
+      className="admin-additional-addresses min-w-0 max-w-full text-xs text-muted-foreground"
       onToggle={(event) => setExpanded(event.currentTarget.open)}
     >
       <summary className="cursor-pointer select-none py-0.5 text-[var(--accent-11)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-9)]">
         {t("admin.nodeDetail.additionalAddresses", "Additional addresses")} ({additional.length})
       </summary>
-      {expanded && <div className="mt-1 max-h-36 min-w-0 overflow-y-auto rounded border border-[var(--gray-a5)] p-1.5">
+      {expanded && <div className="admin-additional-address-list mt-1 rounded border border-[var(--gray-a5)] p-1.5">
         {additional.map(({ address, family, interface: nic }) => (
-          <div key={`${family}:${address}`} className="flex min-w-0 items-start gap-1 py-0.5">
-            <span className="min-w-0 flex-1 break-all font-mono tabular-nums" title={address}>
-              {family === "ipv4" ? "IPv4" : "IPv6"} {address}
-              {nic ? <span className="ml-1 text-muted-foreground">({nic})</span> : null}
-            </span>
+          <div key={`${family}:${address}`} className="admin-address-row py-0.5">
+            <div className="min-w-0">
+              <span className="admin-address-value" title={address}>{address}</span>
+              <span className="admin-address-label">
+                {family === "ipv4" ? "IPv4" : "IPv6"}{nic ? ` · ${nic}` : ""}
+              </span>
+            </div>
             <button
               type="button"
               className="inline-flex size-5 shrink-0 items-center justify-center rounded hover:bg-[var(--accent-a3)] hover:text-[var(--accent-11)]"

@@ -502,14 +502,6 @@ const Header = ({
   );
 };
 
-const compactIPv6 = (value: string) => {
-  if (value.length <= 22) return value;
-  const segments = value.split(":");
-  return segments.length > 3
-    ? `${segments.slice(0, 2).join(":")}:...${segments[segments.length - 1]}`
-    : value;
-};
-
 const SortableRow = React.memo(({
   node,
   settings,
@@ -562,10 +554,10 @@ const SortableRow = React.memo(({
     <TableRow
       ref={setNodeRef}
       style={style}
-      className="text-sm hover:bg-[var(--accent-a2)] [&>td]:align-middle [&>td]:py-1.5"
+      className="admin-node-row text-sm hover:bg-[var(--accent-a2)] [&>td]:align-middle [&>td]:py-1.5"
       data-node-status={online ? "online" : "offline"}
     >
-      <TableCell className="w-[44px] px-2 !align-middle" data-label={t("common.sort", "Sort")}>
+      <TableCell className="w-[44px] px-2 align-middle" data-label={t("common.sort", "Sort")}>
         <div className="flex items-center">
           <button
             type="button"
@@ -590,19 +582,20 @@ const SortableRow = React.memo(({
         </div>
       </TableCell>
       <TableCell
-        className="overflow-hidden !align-middle"
+        className="overflow-hidden align-middle"
         data-label={t("admin.nodeTable.name")}
         title={node.name}
       >
         <DetailView node={node} online={online} />
       </TableCell>
-      <TableCell className="!align-middle" data-label={t("admin.nodeTable.network", "Network")}>
+      <TableCell className="align-middle" data-label={t("admin.nodeTable.network", "Network")}>
         <div className="flex min-w-0 flex-col justify-center text-sm leading-[1.125rem] text-muted-foreground">
           {networkAddresses.length > 0 ? networkAddresses.map(([type, address]) => (
-            <div key={type} className="flex min-w-0 items-center gap-1" title={address}>
-              <span className="whitespace-nowrap tabular-nums">
-                {type} {type === "IPv6" ? compactIPv6(address) : address}
-              </span>
+            <div key={type} className="admin-address-row" title={address}>
+              <div className="min-w-0">
+                <span className="admin-address-value">{address}</span>
+                <span className="admin-address-label">{type}</span>
+              </div>
               <button
                 type="button"
                 className="inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-[var(--accent-a3)] hover:text-[var(--accent-11)]"
@@ -621,7 +614,7 @@ const SortableRow = React.memo(({
           />
         </div>
       </TableCell>
-      <TableCell className="!align-middle" data-label={t("admin.nodeTable.agent", "Agent")}>
+      <TableCell className="align-middle" data-label={t("admin.nodeTable.agent", "Agent")}>
         <div className="admin-node-agent-cell flex min-w-0 flex-col items-center justify-center gap-0.5 text-center leading-none">
           <span className="block max-w-full truncate text-sm leading-5 text-muted-foreground" title={publicVersion(node.version) || "--"}>
             {publicVersion(node.version) || "--"}
@@ -637,17 +630,17 @@ const SortableRow = React.memo(({
           ) : null}
         </div>
       </TableCell>
-      <TableCell className="!align-middle" data-label={t("common.group", "Group")}>
+      <TableCell className="align-middle" data-label={t("common.group", "Group")}>
         <span className="block truncate text-sm font-normal text-muted-foreground" title={node.group || ""}>
           {node.group || "--"}
         </span>
       </TableCell>
-      <TableCell className="!align-middle" data-label={t("common.remark", "Remark")}>
+      <TableCell className="align-middle" data-label={t("common.remark", "Remark")}>
         <span className="block whitespace-normal break-words text-sm text-muted-foreground" title={node.remark || ""}>
           {node.remark || "--"}
         </span>
       </TableCell>
-      <TableCell className="!align-middle" data-label={t("admin.nodeTable.billing")}>
+      <TableCell className="align-middle" data-label={t("admin.nodeTable.billing")}>
         <PriceTags
           className="[&_label]:!text-xs"
           price={node.price}
@@ -657,7 +650,7 @@ const SortableRow = React.memo(({
           tags={node.tags || ""}
         />
       </TableCell>
-      <TableCell className="!align-middle" data-label={t("common.action", "Action")}>
+      <TableCell className="align-middle" data-label={t("common.action", "Action")}>
         <ActionButtons node={node} settings={settings} />
       </TableCell>
     </TableRow>

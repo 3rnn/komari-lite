@@ -109,7 +109,8 @@ test("admin node toolbar aligns status left and search actions right", () => {
   assert.doesNotMatch(pageSource, /lastReportRecent|liveRefreshInterval/);
   assert.doesNotMatch(pageSource, /resourceFromLatestReport/);
   assert.match(pageSource, /networkAddresses\.length > 0 \? networkAddresses\.map/);
-  assert.match(pageSource, /type === "IPv6" \? compactIPv6\(address\) : address/);
+  assert.match(pageSource, /className="admin-address-value">\{address\}/);
+  assert.doesNotMatch(pageSource, /compactIPv6/);
   assert.match(pageSource, /flex min-w-0 flex-col justify-center text-sm leading-\[1\.125rem\] text-muted-foreground/);
   assert.match(statusSummarySource, /bg-\[var\(--color-panel-solid\)\]/);
   assert.doesNotMatch(pageSource, /md:inline-flex md:w-fit/);
@@ -182,7 +183,7 @@ test("desktop node table keeps readable name and network columns while resizing"
     pageSource,
     /admin-responsive-table admin-node-table min-w-\[1136px\] table-fixed/,
   );
-  assert.match(pageSource, /TableCell className="w-\[44px\] px-2 !align-middle"/);
+  assert.match(pageSource, /TableCell className="w-\[44px\] px-2 align-middle"/);
   assert.match(pageSource, /TableHead className="w-\[44px\]"/);
   assert.match(pageSource, /TableHead className="w-\[190px\]"/);
   assert.equal(pageSource.match(/TableHead className="w-\[190px\]"/g)?.length, 2);
