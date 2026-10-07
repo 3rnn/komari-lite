@@ -467,13 +467,13 @@ body, * {
   padding: 1.25rem;
 }
 
-.admin-network-dialog .rt-DialogTitle {
-  padding-right: 2rem;
+.admin-network-dialog .admin-network-title {
+  padding-right: 2.75rem;
   margin-bottom: 0.25rem;
   font-size: 1rem;
 }
 
-.admin-network-dialog .rt-DialogDescription {
+.admin-network-dialog .admin-network-description {
   color: var(--gray-11);
   font-size: 0.75rem;
   overflow-wrap: anywhere;

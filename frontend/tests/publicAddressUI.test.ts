@@ -11,6 +11,8 @@ test("additional addresses use a lazy modal instead of expanding the server row"
   assert.match(list, /<Dialog.Root open=\{expanded\} onOpenChange=\{setExpanded\}/);
   assert.match(list, /<Dialog.Trigger>/);
   assert.match(list, /expanded &&/);
+  assert.match(list, /titleProps=\{\{ className: "admin-network-title" \}\}/);
+  assert.match(list, /descriptionProps=\{\{ className: "admin-network-description" \}\}/);
   assert.match(list, /<AppDialogContent/);
   assert.match(list, /<Dialog.Close>/);
   assert.match(list, /additionalPublicAddresses\(/);

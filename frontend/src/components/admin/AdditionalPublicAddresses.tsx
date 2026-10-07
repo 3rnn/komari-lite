@@ -53,6 +53,8 @@ export default function AdditionalPublicAddresses({ addresses, primaryIPv4, prim
         className="admin-network-dialog"
         maxWidth="600px"
         title="Network addresses"
+        titleProps={{ className: "admin-network-title" }}
+        descriptionProps={{ className: "admin-network-description" }}
         description={nodeName ? `${nodeName} · ${inventory.length} public addresses` : `${inventory.length} public addresses`}
       >
         <Dialog.Close>
