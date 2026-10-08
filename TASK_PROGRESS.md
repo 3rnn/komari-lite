@@ -369,3 +369,12 @@ Current state:
 - Added `scripts/build-release.sh` for reproducible release assembly: frontend test/lint/build/embed-sync, Linux `amd64` and `arm64` CGO panel builds, 14 platform Agent artifacts, transition Glass bundle, controller/updater assets, full checksum inventory, and release manifest.
 - Added English fresh-install, version-pinned Agent installation, explicit/dry-run update, backup, rollback-limit, and running-version documentation in `README.md`.
 - Validation before tag/release: frontend tests/build/lint/embed synchronization, backend tests/vet, Agent tests/vet, 111 deployment/controller tests, Bash syntax checks, ShellCheck, and `git diff --check` passed. No production service or data was modified during release preparation.
+
+---
+
+## Versioned Production Updater Compatibility — October 8, 2026
+
+- Reworked `update-komari.sh` to detect both a protected flat executable layout and the versioned `komari -> current/komari`, `current -> releases/<version>` layout. It rejects broken, escaping, unexpected, writable, or untrusted symlink/directory chains instead of replacing a symlink target.
+- For the known v1.0.19 compatibility controller SHA-256, a versioned update now downloads and verifies the panel binary and `Glass.zip`, then delegates the complete transaction to the already-installed `/var/lib/komari-upgrade/safe_upgrade.py`. The wrapper never replaces the controller, its `ExecStartPre` gate, systemd unit, or historical releases.
+- Added isolated black-box updater fixtures covering flat and versioned v1.0.19-to-v1.0.21 updates, clean dry runs, checksum rejection, escaping symlinks, unsafe upgrade state, controller/gate rejection, interruption fail-closed behavior, idempotent re-execution, flat startup rollback, and preservation of both SQLite databases. Existing safe-upgrade controller tests continue to cover journaled snapshots, migration/start failures, rollback, and automatic recovery. No production host was accessed or modified.
+- The correction will be published as a separate updater-only `v1.0.22` prerelease containing the immutable script and `SHA256SUMS.txt`; it does not modify `v1.0.21`, replace its application binaries, or change the stable application target. The corrected updater is explicitly invoked with `v1.0.21` for the production dry run.

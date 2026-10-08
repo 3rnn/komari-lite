@@ -47,12 +47,14 @@ This creates a new installation only when `/opt/komari` and `komari.service` are
 Download the updater from the immutable release tag, inspect it, and first run a dry run:
 
 ```bash
-curl -fsSLo update-komari.sh https://raw.githubusercontent.com/3rnn/komari-lite/v1.0.21/update-komari.sh
-bash update-komari.sh --dry-run
+curl -fsSLo update-komari.sh https://raw.githubusercontent.com/3rnn/komari-lite/v1.0.22/update-komari.sh
+bash update-komari.sh --dry-run v1.0.21
 bash update-komari.sh v1.0.21
 ```
 
-With no version argument, `bash update-komari.sh` resolves the latest stable GitHub Release once. Use an explicit tag for a reviewed change. The updater detects `amd64`/`arm64`, verifies the selected release binary against that release's `SHA256SUMS.txt`, preserves the existing systemd unit and arguments, and creates a timestamped backup under `/opt/komari/backups/` before replacing only `/opt/komari/komari`.
+`v1.0.22` is an updater-only compatibility release. It leaves the published `v1.0.21` application release unchanged and supports both a flat `/opt/komari/komari` executable and the protected versioned `komari -> current/komari` layout used by older safe-upgrade deployments. For a versioned deployment it verifies the known installed v1.0.19 safe-upgrade controller, downloads and verifies the selected panel binary and Glass transition bundle, and delegates staging, SQLite snapshots, atomic symlink switching, health checks, rollback, and recovery to that existing controller without replacing its systemd gate.
+
+With no version argument, `bash update-komari.sh` resolves the latest stable application release once. Use an explicit tag for a reviewed change. The updater detects `amd64`/`arm64`, verifies the selected release assets against that release's `SHA256SUMS.txt`, preserves the existing systemd unit and arguments, and rejects unsafe symlink chains, writable deployment paths, incomplete safe-upgrade transactions, and database downgrades.
 
 It never deletes or recreates `/opt/komari`, modifies proxy/firewall configuration, changes administrator credentials, or resets databases. It refuses schema downgrades. If the new binary expects a newer SQLite schema, it makes consistent SQLite backups with Python's SQLite backup API while the service is stopped. If post-start health fails after the schema changed, the previous executable is restored but intentionally not started against a potentially migrated database; review the reported backup location and perform a coordinated recovery instead of attempting a blind binary rollback.
 
