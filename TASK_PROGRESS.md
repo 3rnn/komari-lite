@@ -37,6 +37,8 @@ Target UI direction:
 
 ## Completed
 
+- Billing Remaining Value Calculator now uses theme-aware Radix Select controls, automatic ExchangeRate-API CNY rates with published-timestamp caching, timeout/rate-limit/cached fallback handling, CNY fixed at 1, manual override and refresh controls, plus concise plain-text resale listings; VPS-JSQ calculation parity remains regression-tested.
+
 - Remaining Value Calculator now follows the public VPS-JSQ reference implementation: direct billing-day denominators, expiration-to-transaction day calculation, fixed premium, fixed discount, and target-price modes; source-backed parity tests cover standard, custom, leap-year, month-boundary, and expired cases.
 
 - Repository structure reviewed

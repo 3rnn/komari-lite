@@ -61,7 +61,7 @@ test("keeps expired fixed discounts instead of clamping the final price", () => 
   assert.equal(result.finalResalePriceCny, -10);
 });
 
-test("requires a positive day count and exposes VPS-JSQ-compatible defaults", () => {
+test("requires a positive day count", () => {
   const unsupported = calculateVpsJsqRemainingValue({
     price: "100",
     billingCycle: "-1",
@@ -74,11 +74,11 @@ test("requires a positive day count and exposes VPS-JSQ-compatible defaults", ()
 
   assert.equal(unsupported.status, "unsupported-cycle");
   assert.equal(getVpsJsqDefaultCnyRate("¥"), "1");
-  assert.equal(getVpsJsqDefaultCnyRate("$"), "7.25");
+  assert.equal(getVpsJsqDefaultCnyRate("$"), "");
   assert.equal(getVpsJsqDefaultCnyRate("₽"), "");
 });
 
-test("builds a listing from calculator-only values", () => {
+test("builds a compact plain-text listing from calculator-only values", () => {
   const result = calculateVpsJsqRemainingValue({
     price: "100",
     billingCycle: "30",
@@ -99,6 +99,54 @@ test("builds a listing from calculator-only values", () => {
     cnyPerUnit: "7.2",
     result,
   });
-  assert.match(listing, /Remaining days: 16/);
-  assert.match(listing, /Listing price: ¥394\.00/);
+  assert.equal(listing, [
+    "VPS Transfer",
+    "Renewal: $100.00 USD / 30 days",
+    "Expires: 2026-02-15",
+    "Remaining: 16 days (53.3%)",
+    "Exchange rate: 1 USD = ¥7.20",
+    "Remaining value: ¥384.00",
+    "Premium: +¥10.00",
+    "Asking price: ¥394.00",
+  ].join("\n"));
+  assert.doesNotMatch(listing, /---|Transaction date|Billing cycle|Listing price/);
+});
+
+test("omits an exchange-rate and zero-adjustment line for CNY", () => {
+  const result = calculateVpsJsqRemainingValue({
+    price: "20",
+    billingCycle: "30",
+    expiredAt: "2026-02-15",
+    transactionDate: "2026-01-30",
+    cnyPerUnit: "1",
+    adjustmentMode: "add",
+    adjustmentValue: "0",
+  });
+  assert.equal(result.status, "ready");
+
+  const listing = buildVpsJsqListing({
+    sourceCurrency: "¥",
+    price: "20",
+    billingCycle: "30",
+    expiredAt: "2026-02-15",
+    transactionDate: "2026-01-30",
+    cnyPerUnit: "1",
+    result,
+  });
+  assert.match(listing, /^VPS Transfer\nRenewal: ¥20\.00 CNY \/ 30 days/m);
+  assert.doesNotMatch(listing, /Exchange rate|Premium|Discount/);
+  assert.match(listing, /Asking price: ¥10\.67$/);
+});
+
+test("labels negative and target-derived adjustments as discounts or premiums", () => {
+  const discount = calculateVpsJsqRemainingValue({
+    price: "100", billingCycle: "30", expiredAt: "2026-02-15", transactionDate: "2026-01-30", cnyPerUnit: "7.2", adjustmentMode: "sub", adjustmentValue: "10",
+  });
+  const target = calculateVpsJsqRemainingValue({
+    price: "100", billingCycle: "30", expiredAt: "2026-02-15", transactionDate: "2026-01-30", cnyPerUnit: "7.2", adjustmentMode: "target", adjustmentValue: "500",
+  });
+  assert.equal(discount.status, "ready");
+  assert.equal(target.status, "ready");
+  assert.match(buildVpsJsqListing({ sourceCurrency: "$", price: "100", billingCycle: "30", expiredAt: "2026-02-15", transactionDate: "2026-01-30", cnyPerUnit: "7.2", result: discount }), /Discount: -¥10\.00/);
+  assert.match(buildVpsJsqListing({ sourceCurrency: "$", price: "100", billingCycle: "30", expiredAt: "2026-02-15", transactionDate: "2026-01-30", cnyPerUnit: "7.2", result: target }), /Premium: \+¥116\.00/);
 });

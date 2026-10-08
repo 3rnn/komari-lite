@@ -1,3 +1,5 @@
+import { resolveBillingCurrencyCode } from "./exchangeRates.ts";
+
 export const VPS_JSQ_ADJUSTMENT_MODES = ["add", "sub", "target"] as const;
 
 export type VpsJsqAdjustmentMode = (typeof VPS_JSQ_ADJUSTMENT_MODES)[number];
@@ -32,14 +34,6 @@ export type VpsJsqRemainingValueResult = {
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-const VPS_JSQ_DEFAULT_CNY_RATES: Record<string, number> = {
-  "¥": 1,
-  "$": 7.25,
-  "€": 7.85,
-  "£": 9.2,
-  "C$": 5.25,
-};
-
 function parseDate(value: string): Date | undefined {
   const date = new Date(value.trim());
   return Number.isNaN(date.getTime()) ? undefined : date;
@@ -60,8 +54,7 @@ function parseOptionalNumber(value: string): number | undefined {
 }
 
 export function getVpsJsqDefaultCnyRate(currency: string): string {
-  const rate = VPS_JSQ_DEFAULT_CNY_RATES[currency];
-  return rate === undefined ? "" : String(rate);
+  return resolveBillingCurrencyCode(currency) === "CNY" ? "1" : "";
 }
 
 export function todayVpsJsqDateInput(now = new Date()): string {
@@ -118,15 +111,11 @@ export function formatCny(value: number): string {
   return `¥${value.toFixed(2)}`;
 }
 
-export function buildVpsJsqListing({
-  sourceCurrency,
-  price,
-  billingCycle,
-  expiredAt,
-  transactionDate,
-  cnyPerUnit,
-  result,
-}: {
+function formatSourceAmount(value: string): string {
+  return Number(value).toFixed(2);
+}
+
+export function buildVpsJsqListing(args: {
   sourceCurrency: string;
   price: string;
   billingCycle: string;
@@ -135,27 +124,25 @@ export function buildVpsJsqListing({
   cnyPerUnit: string;
   result: VpsJsqRemainingValueResult;
 }): string {
+  const { sourceCurrency, price, billingCycle, expiredAt, cnyPerUnit, result } = args;
   if (result.status !== "ready") return "";
-  const priceCny = result.cyclePriceCny!;
-  const adjustment = result.premiumOrDiscountCny!;
-  const adjustmentLabel = adjustment === 0
-    ? "None"
-    : adjustment > 0
-      ? `+¥${adjustment.toFixed(2)}`
-      : `-¥${Math.abs(adjustment).toFixed(2)}`;
 
-  return [
-    "VPS Remaining Value / Listing",
-    "------------------------",
-    `Renewal: ${sourceCurrency}${price} (about ${formatCny(priceCny)})`,
-    `Rate: 1 ${sourceCurrency} = ¥${Number(cnyPerUnit).toFixed(4)}`,
-    `Billing cycle: ${billingCycle} days`,
+  const currencyCode = resolveBillingCurrencyCode(sourceCurrency) ?? sourceCurrency.trim().toUpperCase();
+  const adjustment = result.premiumOrDiscountCny!;
+  const lines = [
+    "VPS Transfer",
+    `Renewal: ${sourceCurrency}${formatSourceAmount(price)} ${currencyCode} / ${billingCycle} days`,
     `Expires: ${expiredAt}`,
-    `Transaction date: ${transactionDate}`,
-    `Remaining days: ${result.remainingDays}`,
-    `Remaining value: ${formatCny(result.remainingValueCny!)}`,
-    `Premium / discount: ${adjustmentLabel}`,
-    "------------------------",
-    `Listing price: ${formatCny(result.resalePriceCny!)}`,
-  ].join("\n");
+    `Remaining: ${result.remainingDays} days (${result.remainingPercentage!.toFixed(1)}%)`,
+  ];
+
+  if (currencyCode !== "CNY") {
+    lines.push(`Exchange rate: 1 ${currencyCode} = ¥${Number(cnyPerUnit).toFixed(2)}`);
+  }
+  lines.push(`Remaining value: ${formatCny(result.remainingValueCny!)}`);
+  if (adjustment > 0) lines.push(`Premium: +¥${adjustment.toFixed(2)}`);
+  if (adjustment < 0) lines.push(`Discount: -¥${Math.abs(adjustment).toFixed(2)}`);
+  lines.push(`Asking price: ${formatCny(result.resalePriceCny!)}`);
+
+  return lines.join("\n");
 }
