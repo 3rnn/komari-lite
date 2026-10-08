@@ -285,7 +285,7 @@ prepare_versioned_controller() {
 
 validate_versioned_transaction_preflight() {
   local output
-  if ! output="$(PYTHONDONTWRITEBYTECODE=1 python3 - "$controller" "$root" "$state_dir" "$service" "$stage/$asset" "$expected_sha" "$stage/Glass.zip" "$theme_sha" "$target_version" <<'PY'
+  if ! output="$(PYTHONDONTWRITEBYTECODE=1 python3 - "$controller" "$root" "$state_dir" "$service" "$stage/$asset" "$expected_sha" "$stage/Glass.zip" "$theme_sha" "$target_version" 2>&1 <<'PY'
 import argparse, importlib.util, pathlib, sys
 controller, root, state_dir, service, binary, sha256, bundle, bundle_sha, version = sys.argv[1:]
 spec = importlib.util.spec_from_file_location('komari_safe_upgrade_preflight', controller)

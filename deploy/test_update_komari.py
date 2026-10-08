@@ -116,7 +116,8 @@ class UpdateKomariScriptTests(unittest.TestCase):
         controller.write_text(
             "#!/usr/bin/env python3\n"
             "import argparse, hashlib, json, os, pathlib, shutil, sqlite3\n"
-            "def preflight(_): return None\n"
+            "def preflight(_):\n"
+            " if os.environ.get('UPDATE_FIXTURE_FAIL_PREFLIGHT'): raise RuntimeError('fixture preflight rejection')\n"
             "def main():\n"
             " p=argparse.ArgumentParser(); p.add_argument('action'); p.add_argument('--root'); p.add_argument('--state-dir'); p.add_argument('--service'); p.add_argument('--binary'); p.add_argument('--sha256'); p.add_argument('--expected-version'); p.add_argument('--theme-bundle'); p.add_argument('--theme-sha256'); a=p.parse_args()\n"
             " root=pathlib.Path(a.root); state=pathlib.Path(a.state_dir)\n"
@@ -187,6 +188,22 @@ class UpdateKomariScriptTests(unittest.TestCase):
         self.assertIn("Safe-upgrade transaction preflight: accepted", result.stdout)
         self.assertEqual(links_before, (os.readlink(self.root / "current"), os.readlink(self.root / "komari")))
         self.assertEqual(controller.read_bytes(), controller_before)
+        self.assertFalse((self.state / "journal.json").exists())
+        self.assertFalse((self.base / "systemctl.log").exists())
+
+    def test_versioned_preflight_failure_is_reported_without_mutation(self):
+        releases = self.root / "releases" / "1.0.19"
+        releases.mkdir(parents=True)
+        self._make_binary(releases / "komari", "1.0.19")
+        (self.root / "current").symlink_to(Path("releases") / "1.0.19")
+        (self.root / "komari").symlink_to(Path("current") / "komari")
+        self._make_installed_controller()
+        links_before = (os.readlink(self.root / "current"), os.readlink(self.root / "komari"))
+        result = self._run("--dry-run", "v1.0.21", env={"UPDATE_FIXTURE_FAIL_PREFLIGHT": "1"})
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Safe-upgrade transaction preflight failed", result.stderr)
+        self.assertIn("fixture preflight rejection", result.stderr)
+        self.assertEqual(links_before, (os.readlink(self.root / "current"), os.readlink(self.root / "komari")))
         self.assertFalse((self.state / "journal.json").exists())
         self.assertFalse((self.base / "systemctl.log").exists())
 
