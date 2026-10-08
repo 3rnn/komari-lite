@@ -2,100 +2,103 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  buildResaleListing,
-  calculateRemainingValue,
-  getBillingCycleKind,
-  advanceBillingCycle,
+  buildVpsJsqListing,
+  calculateVpsJsqRemainingValue,
+  formatCny,
+  getVpsJsqDefaultCnyRate,
 } from "../src/lib/remainingValue.ts";
 
-test("uses the backend calendar-cycle ranges rather than treating every cycle as days", () => {
-  assert.equal(getBillingCycleKind(30), "month");
-  assert.equal(getBillingCycleKind(92), "quarter");
-  assert.equal(getBillingCycleKind(184), "half-year");
-  assert.equal(getBillingCycleKind(365), "year");
-  assert.equal(getBillingCycleKind(45), "days");
-  assert.equal(getBillingCycleKind(-1), null);
-
-  assert.equal(advanceBillingCycle("2026-01-15", 92), "2026-04-15");
-  assert.equal(advanceBillingCycle("2026-01-15", 45), "2026-03-01");
-});
-
-test("calculates CNY remaining value from date-only cycle boundaries", () => {
-  const result = calculateRemainingValue({
+test("uses the billing day count directly without calendar-renewal conversion", () => {
+  const result = calculateVpsJsqRemainingValue({
     price: "100",
-    billingCycle: "30",
-    expiredAt: "2026-02-15",
-    cycleStartedAt: "2026-01-15",
+    billingCycle: "92",
+    expiredAt: "2026-04-01",
+    transactionDate: "2026-01-31",
     cnyPerUnit: "7.2",
-    today: "2026-01-30",
-    adjustments: [],
+    adjustmentMode: "add",
+    adjustmentValue: "0",
   });
 
   assert.equal(result.status, "ready");
-  assert.equal(result.cycleDays, 31);
-  assert.equal(result.remainingDays, 16);
-  assert.equal(result.cyclePriceCny, 720);
-  assert.equal(result.remainingValueCny, 720 * 16 / 31);
-  assert.equal(result.resalePriceCny, 720 * 16 / 31);
+  assert.equal(result.remainingDays, 60);
+  assert.equal(result.remainingPercentage, 60 / 92 * 100);
+  assert.equal(result.baseResidualValueCny, 720 / 92 * 60);
 });
 
-test("applies fixed and percentage premiums or discounts in listed order", () => {
-  const result = calculateRemainingValue({
+test("preserves VPS-JSQ's unrounded arithmetic and target-price behavior", () => {
+  const result = calculateVpsJsqRemainingValue({
+    price: "100",
+    billingCycle: "184",
+    expiredAt: "2026-07-15",
+    transactionDate: "2026-01-15",
+    cnyPerUnit: "7.2",
+    adjustmentMode: "target",
+    adjustmentValue: "299",
+  });
+
+  assert.equal(result.status, "ready");
+  assert.equal(result.finalResalePriceCny, 299);
+  assert.equal(result.premiumOrDiscountCny, 299 - result.baseResidualValueCny!);
+  assert.equal(formatCny(result.baseResidualValueCny!), "¥708.26");
+  assert.equal(formatCny(result.finalResalePriceCny!), "¥299.00");
+});
+
+test("keeps expired fixed discounts instead of clamping the final price", () => {
+  const result = calculateVpsJsqRemainingValue({
+    price: "100",
+    billingCycle: "365",
+    expiredAt: "2026-01-01",
+    transactionDate: "2026-01-02",
+    cnyPerUnit: "7.2",
+    adjustmentMode: "sub",
+    adjustmentValue: "10",
+  });
+
+  assert.equal(result.status, "ready");
+  assert.equal(result.remainingDays, 0);
+  assert.equal(result.baseResidualValueCny, 0);
+  assert.equal(result.premiumOrDiscountCny, -10);
+  assert.equal(result.finalResalePriceCny, -10);
+});
+
+test("requires a positive day count and exposes VPS-JSQ-compatible defaults", () => {
+  const unsupported = calculateVpsJsqRemainingValue({
+    price: "100",
+    billingCycle: "-1",
+    expiredAt: "2026-02-01",
+    transactionDate: "2026-01-01",
+    cnyPerUnit: "7.2",
+    adjustmentMode: "add",
+    adjustmentValue: "0",
+  });
+
+  assert.equal(unsupported.status, "unsupported-cycle");
+  assert.equal(getVpsJsqDefaultCnyRate("¥"), "1");
+  assert.equal(getVpsJsqDefaultCnyRate("$"), "7.25");
+  assert.equal(getVpsJsqDefaultCnyRate("₽"), "");
+});
+
+test("builds a listing from calculator-only values", () => {
+  const result = calculateVpsJsqRemainingValue({
     price: "100",
     billingCycle: "30",
     expiredAt: "2026-02-15",
-    cycleStartedAt: "2026-01-15",
-    cnyPerUnit: "1",
-    today: "2026-01-30",
-    adjustments: [
-      { kind: "fixed-cny", value: "10" },
-      { kind: "percent", value: "10" },
-      { kind: "fixed-cny", value: "-30" },
-    ],
-  });
-
-  assert.equal(result.status, "ready");
-  assert.equal(result.resalePriceCny, ((100 * 16 / 31 + 10) * 1.1) - 30);
-  assert.equal(result.resalePriceSource, result.resalePriceCny);
-});
-
-test("does not invent a value for one-time, expired, or mismatched cycles", () => {
-  const shared = {
-    price: "100",
-    expiredAt: "2026-02-15",
-    cycleStartedAt: "2026-01-15",
-    cnyPerUnit: "1",
-    adjustments: [],
-  };
-
-  assert.equal(calculateRemainingValue({ ...shared, billingCycle: "-1", today: "2026-01-30" }).status, "unsupported-cycle");
-  assert.equal(calculateRemainingValue({ ...shared, billingCycle: "30", today: "2026-03-01" }).status, "expired");
-  assert.equal(calculateRemainingValue({ ...shared, billingCycle: "92", today: "2026-01-30" }).status, "cycle-mismatch");
-});
-
-test("clamps resale value at zero and produces a copy-ready English listing", () => {
-  const result = calculateRemainingValue({
-    price: "10",
-    billingCycle: "30",
-    expiredAt: "2026-02-15",
-    cycleStartedAt: "2026-01-15",
-    cnyPerUnit: "1",
-    today: "2026-01-30",
-    adjustments: [{ kind: "fixed-cny", value: "-100" }],
+    transactionDate: "2026-01-30",
+    cnyPerUnit: "7.2",
+    adjustmentMode: "add",
+    adjustmentValue: "10",
   });
   assert.equal(result.status, "ready");
-  assert.equal(result.resalePriceCny, 0);
 
-  const listing = buildResaleListing({
-    name: "Tokyo VPS",
+  const listing = buildVpsJsqListing({
     sourceCurrency: "$",
-    billingCycle: 30,
+    price: "100",
+    billingCycle: "30",
     expiredAt: "2026-02-15",
-    cnyPerUnit: 1,
+    transactionDate: "2026-01-30",
+    cnyPerUnit: "7.2",
     result,
   });
-  assert.match(listing, /Tokyo VPS/);
-  assert.match(listing, /Billing cycle: 30 days/);
-  assert.match(listing, /Remaining value: ¥/);
-  assert.match(listing, /Resale price: ¥0\.00/);
+  assert.match(listing, /Remaining days: 16/);
+  assert.match(listing, /Listing price: ¥394\.00/);
 });

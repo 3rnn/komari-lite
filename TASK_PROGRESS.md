@@ -37,6 +37,8 @@ Target UI direction:
 
 ## Completed
 
+- Remaining Value Calculator now follows the public VPS-JSQ reference implementation: direct billing-day denominators, expiration-to-transaction day calculation, fixed premium, fixed discount, and target-price modes; source-backed parity tests cover standard, custom, leap-year, month-boundary, and expired cases.
+
 - Repository structure reviewed
 - Existing frontend/backend architecture inspected
 - Initial Chinese text scan completed
