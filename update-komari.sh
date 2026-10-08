@@ -283,6 +283,40 @@ prepare_versioned_controller() {
   "$controller" gate --root "$root" --state-dir "$state_dir" || die 'Existing safe-upgrade gate rejected this installation or reports an unfinished transaction.'
 }
 
+validate_versioned_transaction_preflight() {
+  local output
+  if ! output="$(PYTHONDONTWRITEBYTECODE=1 python3 - "$controller" "$root" "$state_dir" "$service" "$stage/$asset" "$expected_sha" "$stage/Glass.zip" "$theme_sha" "$target_version" <<'PY'
+import argparse, importlib.util, pathlib, sys
+controller, root, state_dir, service, binary, sha256, bundle, bundle_sha, version = sys.argv[1:]
+spec = importlib.util.spec_from_file_location('komari_safe_upgrade_preflight', controller)
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+args = argparse.Namespace(
+    root=root,
+    state_dir=state_dir,
+    unit_dir='/etc/systemd/system',
+    service=service,
+    systemctl='systemctl',
+    http_base='http://127.0.0.1:25774',
+    binary=binary,
+    sha256=sha256,
+    theme_bundle=bundle,
+    theme_sha256=bundle_sha,
+    hostname=None,
+    machine_id=None,
+    database=None,
+    expected_version=version,
+)
+module.preflight(args)
+print('accepted')
+PY
+)"; then
+    printf '[komari-update] Safe-upgrade transaction preflight failed:\n%s\n' "$output" >&2
+    die 'The installed safe-upgrade controller rejected this release before service stop. Fix the reported controller, recovery, theme, database, or disk-space issue; do not bypass it.'
+  fi
+  [[ "$output" == 'accepted' ]] || die 'Safe-upgrade transaction preflight returned an unexpected result.'
+}
+
 flat_backup_parent() {
   if [[ -e "$root/backup" ]]; then
     [[ -d "$root/backup" && ! -L "$root/backup" ]] || die "Unsafe flat-layout backup path: $root/backup"
@@ -415,6 +449,11 @@ log "Target binary version: $target_binary_version; expected schema: $target_sch
 if [[ "$previous_version" == "$target_version" ]]; then
   log 'Requested version is already installed; no service interruption is required.'
   exit 0
+fi
+
+if [[ "$layout" == 'versioned' ]]; then
+  validate_versioned_transaction_preflight
+  log 'Safe-upgrade transaction preflight: accepted'
 fi
 
 if [[ "$layout" == 'flat' ]]; then

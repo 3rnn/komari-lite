@@ -115,27 +115,30 @@ class UpdateKomariScriptTests(unittest.TestCase):
         controller = self.state / "safe_upgrade.py"
         controller.write_text(
             "#!/usr/bin/env python3\n"
-            "import argparse, hashlib, json, os, pathlib, shutil, sqlite3, sys\n"
-            "p=argparse.ArgumentParser(); p.add_argument('action'); p.add_argument('--root'); p.add_argument('--state-dir'); p.add_argument('--service'); p.add_argument('--binary'); p.add_argument('--sha256'); p.add_argument('--expected-version'); p.add_argument('--theme-bundle'); p.add_argument('--theme-sha256'); a=p.parse_args()\n"
-            "root=pathlib.Path(a.root); state=pathlib.Path(a.state_dir)\n"
-            "if a.action == 'gate':\n"
-            " j=state/'journal.json'\n"
-            " if j.exists() and json.loads(j.read_text()).get('phase') not in ('committed','rolled_back'): raise SystemExit('unfinished upgrade')\n"
-            " raise SystemExit(0)\n"
-            "if a.action != 'upgrade': raise SystemExit(2)\n"
-            "if os.environ.get('UPDATE_FIXTURE_FAIL_CONTROLLER'): raise SystemExit('controller rejected upgrade')\n"
-            "if os.environ.get('UPDATE_FIXTURE_INTERRUPT_CONTROLLER'):\n"
-            " (state/'journal.json').write_text(json.dumps({'phase':'starting','target':a.expected_version})); raise SystemExit('interrupted transaction')\n"
-            "assert hashlib.sha256(pathlib.Path(a.binary).read_bytes()).hexdigest() == a.sha256\n"
-            "target=root/'releases'/a.expected_version\n"
-            "if target.exists(): raise SystemExit('release already staged')\n"
-            "snapshot=state/'backups'/'fixture'; snapshot.mkdir(parents=True)\n"
-            "for name in ('komari.db','metrics.db'):\n"
-            " src=root/'data'/name; dst=snapshot/name; srcdb=sqlite3.connect('file:'+str(src)+'?mode=ro', uri=True); dstdb=sqlite3.connect(dst); srcdb.backup(dstdb); srcdb.close(); dstdb.close()\n"
-            "target.mkdir(parents=True); shutil.copy2(a.binary, target/'komari'); os.chmod(target/'komari', 0o755)\n"
-            "tmp=root/'.current.fixture'; tmp.symlink_to(pathlib.Path('releases')/a.expected_version); os.replace(tmp, root/'current')\n"
-            "tmp=root/'.komari.fixture'; tmp.symlink_to(pathlib.Path('current')/'komari'); os.replace(tmp, root/'komari')\n"
-            "(state/'journal.json').write_text(json.dumps({'phase':'committed','target':a.expected_version}))\n"
+            "import argparse, hashlib, json, os, pathlib, shutil, sqlite3\n"
+            "def preflight(_): return None\n"
+            "def main():\n"
+            " p=argparse.ArgumentParser(); p.add_argument('action'); p.add_argument('--root'); p.add_argument('--state-dir'); p.add_argument('--service'); p.add_argument('--binary'); p.add_argument('--sha256'); p.add_argument('--expected-version'); p.add_argument('--theme-bundle'); p.add_argument('--theme-sha256'); a=p.parse_args()\n"
+            " root=pathlib.Path(a.root); state=pathlib.Path(a.state_dir)\n"
+            " if a.action == 'gate':\n"
+            "  j=state/'journal.json'\n"
+            "  if j.exists() and json.loads(j.read_text()).get('phase') not in ('committed','rolled_back'): raise SystemExit('unfinished upgrade')\n"
+            "  return\n"
+            " if a.action != 'upgrade': raise SystemExit(2)\n"
+            " if os.environ.get('UPDATE_FIXTURE_FAIL_CONTROLLER'): raise SystemExit('controller rejected upgrade')\n"
+            " if os.environ.get('UPDATE_FIXTURE_INTERRUPT_CONTROLLER'):\n"
+            "  (state/'journal.json').write_text(json.dumps({'phase':'starting','target':a.expected_version})); raise SystemExit('interrupted transaction')\n"
+            " assert hashlib.sha256(pathlib.Path(a.binary).read_bytes()).hexdigest() == a.sha256\n"
+            " target=root/'releases'/a.expected_version\n"
+            " if target.exists(): raise SystemExit('release already staged')\n"
+            " snapshot=state/'backups'/'fixture'; snapshot.mkdir(parents=True)\n"
+            " for name in ('komari.db','metrics.db'):\n"
+            "  src=root/'data'/name; dst=snapshot/name; srcdb=sqlite3.connect('file:'+str(src)+'?mode=ro', uri=True); dstdb=sqlite3.connect(dst); srcdb.backup(dstdb); srcdb.close(); dstdb.close()\n"
+            " target.mkdir(parents=True); shutil.copy2(a.binary, target/'komari'); os.chmod(target/'komari', 0o755)\n"
+            " tmp=root/'.current.fixture'; tmp.symlink_to(pathlib.Path('releases')/a.expected_version); os.replace(tmp, root/'current')\n"
+            " tmp=root/'.komari.fixture'; tmp.symlink_to(pathlib.Path('current')/'komari'); os.replace(tmp, root/'komari')\n"
+            " (state/'journal.json').write_text(json.dumps({'phase':'committed','target':a.expected_version}))\n"
+            "if __name__ == '__main__': main()\n"
         )
         controller.chmod(0o755)
         return controller
@@ -181,6 +184,7 @@ class UpdateKomariScriptTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("Installation layout: versioned", result.stdout)
         self.assertIn("Safe-upgrade gate compatibility: accepted", result.stdout)
+        self.assertIn("Safe-upgrade transaction preflight: accepted", result.stdout)
         self.assertEqual(links_before, (os.readlink(self.root / "current"), os.readlink(self.root / "komari")))
         self.assertEqual(controller.read_bytes(), controller_before)
         self.assertFalse((self.state / "journal.json").exists())
