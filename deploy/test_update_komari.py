@@ -52,9 +52,9 @@ class UpdateKomariScriptTests(unittest.TestCase):
             "elif operation == 'schema-version': print(json.dumps({'schema_version': 2}))\n"
             "elif operation == 'health':\n"
             " root=os.environ.get('KOMARI_ROOT')\n"
-            " if os.environ.get('UPDATE_FIXTURE_MIGRATE_ON_HEALTH') and root and version == '1.0.21':\n"
+            " if os.environ.get('UPDATE_FIXTURE_MIGRATE_ON_HEALTH') and root and version == '1.0.26':\n"
             "  with sqlite3.connect(os.path.join(root, 'data', 'komari.db')) as db: db.execute('pragma user_version=3')\n"
-            " if os.environ.get('UPDATE_FIXTURE_FAIL_HEALTH') and version == '1.0.21': raise SystemExit(1)\n"
+            " if os.environ.get('UPDATE_FIXTURE_FAIL_HEALTH') and version == '1.0.26': raise SystemExit(1)\n"
             " print(json.dumps({'ok': True, 'version': version, 'schema_version': 2, 'expected_schema_version': 2}))\n"
             "else: raise SystemExit(1)\n"
         )
@@ -62,7 +62,7 @@ class UpdateKomariScriptTests(unittest.TestCase):
 
     def _make_release(self):
         candidate = self.release / "komari-linux-amd64"
-        self._make_binary(candidate, "1.0.21")
+        self._make_binary(candidate, "1.0.26")
         with zipfile.ZipFile(self.release / "Glass.zip", "w") as archive:
             archive.writestr("stock.json", "{}")
         checksums = []
@@ -71,7 +71,7 @@ class UpdateKomariScriptTests(unittest.TestCase):
             checksums.append(f"{hashlib.sha256(data).hexdigest()}  {name}\n")
         (self.release / "SHA256SUMS.txt").write_text("".join(checksums))
         metadata = {
-            "tag_name": "v1.0.21",
+            "tag_name": "v1.0.26",
             "draft": False,
             "prerelease": False,
             "assets": [{"name": name} for name in ("komari-linux-amd64", "Glass.zip", "SHA256SUMS.txt")],
@@ -181,7 +181,7 @@ class UpdateKomariScriptTests(unittest.TestCase):
         controller = self._make_installed_controller()
         controller_before = controller.read_bytes()
         links_before = (os.readlink(self.root / "current"), os.readlink(self.root / "komari"))
-        result = self._run("--dry-run", "v1.0.21")
+        result = self._run("--dry-run", "v1.0.26")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("Installation layout: versioned", result.stdout)
         self.assertIn("Safe-upgrade gate compatibility: accepted", result.stdout)
@@ -199,7 +199,7 @@ class UpdateKomariScriptTests(unittest.TestCase):
         (self.root / "komari").symlink_to(Path("current") / "komari")
         self._make_installed_controller()
         links_before = (os.readlink(self.root / "current"), os.readlink(self.root / "komari"))
-        result = self._run("--dry-run", "v1.0.21", env={"UPDATE_FIXTURE_FAIL_PREFLIGHT": "1"})
+        result = self._run("--dry-run", "v1.0.26", env={"UPDATE_FIXTURE_FAIL_PREFLIGHT": "1"})
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Safe-upgrade transaction preflight failed", result.stderr)
         self.assertIn("fixture preflight rejection", result.stderr)
@@ -215,17 +215,17 @@ class UpdateKomariScriptTests(unittest.TestCase):
         (self.root / "komari").symlink_to(Path("current") / "komari")
         controller = self._make_installed_controller()
         controller_before = controller.read_bytes()
-        result = self._run("v1.0.21")
+        result = self._run("v1.0.26")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(os.readlink(self.root / "current"), "releases/1.0.21")
+        self.assertEqual(os.readlink(self.root / "current"), "releases/1.0.26")
         self.assertEqual(os.readlink(self.root / "komari"), "current/komari")
         self.assertTrue((self.root / "releases" / "1.0.19" / "komari").is_file())
-        self.assertTrue((self.root / "releases" / "1.0.21" / "komari").is_file())
+        self.assertTrue((self.root / "releases" / "1.0.26" / "komari").is_file())
         self.assertEqual(controller.read_bytes(), controller_before)
         self.assertEqual(json.loads((self.state / "journal.json").read_text())["phase"], "committed")
         self._assert_db_preserved("komari.db")
         self._assert_db_preserved("metrics.db")
-        again = self._run("v1.0.21")
+        again = self._run("v1.0.26")
         self.assertEqual(again.returncode, 0, again.stderr)
         self.assertIn("already installed", again.stdout)
 
@@ -236,22 +236,22 @@ class UpdateKomariScriptTests(unittest.TestCase):
         (self.root / "current").symlink_to(outside)
         (self.root / "komari").symlink_to(Path("current") / "komari")
         self._make_installed_controller()
-        result = self._run("--dry-run", "v1.0.21")
+        result = self._run("--dry-run", "v1.0.26")
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("unsafe", result.stderr.lower())
 
     def test_flat_dry_run_and_upgrade_preserve_databases(self):
         self._make_binary(self.root / "komari", "1.0.19")
         before = (self.root / "komari").read_bytes()
-        dry = self._run("--dry-run", "v1.0.21")
+        dry = self._run("--dry-run", "v1.0.26")
         self.assertEqual(dry.returncode, 0, dry.stderr)
         self.assertIn("Installation layout: flat", dry.stdout)
         self.assertEqual((self.root / "komari").read_bytes(), before)
         self.assertFalse((self.base / "systemctl.log").exists())
-        result = self._run("v1.0.21")
+        result = self._run("v1.0.26")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertFalse((self.root / "komari").is_symlink())
-        self.assertEqual(json.loads(subprocess.check_output([self.root / "komari", "version", "--json"]))["version"], "1.0.21")
+        self.assertEqual(json.loads(subprocess.check_output([self.root / "komari", "version", "--json"]))["version"], "1.0.26")
         self._assert_db_preserved("komari.db")
         self._assert_db_preserved("metrics.db")
 
@@ -262,7 +262,7 @@ class UpdateKomariScriptTests(unittest.TestCase):
         (self.root / "current").symlink_to(Path("releases") / "1.0.19")
         (self.root / "komari").symlink_to(Path("current") / "komari")
         self._make_installed_controller()
-        result = self._run("v1.0.21", env={"UPDATE_FIXTURE_FAIL_CONTROLLER": "1"})
+        result = self._run("v1.0.26", env={"UPDATE_FIXTURE_FAIL_CONTROLLER": "1"})
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(os.readlink(self.root / "current"), "releases/1.0.19")
         self.assertEqual(os.readlink(self.root / "komari"), "current/komari")
@@ -270,7 +270,7 @@ class UpdateKomariScriptTests(unittest.TestCase):
     def test_flat_start_failure_restores_previous_executable_and_keeps_sqlite_data(self):
         self._make_binary(self.root / "komari", "1.0.19")
         previous = (self.root / "komari").read_bytes()
-        result = self._run("v1.0.21", env={"UPDATE_FIXTURE_FAIL_START": "1"})
+        result = self._run("v1.0.26", env={"UPDATE_FIXTURE_FAIL_START": "1"})
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual((self.root / "komari").read_bytes(), previous)
         self._assert_db_preserved("komari.db")
@@ -284,11 +284,11 @@ class UpdateKomariScriptTests(unittest.TestCase):
         (self.root / "current").symlink_to(Path("releases") / "1.0.19")
         (self.root / "komari").symlink_to(Path("current") / "komari")
         self._make_installed_controller()
-        interrupted = self._run("v1.0.21", env={"UPDATE_FIXTURE_INTERRUPT_CONTROLLER": "1"})
+        interrupted = self._run("v1.0.26", env={"UPDATE_FIXTURE_INTERRUPT_CONTROLLER": "1"})
         self.assertNotEqual(interrupted.returncode, 0)
         self.assertEqual(json.loads((self.state / "journal.json").read_text())["phase"], "starting")
         self.assertEqual(os.readlink(self.root / "current"), "releases/1.0.19")
-        retry = self._run("v1.0.21")
+        retry = self._run("v1.0.26")
         self.assertNotEqual(retry.returncode, 0)
         self.assertIn("unfinished transaction", retry.stderr)
 
@@ -300,16 +300,16 @@ class UpdateKomariScriptTests(unittest.TestCase):
         (self.root / "komari").symlink_to(Path("current") / "komari")
         self._make_installed_controller()
         (self.state / "journal.json").write_text(json.dumps({"phase": "starting"}))
-        result = self._run("--dry-run", "v1.0.21")
+        result = self._run("--dry-run", "v1.0.26")
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(os.readlink(self.root / "current"), "releases/1.0.19")
-        self.assertFalse((self.root / "releases" / "1.0.21").exists())
+        self.assertFalse((self.root / "releases" / "1.0.26").exists())
 
     def test_bad_release_checksum_and_unsafe_state_are_rejected_before_service_stop(self):
         self._make_binary(self.root / "komari", "1.0.19")
         checksums = (self.release / "SHA256SUMS.txt").read_text()
         (self.release / "SHA256SUMS.txt").write_text(checksums.replace("komari-linux-amd64", "other"))
-        bad_checksum = self._run("v1.0.21")
+        bad_checksum = self._run("v1.0.26")
         self.assertNotEqual(bad_checksum.returncode, 0)
         self.assertFalse((self.base / "systemctl.log").exists())
         self._make_release()
@@ -321,13 +321,13 @@ class UpdateKomariScriptTests(unittest.TestCase):
         (self.root / "current").symlink_to(Path("releases") / "1.0.19")
         (self.root / "komari").symlink_to(Path("current") / "komari")
         self._make_installed_controller()
-        unsafe_state = self._run("--dry-run", "v1.0.21")
+        unsafe_state = self._run("--dry-run", "v1.0.26")
         self.assertNotEqual(unsafe_state.returncode, 0)
         self.assertIn("unsafe safe-upgrade state directory", unsafe_state.stderr)
     def test_flat_migration_then_failed_health_restores_binary_but_keeps_service_stopped(self):
         self._make_binary(self.root / "komari", "1.0.19")
         previous = (self.root / "komari").read_bytes()
-        result = self._run("v1.0.21", env={
+        result = self._run("v1.0.26", env={
             "UPDATE_FIXTURE_MIGRATE_ON_HEALTH": "1",
             "UPDATE_FIXTURE_FAIL_HEALTH": "1",
         })
@@ -341,13 +341,13 @@ class UpdateKomariScriptTests(unittest.TestCase):
         self._make_binary(self.root / "komari", "1.0.19")
         unsafe_tmp = self.base / "unsafe-tmp"
         unsafe_tmp.mkdir(mode=0o777)
-        tmp_result = self._run("--dry-run", "v1.0.21", env={"TMPDIR": str(unsafe_tmp)})
+        tmp_result = self._run("--dry-run", "v1.0.26", env={"TMPDIR": str(unsafe_tmp)})
         self.assertEqual(tmp_result.returncode, 0, tmp_result.stderr)
         self.assertIn("Dry run complete", tmp_result.stdout)
         backup = self.root / "backup"
         backup.mkdir()
         backup.chmod(0o777)
-        backup_result = self._run("v1.0.21")
+        backup_result = self._run("v1.0.26")
         self.assertNotEqual(backup_result.returncode, 0)
         self.assertIn("backup", backup_result.stderr.lower())
         self.assertFalse((self.base / "systemctl.log").exists())
