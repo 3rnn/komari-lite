@@ -89,6 +89,7 @@ import { localizeTokenRotationError } from "@/utils/tokenRotation";
 import { SelectOrInput } from "@/components/ui/select-or-input";
 import AdminPageTitle from "@/components/admin/AdminPageTitle";
 import AdditionalPublicAddresses from "@/components/admin/AdditionalPublicAddresses";
+import RemainingValueCalculator from "@/components/admin/RemainingValueCalculator";
 import AdminActiveFilter from "@/components/admin/AdminActiveFilter";
 import AdminNodeStatusSummary, {
   type AdminNodeStatusFilter,
@@ -130,7 +131,7 @@ const NodeDetailsPage = () => {
 const PREVIOUS_PAGE_DROP_ID = "admin-node-previous-page";
 const NEXT_PAGE_DROP_ID = "admin-node-next-page";
 // Pin both installers and Agent binaries to the matching published Release.
-const agentReleaseVersion = "1.0.19";
+const agentReleaseVersion = "1.0.20";
 const agentReleaseSource = `https://github.com/3rnn/komari-lite/releases/download/v${agentReleaseVersion}`;
 
 const Layout = () => {
@@ -2692,6 +2693,10 @@ function BillingButton({ node }: { node: NodeDetail }) {
   const [billingCycle, setBillingCycle] = React.useState<string>(
     node.billing_cycle.toString()
   );
+  const [priceInput, setPriceInput] = React.useState<string>(node.price.toString());
+  const [expiredAtInput, setExpiredAtInput] = React.useState<string>(
+    node.expired_at ? timestampToDateInput(node.expired_at) : "0001-01-01"
+  );
   const [autoRenewal, setAutoRenewal] = React.useState<boolean>(
     node.auto_renewal || false
   );
@@ -2704,7 +2709,7 @@ function BillingButton({ node }: { node: NodeDetail }) {
     try {
       setSaving(true);
       const formData = new FormData(e.target as HTMLFormElement);
-      const priceValue = (formData.get("price") as string) || "0";
+      const priceValue = priceInput || "0";
 
       const price = parseFloat(priceValue);
 
@@ -2715,8 +2720,7 @@ function BillingButton({ node }: { node: NodeDetail }) {
       const billingCycleValue = parseInt(
         (formData.get("billingCycle") as string) || "30"
       );
-      const expiredAtValue = (formData.get("expiredAt") as string) || "";
-      const expiredAt = dateInputToISOString(expiredAtValue);
+      const expiredAt = dateInputToISOString(expiredAtInput);
       const rawCurrency = (formData.get("currency") as string) || "$";
       const currencyValue = currencyForStorage(rawCurrency);
 
@@ -2743,8 +2747,19 @@ function BillingButton({ node }: { node: NodeDetail }) {
     }
   };
 
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (nextOpen) {
+      setPriceInput(node.price.toString());
+      setBillingCycle(node.billing_cycle.toString());
+      setExpiredAtInput(node.expired_at ? timestampToDateInput(node.expired_at) : "0001-01-01");
+      setCurrency(currencyForDisplay(node.currency || "$"));
+      setAutoRenewal(node.auto_renewal || false);
+    }
+    setOpen(nextOpen);
+  };
+
   return (
-    <Dialog.Root open={open} onOpenChange={setOpen}>
+    <Dialog.Root open={open} onOpenChange={handleOpenChange}>
       <Dialog.Trigger>
         <IconButton
           variant="ghost"
@@ -2763,7 +2778,7 @@ function BillingButton({ node }: { node: NodeDetail }) {
                 {t("admin.nodeTable.priceTips")}
               </label>
             </label>
-            <TextField.Root name="price" defaultValue={node.price} />
+            <TextField.Root name="price" value={priceInput} onChange={(event) => setPriceInput(event.target.value)} />
 
             <label className="font-bold">
               <label>{t("admin.nodeTable.currency", "Currency")}</label>
@@ -2806,11 +2821,8 @@ function BillingButton({ node }: { node: NodeDetail }) {
             </Flex>
             <TextField.Root
               name="expiredAt"
-              defaultValue={
-                node.expired_at
-                  ? timestampToDateInput(node.expired_at)
-                  : "0001-01-01"
-              }
+              value={expiredAtInput}
+              onChange={(event) => setExpiredAtInput(event.target.value)}
               type="date"
             >
               <TextField.Slot side="right">
@@ -2818,14 +2830,9 @@ function BillingButton({ node }: { node: NodeDetail }) {
                   type="button"
                   variant="ghost"
                   onClick={() => {
-                    const dateInput = document.querySelector(
-                      'input[name="expiredAt"]'
-                    ) as HTMLInputElement;
-                    if (dateInput) {
-                      const futureDate = new Date();
-                      futureDate.setFullYear(futureDate.getFullYear() + 200);
-                      dateInput.value = timestampToDateInput(futureDate);
-                    }
+                    const futureDate = new Date();
+                    futureDate.setFullYear(futureDate.getFullYear() + 200);
+                    setExpiredAtInput(timestampToDateInput(futureDate));
                   }}
                 >
                   {t("admin.nodeTable.setToLongTerm", "Set to Long term")}
@@ -2838,6 +2845,14 @@ function BillingButton({ node }: { node: NodeDetail }) {
               description={t("admin.nodeTable.autoRenewalDescription")}
               defaultChecked={node.auto_renewal || false}
               onChange={setAutoRenewal}
+            />
+            <RemainingValueCalculator
+              open={open}
+              nodeName={node.name}
+              price={priceInput}
+              currency={currency}
+              billingCycle={billingCycle}
+              expiredAt={expiredAtInput}
             />
             <Button type="submit" disabled={saving}>
               {t("save")}
