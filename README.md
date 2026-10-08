@@ -27,7 +27,52 @@ It intentionally excludes remote terminal/control/command execution, Cloudflare 
 - Node.js 24+ and npm for building and running the TypeScript test suite. Windows Agent installation requires PowerShell 7.3+.
 - Linux tools: `bash`, `python3`, `sha256sum`, and optionally Caddy for TLS termination.
 
-## 1. Build the panel
+## Official releases and safe updates
+
+Release `v1.0.21` publishes Linux panel binaries for both `amd64` and `arm64`, version-matched Agent assets, `SHA256SUMS.txt`, a Glass transition bundle, the existing safe-controller assets, and `update-komari.sh`.
+
+### Fresh native installation
+
+For a new reviewed Debian/systemd host, use the version-pinned controller from the same Release:
+
+```bash
+curl -fsSLo komari-oneclick.py https://github.com/3rnn/komari-lite/releases/download/v1.0.21/komari-oneclick.py
+sudo python3 komari-oneclick.py install --tag v1.0.21
+```
+
+This creates a new installation only when `/opt/komari` and `komari.service` are absent. It never creates or prints an administrator password. Complete first-run setup through the local installer before exposing the service through a reverse proxy.
+
+### Upgrade an existing installation
+
+Download the updater from the immutable release tag, inspect it, and first run a dry run:
+
+```bash
+curl -fsSLo update-komari.sh https://raw.githubusercontent.com/3rnn/komari-lite/v1.0.21/update-komari.sh
+bash update-komari.sh --dry-run
+bash update-komari.sh v1.0.21
+```
+
+With no version argument, `bash update-komari.sh` resolves the latest stable GitHub Release once. Use an explicit tag for a reviewed change. The updater detects `amd64`/`arm64`, verifies the selected release binary against that release's `SHA256SUMS.txt`, preserves the existing systemd unit and arguments, and creates a timestamped backup under `/opt/komari/backups/` before replacing only `/opt/komari/komari`.
+
+It never deletes or recreates `/opt/komari`, modifies proxy/firewall configuration, changes administrator credentials, or resets databases. It refuses schema downgrades. If the new binary expects a newer SQLite schema, it makes consistent SQLite backups with Python's SQLite backup API while the service is stopped. If post-start health fails after the schema changed, the previous executable is restored but intentionally not started against a potentially migrated database; review the reported backup location and perform a coordinated recovery instead of attempting a blind binary rollback.
+
+Verify the running version after a successful update:
+
+```bash
+cd /opt/komari && ./komari version --json
+```
+
+### Version-matched Agent installation
+
+The admin UI generates a pinned command for each node. A manual Linux `amd64` example is:
+
+```bash
+curl -fsSLo install.sh https://github.com/3rnn/komari-lite/releases/download/v1.0.21/install.sh
+sudo bash install.sh --install-source https://github.com/3rnn/komari-lite/releases/download/v1.0.21 --install-version 1.0.21 -e https://YOUR-KOMARI-HOST -t YOUR-NODE-TOKEN
+```
+
+Do not use a moving `latest` Agent URL: panel, Agent, tag, and installer version must match.
+
 
 The Go panel embeds the compiled administrator UI, so build in this order:
 

@@ -36,7 +36,7 @@ test("terminal, clipboard and command-task surfaces stay deleted", () => {
 
 test("one-click deployment pins installer and binaries to a GitHub Release", () => {
   const source = read("src/pages/admin/index.tsx");
-  assert.match(source, /const agentReleaseVersion = "1\.0\.20";/);
+  assert.match(source, /const agentReleaseVersion = "1\.0\.21";/);
   assert.match(source, /github\.com\/3rnn\/komari-lite\/releases\/download\/v\$\{agentReleaseVersion\}/);
   assert.doesNotMatch(source, /\/releases\/latest/);
   assert.doesNotMatch(source, /panelAgentDistribution\(host\)|\/agent\/download/);
