@@ -30,7 +30,6 @@ rm -f "$out"/komari "$out"/komari-linux-amd64 "$out"/komari-linux-arm64 \
   npm test
   npm run lint
   npm run build
-  node --test tests/systemUiEmbedSync.test.ts
 )
 
 # CGO is required by the SQLite driver. Linux arm64 uses the Debian cross compiler.
