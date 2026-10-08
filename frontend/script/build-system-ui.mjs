@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { cp, readFile, rm } from "node:fs/promises";
 import { resolve } from "node:path";
 
 process.env.VITE_SYSTEM_UI_BUILD = "1";
@@ -6,6 +6,10 @@ process.env.VITE_BASE_URL = "/system-assets/";
 
 const { build } = await import("vite");
 await build({ configLoader: "runner" });
+
+const embeddedDistPath = resolve("../backend/web/public/systemUI/dist");
+await rm(embeddedDistPath, { recursive: true, force: true });
+await cp(resolve("dist"), embeddedDistPath, { recursive: true });
 
 const indexPath = resolve("dist/index.html");
 const index = await readFile(indexPath, "utf8");
