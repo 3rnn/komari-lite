@@ -162,6 +162,12 @@ class UpdateKomariScriptTests(unittest.TestCase):
         with sqlite3.connect(self.root / "data" / name) as db:
             self.assertEqual(db.execute("select value from preserved").fetchone()[0], "before")
 
+    def test_production_controller_fingerprint_is_supported(self):
+        self.assertIn(
+            "1fe3c0525b3358fff7367ef5ef0b1174bcfa3e23f6f03a9d8fb9362301659cd1",
+            SCRIPT.read_text(),
+        )
+
     def test_versioned_dry_run_reports_layout_without_persistent_changes(self):
         releases = self.root / "releases" / "1.0.19"
         releases.mkdir(parents=True)

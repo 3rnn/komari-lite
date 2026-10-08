@@ -10,7 +10,7 @@ readonly REPOSITORY='3rnn/komari-lite'
 readonly DEFAULT_ROOT='/opt/komari'
 readonly DEFAULT_SERVICE='komari.service'
 readonly DEFAULT_STATE_DIR='/var/lib/komari-upgrade'
-readonly DEFAULT_SAFE_UPGRADE_SHA256='6db6232b7f01cb641c8a0bda842c7467d7374b59ccdaa163d45456b6acdebb92'
+readonly DEFAULT_SAFE_UPGRADE_SHA256='6db6232b7f01cb641c8a0bda842c7467d7374b59ccdaa163d45456b6acdebb92,1fe3c0525b3358fff7367ef5ef0b1174bcfa3e23f6f03a9d8fb9362301659cd1'
 readonly API_BASE="https://api.github.com/repos/${REPOSITORY}/releases"
 readonly DOWNLOAD_BASE="https://github.com/${REPOSITORY}/releases/download"
 
