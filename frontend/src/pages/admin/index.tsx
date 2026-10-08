@@ -117,6 +117,7 @@ import {
   getRegionCode,
   getRegionDisplayName,
   getSupportedRegions,
+  isRegionMatch,
 } from "@/utils/regionHelper";
 
 
@@ -2318,9 +2319,28 @@ function EditButton({ node }: { node: NodeDetail }) {
               options={regionOptions}
               value={regionOverride}
               allowCustomInput={false}
+              filter={(option, input) => isRegionMatch(option.value, input)}
               onChange={setRegionOverride}
               placeholder={t("admin.nodeEdit.regionAuto", "Automatic detection")}
             />
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+              <Text size="1" color="gray" role="status">
+                {regionOverride
+                  ? t("admin.nodeEdit.regionManual", "Manual selection")
+                  : t("admin.nodeEdit.regionAuto", "Automatic detection")}
+              </Text>
+              {regionOverride ? (
+                <Button
+                  type="button"
+                  size="1"
+                  variant="soft"
+                  color="gray"
+                  onClick={() => setRegionOverride("")}
+                >
+                  {t("admin.nodeEdit.regionUseAutomatic", "Use automatic detection")}
+                </Button>
+              ) : null}
+            </div>
             <p className="mt-1 text-xs text-muted-foreground">
               {t(
                 "admin.nodeEdit.regionOverride_description",

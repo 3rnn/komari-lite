@@ -132,6 +132,18 @@ func TestSaveClientInfoRejectsMalformedOrNonPublicIPAddressListWithoutDataLoss(t
 	}
 }
 
+func TestNormalizeRegionOverrideUsesGBAndRejectsNonISOValues(t *testing.T) {
+	for _, value := range []string{"GB", "gb", "UK", "uk", "🇬🇧"} {
+		got, err := normalizeRegionOverride(value)
+		require.NoError(t, err, value)
+		assert.Equal(t, "🇬🇧", got, value)
+	}
+	for _, value := range []string{"ZZ", "🇿🇿"} {
+		_, err := normalizeRegionOverride(value)
+		assert.Error(t, err, value)
+	}
+}
+
 func TestSaveClientInfoPlacesNewClientAfterSameRegionWithinGroup(t *testing.T) {
 	db := newClientTestDB(t, "auto-order-same-region")
 	now := time.Date(2026, 8, 19, 0, 0, 0, 0, time.UTC)

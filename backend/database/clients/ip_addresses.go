@@ -24,7 +24,9 @@ var nonPublicReportedIPv4 = []netip.Prefix{
 	netip.MustParsePrefix("240.0.0.0/4"),
 }
 
-func isReportedPublicIP(ip netip.Addr) bool {
+// IsReportedPublicIP reports whether ip is a globally routable address that an
+// Agent may include in its public address inventory.
+func IsReportedPublicIP(ip netip.Addr) bool {
 	ip = ip.Unmap()
 	if !ip.IsGlobalUnicast() || ip.IsPrivate() {
 		return false
@@ -68,7 +70,7 @@ func normalizeClientIPAddresses(update map[string]interface{}) error {
 	for index := range addresses {
 		entry := &addresses[index]
 		ip, err := netip.ParseAddr(entry.Address)
-		if err != nil || !isReportedPublicIP(ip) || seen[ip.Unmap()] || len(entry.Interface) > 128 || len(entry.Source) > 32 {
+		if err != nil || !IsReportedPublicIP(ip) || seen[ip.Unmap()] || len(entry.Interface) > 128 || len(entry.Source) > 32 {
 			return fmt.Errorf("invalid public address entry")
 		}
 		ip = ip.Unmap()

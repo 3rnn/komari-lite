@@ -7,66 +7,48 @@ import (
 	"github.com/komari-monitor/komari/utils/geoip"
 )
 
-// Test the initialization and update functions of the GeoIP database
+// Test the initialization and update functions of the GeoIP database.
 func TestMmdb(t *testing.T) {
-	geoip.CurrentProvider, _ = geoip.NewMaxMindGeoIPService()
-	testIpAddr(t)
+	provider, _ := geoip.NewMaxMindGeoIPService()
+	geoip.SetCurrentProvider(provider)
+	testIPAddr(t)
 }
-func TestIpApi(t *testing.T) {
-	geoip.CurrentProvider, _ = geoip.NewIPAPIService()
-	testIpAddr(t)
-}
-
-func TestGeojs(t *testing.T) {
-	geoip.CurrentProvider, _ = geoip.NewGeoJSService()
-	testIpAddr(t)
+func TestIPAPI(t *testing.T) {
+	provider, _ := geoip.NewIPAPIService()
+	geoip.SetCurrentProvider(provider)
+	testIPAddr(t)
 }
 
-func TestIpInfo(t *testing.T) {
-	geoip.CurrentProvider, _ = geoip.NewIPInfoService()
-	testIpAddr(t)
+func TestGeoJS(t *testing.T) {
+	provider, _ := geoip.NewGeoJSService()
+	geoip.SetCurrentProvider(provider)
+	testIPAddr(t)
 }
-func testIpAddr(t *testing.T) {
-	// IPv4
-	ipaddr := "8.8.8.8"
-	ip := net.ParseIP(ipaddr)
-	record, err := geoip.GetGeoInfo(ip)
-	if err != nil {
-		t.Errorf("Failed to get GeoIP info for IP %s: %v", ipaddr, err)
-	}
 
-	if record != nil {
-		if record.ISOCode == "" && record.Name == "" {
-			t.Errorf("Country information is missing for IP %s", ipaddr)
+func TestIPInfo(t *testing.T) {
+	provider, _ := geoip.NewIPInfoService()
+	geoip.SetCurrentProvider(provider)
+	testIPAddr(t)
+}
+
+func testIPAddr(t *testing.T) {
+	t.Helper()
+	for _, ipaddr := range []string{"8.8.8.8", "2001:4860:4860::8888"} {
+		record, err := geoip.GetGeoInfo(net.ParseIP(ipaddr))
+		if err != nil {
+			t.Errorf("failed to get GeoIP info for %s: %v", ipaddr, err)
+			continue
 		}
-	} else {
-		t.Errorf("GeoIP record is nil for IP %s", ipaddr)
-	}
-
-	t.Logf("IPv4:[%s]%s - %s", ipaddr, record.ISOCode, record.Name)
-
-	// IPv6
-	ipaddr = "2001:4860:4860::8888"
-	ip = net.ParseIP(ipaddr)
-	record, err = geoip.GetGeoInfo(ip)
-	if err != nil {
-		t.Errorf("Failed to get GeoIP info for IPv6 %s: %v", ipaddr, err)
-	}
-	if record != nil {
-		if record.ISOCode == "" && record.Name == "" {
-			t.Errorf("Country information is missing for IPv6 %s", ipaddr)
+		if record == nil || (record.ISOCode == "" && record.Name == "") {
+			t.Errorf("country information is missing for %s", ipaddr)
 		}
-	} else {
-		t.Errorf("GeoIP record is nil for IPv6 %s", ipaddr)
 	}
-	t.Logf("IPv6:[%s]%s - %s", ipaddr, record.ISOCode, record.Name)
 }
 
 func TestUnicodeEmoji(t *testing.T) {
-	ISOCode := "CN"
-	emoji := geoip.GetRegionUnicodeEmoji(ISOCode)
+	isoCode := "CN"
+	emoji := geoip.GetRegionUnicodeEmoji(isoCode)
 	if emoji != "🇨🇳" {
-		t.Errorf("Expected emoji for %s, got %s", ISOCode, emoji)
+		t.Errorf("expected emoji for %s, got %s", isoCode, emoji)
 	}
-	t.Logf("Emoji for %s: %s", ISOCode, emoji)
 }

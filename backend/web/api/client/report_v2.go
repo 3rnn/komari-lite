@@ -41,6 +41,10 @@ func bindV2Params[T any](raw any, target *T) error {
 }
 
 func handleV2RPC(uuid string, req v2.Request, allowWait bool) v2.Response {
+	return handleV2RPCWithPeer(uuid, req, allowWait, "")
+}
+
+func handleV2RPCWithPeer(uuid string, req v2.Request, allowWait bool, peerIP string) v2.Response {
 	if req.JSONRPC != v2.Version {
 		return v2.Error(req.ID, -32600, "invalid jsonrpc version", nil)
 	}
@@ -62,7 +66,7 @@ func handleV2RPC(uuid string, req v2.Request, allowWait bool) v2.Response {
 		if err := bindV2Params(req.Params, &params); err != nil {
 			return v2.Error(req.ID, -32602, "invalid basic info params", err.Error())
 		}
-		if err := ingestBasicInfo(uuid, params.Info, ""); err != nil {
+		if err := ingestBasicInfo(uuid, params.Info, peerIP); err != nil {
 			return v2.Error(req.ID, -32000, "failed to save basic info", err.Error())
 		}
 		if params.ConfigState != nil {
@@ -133,7 +137,7 @@ func UploadV2RPC(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, v2.Error(req.ID, -32001, "invalid token", nil))
 		return
 	}
-	resp := handleV2RPC(uuid, req, true)
+	resp := handleV2RPCWithPeer(uuid, req, true, peerIPFromRequest(c.Request))
 	status := http.StatusOK
 	if resp.Error != nil {
 		status = http.StatusBadRequest
@@ -161,6 +165,7 @@ func WebSocketV2RPC(c *gin.Context) {
 		conn.WriteJSON(v2.Error(nil, -32001, "invalid token", nil))
 		return
 	}
+	peerIP := peerIPFromRequest(c.Request)
 	if oldConn, exists := agent_runtime.GetConnectedClients()[uuid]; exists {
 		go oldConn.Close()
 	}
@@ -190,7 +195,7 @@ func WebSocketV2RPC(c *gin.Context) {
 			conn.WriteJSON(v2.Error(nil, -32700, "parse error", err.Error()))
 			continue
 		}
-		resp := handleV2RPC(uuid, req, false)
+		resp := handleV2RPCWithPeer(uuid, req, false, peerIP)
 		if req.ID != nil {
 			if err := conn.WriteJSON(resp); err != nil {
 				logger.Errorf("client-api", "failed to write v2 rpc response: %v", err)

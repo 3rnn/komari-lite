@@ -6,7 +6,8 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"regexp"
+	"net/netip"
+	"strings"
 	"time"
 
 	"github.com/nuomiiiii/lite-agent/dnsresolver"
@@ -75,8 +76,7 @@ func GetIPv4Address() (string, error) {
 		if err != nil {
 			continue
 		}
-		re := regexp.MustCompile(`\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}`)
-		ipv4 := re.FindString(string(body))
+		ipv4 := firstPublicAddress(string(body), true)
 		if ipv4 != "" {
 			log.Printf("Get IPV4 Success: %s", ipv4)
 			return ipv4, nil
@@ -111,9 +111,7 @@ func GetIPv6Address() (string, error) {
 			continue
 		}
 
-		// Extract the IPv6 address from the response body using a regular expression.
-		re := regexp.MustCompile(`(([0-9A-Fa-f]{1,4}:){7})([0-9A-Fa-f]{1,4})|(([0-9A-Fa-f]{1,4}:){1,6}:)(([0-9A-Fa-f]{1,4}:){0,4})([0-9A-Fa-f]{0,4})`)
-		ipv6 := re.FindString(string(body))
+		ipv6 := firstPublicAddress(string(body), false)
 		if ipv6 != "" {
 			log.Printf("Get IPV6 Success:  %s", ipv6)
 			return ipv6, nil
@@ -133,31 +131,67 @@ var (
 )
 
 func GetIPAddress() (ipv4, ipv6 string, err error) {
+	var nic publicIPPair
 	if flags.GetIpAddrFromNic {
-		pair := nicIPCache.get(nicIPCacheTTL, lookupNICIP)
-		if pair.v4 != "" || pair.v6 != "" {
+		nic = nicIPCache.get(nicIPCacheTTL, lookupNICIP)
+		pair := selectPublicIPPair(true, flags.CustomIpv4, flags.CustomIpv6, nic, publicIPPair{})
+		if pair.v4 != "" && pair.v6 != "" {
+			return pair.v4, pair.v6, nil
+		}
+	} else {
+		pair := selectPublicIPPair(false, flags.CustomIpv4, flags.CustomIpv6, publicIPPair{}, publicIPPair{})
+		if pair.v4 != "" && pair.v6 != "" {
 			return pair.v4, pair.v6, nil
 		}
 	}
 
-	if flags.CustomIpv4 != "" {
-		ipv4 = flags.CustomIpv4
-	}
-	if flags.CustomIpv6 != "" {
-		ipv6 = flags.CustomIpv6
-	}
-	if ipv4 != "" && ipv6 != "" {
-		return ipv4, ipv6, nil
-	}
+	pair := selectPublicIPPair(flags.GetIpAddrFromNic, flags.CustomIpv4, flags.CustomIpv6, nic, lookupPublicIPCached())
+	return pair.v4, pair.v6, nil
+}
 
-	cached := lookupPublicIPCached()
-	if ipv4 == "" {
-		ipv4 = cached.v4
+// parsePublicPrimaryAddress accepts exactly one canonical, globally routable
+// address in the requested family. This keeps legacy primary fields safe while
+// preserving their string wire format.
+func parsePublicPrimaryAddress(value string, ipv4 bool) string {
+	ip, ok := publicAddress(strings.TrimSpace(value))
+	if !ok || ip.Is4() != ipv4 {
+		return ""
 	}
-	if ipv6 == "" {
-		ipv6 = cached.v6
+	return ip.String()
+}
+
+// firstPublicAddress extracts token-shaped candidates from provider responses,
+// then validates every candidate with netip before returning it.
+func firstPublicAddress(body string, ipv4 bool) string {
+	for _, candidate := range strings.FieldsFunc(body, func(r rune) bool {
+		return !((r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') || (r >= 'A' && r <= 'F') || r == '.' || r == ':')
+	}) {
+		if ip := parsePublicPrimaryAddress(strings.Trim(candidate, ".:"), ipv4); ip != "" {
+			return ip
+		}
 	}
-	return ipv4, ipv6, nil
+	return ""
+}
+
+// selectPublicIPPair preserves NIC-mode priority for public NIC identities,
+// custom priority otherwise, and fills only missing families from external
+// discovery. Invalid, private, and non-routable candidates are never primary.
+func selectPublicIPPair(nicMode bool, custom4, custom6 string, nic, discovered publicIPPair) publicIPPair {
+	pair := publicIPPair{}
+	if nicMode {
+		pair.v4 = parsePublicPrimaryAddress(nic.v4, true)
+		pair.v6 = parsePublicPrimaryAddress(nic.v6, false)
+	} else {
+		pair.v4 = parsePublicPrimaryAddress(custom4, true)
+		pair.v6 = parsePublicPrimaryAddress(custom6, false)
+	}
+	if pair.v4 == "" {
+		pair.v4 = parsePublicPrimaryAddress(discovered.v4, true)
+	}
+	if pair.v6 == "" {
+		pair.v6 = parsePublicPrimaryAddress(discovered.v6, false)
+	}
+	return pair
 }
 
 func lookupNICIP() publicIPPair {
@@ -197,19 +231,15 @@ func lookupPublicIPCached() publicIPPair {
 func lookupPublicIP() publicIPPair {
 	var pair publicIPPair
 	var err error
-	if flags.CustomIpv4 == "" {
-		pair.v4, err = GetIPv4Address()
-		if err != nil {
-			log.Printf("Get IPV4 Error: %v", err)
-			pair.v4 = ""
-		}
+	pair.v4, err = GetIPv4Address()
+	if err != nil {
+		log.Printf("Get IPV4 Error: %v", err)
+		pair.v4 = ""
 	}
-	if flags.CustomIpv6 == "" {
-		pair.v6, err = GetIPv6Address()
-		if err != nil {
-			log.Printf("Get IPV6 Error: %v", err)
-			pair.v6 = ""
-		}
+	pair.v6, err = GetIPv6Address()
+	if err != nil {
+		log.Printf("Get IPV6 Error: %v", err)
+		pair.v6 = ""
 	}
 	return pair
 }
@@ -245,25 +275,30 @@ func getIPFromInterfaces(nicNames []string) (ipv4, ipv6 string) {
 		}
 
 		for _, addr := range addrs {
-			var ip net.IP
+			var ip netip.Addr
+			var ok bool
 			switch v := addr.(type) {
 			case *net.IPNet:
-				ip = v.IP
+				ip, ok = netip.AddrFromSlice(v.IP)
 			case *net.IPAddr:
-				ip = v.IP
+				ip, ok = netip.AddrFromSlice(v.IP)
 			}
 
-			if ip == nil || ip.IsLoopback() {
+			if !ok {
+				continue
+			}
+			ip, ok = publicNetipAddress(ip)
+			if !ok {
 				continue
 			}
 
 			// Get the IPv4 address.
-			if ipv4 == "" && ip.To4() != nil {
+			if ipv4 == "" && ip.Is4() {
 				ipv4 = ip.String()
 			}
 
-			// Get the IPv6 address, excluding link-local addresses.
-			if ipv6 == "" && ip.To4() == nil && !ip.IsLinkLocalUnicast() {
+			// Get the globally routable IPv6 address.
+			if ipv6 == "" && !ip.Is4() {
 				ipv6 = ip.String()
 			}
 

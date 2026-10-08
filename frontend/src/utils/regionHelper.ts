@@ -557,6 +557,53 @@ export const emojiToRegionMap: Record<string, { en: string; zh: string; aliases:
   }
 };
 
+/** ISO 3166-1 alpha-2 assignments, including territories. */
+const ISO_COUNTRY_CODES = [
+  "AD", "AE", "AF", "AG", "AI", "AL", "AM", "AO", "AQ", "AR", "AS", "AT", "AU", "AW", "AX", "AZ",
+  "BA", "BB", "BD", "BE", "BF", "BG", "BH", "BI", "BJ", "BL", "BM", "BN", "BO", "BQ", "BR", "BS", "BT", "BV", "BW", "BY", "BZ",
+  "CA", "CC", "CD", "CF", "CG", "CH", "CI", "CK", "CL", "CM", "CN", "CO", "CR", "CU", "CV", "CW", "CX", "CY", "CZ",
+  "DE", "DJ", "DK", "DM", "DO", "DZ",
+  "EC", "EE", "EG", "EH", "ER", "ES", "ET",
+  "FI", "FJ", "FK", "FM", "FO", "FR",
+  "GA", "GB", "GD", "GE", "GF", "GG", "GH", "GI", "GL", "GM", "GN", "GP", "GQ", "GR", "GS", "GT", "GU", "GW", "GY",
+  "HK", "HM", "HN", "HR", "HT", "HU",
+  "ID", "IE", "IL", "IM", "IN", "IO", "IQ", "IR", "IS", "IT",
+  "JE", "JM", "JO", "JP",
+  "KE", "KG", "KH", "KI", "KM", "KN", "KP", "KR", "KW", "KY", "KZ",
+  "LA", "LB", "LC", "LI", "LK", "LR", "LS", "LT", "LU", "LV", "LY",
+  "MA", "MC", "MD", "ME", "MF", "MG", "MH", "MK", "ML", "MM", "MN", "MO", "MP", "MQ", "MR", "MS", "MT", "MU", "MV", "MW", "MX", "MY", "MZ",
+  "NA", "NC", "NE", "NF", "NG", "NI", "NL", "NO", "NP", "NR", "NU", "NZ",
+  "OM",
+  "PA", "PE", "PF", "PG", "PH", "PK", "PL", "PM", "PN", "PR", "PS", "PT", "PW", "PY",
+  "QA",
+  "RE", "RO", "RS", "RU", "RW",
+  "SA", "SB", "SC", "SD", "SE", "SG", "SH", "SI", "SJ", "SK", "SL", "SM", "SN", "SO", "SR", "SS", "ST", "SV", "SX", "SY", "SZ",
+  "TC", "TD", "TF", "TG", "TH", "TJ", "TK", "TL", "TM", "TN", "TO", "TR", "TT", "TV", "TW", "TZ",
+  "UA", "UG", "UM", "US", "UY", "UZ",
+  "VA", "VC", "VE", "VG", "VI", "VN", "VU",
+  "WF", "WS",
+  "YE", "YT",
+  "ZA", "ZM", "ZW",
+] as const;
+
+const ISO_COUNTRY_CODE_SET = new Set<string>(ISO_COUNTRY_CODES);
+const REGION_CODE_ALIASES: Record<string, string> = { UK: "GB" };
+
+const flagEmojiForCode = (code: string): string =>
+  Array.from(code)
+    .map((letter) => String.fromCodePoint(0x1f1e6 + letter.charCodeAt(0) - 0x41))
+    .join("");
+
+const regionDisplayNames = typeof Intl !== "undefined" && Intl.DisplayNames
+  ? new Intl.DisplayNames(["en"], { type: "region" })
+  : null;
+
+const canonicalRegionCode = (value?: string | null): string => {
+  const normalized = typeof value === "string" ? value.trim().toUpperCase() : "";
+  const aliased = REGION_CODE_ALIASES[normalized] ?? normalized;
+  return ISO_COUNTRY_CODE_SET.has(aliased) ? aliased : "UN";
+};
+
 /**
  * Check whether a region emoji matches a search term.
  * @param regionEmoji Region emoji (e.g. 🇭🇰).
@@ -565,33 +612,40 @@ export const emojiToRegionMap: Record<string, { en: string; zh: string; aliases:
  */
 export const isRegionMatch = (regionEmoji: string, searchTerm: string): boolean => {
   const lowerSearchTerm = searchTerm.toLowerCase().trim();
-  
+  const code = getRegionCode(regionEmoji);
+  const canonicalEmoji = code === "UN" ? regionEmoji : flagEmojiForCode(code);
+
+  if (!lowerSearchTerm) {
+    return true;
+  }
+
   // Match the emoji directly.
-  if (regionEmoji === searchTerm) {
+  if (regionEmoji === searchTerm || canonicalEmoji === searchTerm) {
     return true;
   }
-  
-  // Look up the emoji in the region map.
-  const regionInfo = emojiToRegionMap[regionEmoji];
+
+  // Look up legacy aliases where they exist.
+  const regionInfo = emojiToRegionMap[canonicalEmoji];
   if (!regionInfo) {
-    // Without a map entry, only try a simple substring match.
-    return regionEmoji.toLowerCase().includes(lowerSearchTerm);
+    return [code, getRegionDisplayName(code, "en")]
+      .some((term) => term.toLowerCase().includes(lowerSearchTerm));
   }
-  
-  // Check the English name.
-  if (regionInfo.en.toLowerCase().includes(lowerSearchTerm)) {
+
+  // Check the English name and legacy-language name.
+  if (
+    regionInfo.en.toLowerCase().includes(lowerSearchTerm) ||
+    regionInfo.zh.includes(lowerSearchTerm)
+  ) {
     return true;
   }
-  
-  // Check the legacy-language name.
-  if (regionInfo.zh.includes(lowerSearchTerm)) {
-    return true;
-  }
-  
-  // Check aliases, including encoded legacy names.
-  return regionInfo.aliases.some(alias => 
-    alias.toLowerCase().includes(lowerSearchTerm)
-  );
+
+  // Check ISO codes, aliases, and canonical-code aliases such as UK -> GB.
+  return [
+    code,
+    ...regionInfo.aliases,
+    ...Object.keys(REGION_CODE_ALIASES)
+      .filter((alias) => REGION_CODE_ALIASES[alias] === code),
+  ].some((alias) => alias.toLowerCase().includes(lowerSearchTerm));
 };
 
 /**
@@ -601,9 +655,11 @@ export const isRegionMatch = (regionEmoji: string, searchTerm: string): boolean 
  * @returns Region name.
  */
 export const getRegionDisplayName = (regionEmoji: string, language: 'en' | 'zh' = 'zh'): string => {
-  const regionInfo = emojiToRegionMap[regionEmoji];
+  const code = getRegionCode(regionEmoji);
+  const canonicalEmoji = code === "UN" ? regionEmoji : flagEmojiForCode(code);
+  const regionInfo = emojiToRegionMap[canonicalEmoji];
   if (!regionInfo) {
-    return regionEmoji;
+    return code === "UN" ? regionEmoji : regionDisplayNames?.of(code) ?? code;
   }
   
   return language === 'zh' ? regionInfo.zh : regionInfo.en;
@@ -613,7 +669,7 @@ export const getRegionDisplayName = (regionEmoji: string, language: 'en' | 'zh' 
 export const getRegionCode = (region?: string | null): string => {
   const normalized = typeof region === "string" ? region.trim() : "";
   if (/^[a-z]{2}$/i.test(normalized)) {
-    return normalized.toUpperCase();
+    return canonicalRegionCode(normalized);
   }
 
   const indicators = Array.from(normalized);
@@ -627,9 +683,9 @@ export const getRegionCode = (region?: string | null): string => {
     return "UN";
   }
 
-  return codePoints
+  return canonicalRegionCode(codePoints
     .map((codePoint) => String.fromCharCode(0x41 + codePoint - start))
-    .join("");
+    .join(""));
 };
 
 /**
@@ -637,5 +693,5 @@ export const getRegionCode = (region?: string | null): string => {
  * @returns Array of region emojis.
  */
 export const getSupportedRegions = (): string[] => {
-  return Object.keys(emojiToRegionMap);
+  return ISO_COUNTRY_CODES.map(flagEmojiForCode);
 };

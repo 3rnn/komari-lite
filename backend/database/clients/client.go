@@ -792,17 +792,13 @@ func normalizeRegionOverride(value string) (string, error) {
 	if value == "" {
 		return "", nil
 	}
-	if len(value) == 2 {
-		upper := strings.ToUpper(value)
-		if upper[0] >= 'A' && upper[0] <= 'Z' && upper[1] >= 'A' && upper[1] <= 'Z' {
-			return string(rune(0x1F1E6+int(upper[0]-'A'))) + string(rune(0x1F1E6+int(upper[1]-'A'))), nil
-		}
+	if code, ok := canonicalISO3166Alpha2(value); ok {
+		return iso3166Flag(code), nil
 	}
-	runes := []rune(value)
-	if len(runes) == 2 && runes[0] >= 0x1F1E6 && runes[0] <= 0x1F1FF && runes[1] >= 0x1F1E6 && runes[1] <= 0x1F1FF {
-		return value, nil
+	if code, ok := iso3166CodeFromFlag(value); ok {
+		return iso3166Flag(code), nil
 	}
-	return "", fmt.Errorf("region_override must be a two-letter country code or country flag")
+	return "", fmt.Errorf("region_override must be a valid ISO 3166-1 alpha-2 country code or country flag")
 }
 
 func normalizeTrafficResetDay(value interface{}) (*int, error) {

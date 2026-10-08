@@ -1,7 +1,9 @@
 package client
 
 import (
+	"errors"
 	"net"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -35,6 +37,254 @@ func (p staticGeoIPProvider) Close() error {
 	return nil
 }
 
+type recordingGeoIPProvider struct {
+	name  string
+	calls []string
+	err   error
+}
+
+func (p *recordingGeoIPProvider) Name() string { return p.name }
+
+func (p *recordingGeoIPProvider) GetGeoInfo(ip net.IP) (*geoip.GeoInfo, error) {
+	p.calls = append(p.calls, ip.String())
+	if p.err != nil {
+		return nil, p.err
+	}
+	return &geoip.GeoInfo{ISOCode: "SG", Name: "Singapore"}, nil
+}
+
+func (p *recordingGeoIPProvider) UpdateDatabase() error { return nil }
+
+func (p *recordingGeoIPProvider) Close() error { return nil }
+
+func TestAppendClientRegionFromGeoIPSelectsOnlyReportedPublicAddresses(t *testing.T) {
+	flags.DatabaseType = "sqlite"
+	flags.DatabaseFile = "file:basic_info_geoip_selection?mode=memory&cache=shared"
+	_ = dbcore.GetDBInstance()
+	if err := config.Set(config.GeoIpEnabledKey, true); err != nil {
+		t.Fatalf("enable geoip: %v", err)
+	}
+
+	oldProvider := geoip.CurrentProvider()
+	t.Cleanup(func() { geoip.SetCurrentProvider(oldProvider) })
+
+	tests := []struct {
+		name      string
+		info      map[string]interface{}
+		wantCalls []string
+	}{
+		{
+			name: "reported IPv4 before IPv6 and inventory",
+			info: map[string]interface{}{
+				"ipv4": "8.8.8.8", "ipv6": "2001:4860::1",
+				"ip_addresses": []map[string]interface{}{{"address": "9.9.9.9", "family": "ipv4"}},
+			},
+			wantCalls: []string{"8.8.8.8"},
+		},
+		{
+			name: "reported IPv6 before inventory",
+			info: map[string]interface{}{
+				"ipv6":         "2001:4860::1",
+				"ip_addresses": []map[string]interface{}{{"address": "9.9.9.9", "family": "ipv4"}},
+			},
+			wantCalls: []string{"2001:4860::1"},
+		},
+		{
+			name: "public inventory after missing scalar addresses",
+			info: map[string]interface{}{
+				"ip_addresses": []map[string]interface{}{
+					{"address": "9.9.9.9", "family": "ipv4"},
+					{"address": "2001:4860::2", "family": "ipv6"},
+				},
+			},
+			wantCalls: []string{"9.9.9.9"},
+		},
+		{
+			name: "private mapped documentation and loopback addresses are never looked up",
+			info: map[string]interface{}{
+				"ipv4": "10.0.0.1", "ipv6": "::ffff:8.8.8.8",
+				"ip_addresses": []map[string]interface{}{
+					{"address": "192.0.2.1", "family": "ipv4"},
+					{"address": "2001:db8::1", "family": "ipv6"},
+					{"address": "127.0.0.1", "family": "ipv4"},
+				},
+			},
+			wantCalls: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			provider := &recordingGeoIPProvider{name: t.Name()}
+			geoip.SetCurrentProvider(provider)
+			appendClientRegionFromGeoIP(tt.info)
+			if len(provider.calls) != len(tt.wantCalls) {
+				t.Fatalf("GeoIP calls = %v, want %v", provider.calls, tt.wantCalls)
+			}
+			for i := range tt.wantCalls {
+				if provider.calls[i] != tt.wantCalls[i] {
+					t.Fatalf("GeoIP calls = %v, want %v", provider.calls, tt.wantCalls)
+				}
+			}
+		})
+	}
+}
+
+func TestAppendClientRegionFromGeoIPPreservesExistingRegionOnLookupFailure(t *testing.T) {
+	flags.DatabaseType = "sqlite"
+	flags.DatabaseFile = "file:basic_info_geoip_failure?mode=memory&cache=shared"
+	_ = dbcore.GetDBInstance()
+	if err := config.Set(config.GeoIpEnabledKey, true); err != nil {
+		t.Fatalf("enable geoip: %v", err)
+	}
+
+	oldProvider := geoip.CurrentProvider()
+	geoip.SetCurrentProvider(&recordingGeoIPProvider{name: t.Name(), err: errors.New("lookup failed")})
+	t.Cleanup(func() { geoip.SetCurrentProvider(oldProvider) })
+
+	info := map[string]interface{}{"ipv4": "8.8.8.8", "region": "manual-region"}
+	appendClientRegionFromGeoIP(info)
+	if got := info["region"]; got != "manual-region" {
+		t.Fatalf("region changed after GeoIP failure: %v", got)
+	}
+}
+
+func TestSaveClientBasicInfoPreservesExistingRegionOnLookupFailure(t *testing.T) {
+	flags.DatabaseType = "sqlite"
+	flags.DatabaseFile = "file:basic_info_geoip_saved_failure?mode=memory&cache=shared"
+	db := dbcore.GetDBInstance()
+	if err := config.Set(config.GeoIpEnabledKey, true); err != nil {
+		t.Fatalf("enable geoip: %v", err)
+	}
+
+	oldProvider := geoip.CurrentProvider()
+	geoip.SetCurrentProvider(&recordingGeoIPProvider{name: t.Name(), err: errors.New("lookup failed")})
+	t.Cleanup(func() { geoip.SetCurrentProvider(oldProvider) })
+
+	const clientUUID = "geoip-failure-preserves-region"
+	if err := db.Create(&models.Client{UUID: clientUUID, Token: clientUUID, Region: "existing-region"}).Error; err != nil {
+		t.Fatalf("create client: %v", err)
+	}
+	if err := saveClientBasicInfo(map[string]interface{}{"ipv4": "8.8.8.8"}, clientUUID, ""); err != nil {
+		t.Fatalf("save basic info: %v", err)
+	}
+
+	var got models.Client
+	if err := db.First(&got, "uuid = ?", clientUUID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if got.Region != "existing-region" {
+		t.Fatalf("region changed after GeoIP failure: %q", got.Region)
+	}
+}
+
+func TestSaveClientBasicInfoPreservesManualRegionOverride(t *testing.T) {
+	flags.DatabaseType = "sqlite"
+	flags.DatabaseFile = "file:basic_info_geoip_region_override?mode=memory&cache=shared"
+	db := dbcore.GetDBInstance()
+	if err := config.Set(config.GeoIpEnabledKey, true); err != nil {
+		t.Fatalf("enable geoip: %v", err)
+	}
+
+	oldProvider := geoip.CurrentProvider()
+	geoip.SetCurrentProvider(&recordingGeoIPProvider{name: t.Name()})
+	t.Cleanup(func() { geoip.SetCurrentProvider(oldProvider) })
+
+	const clientUUID = "geoip-manual-region"
+	if err := db.Create(&models.Client{UUID: clientUUID, Token: clientUUID, Region: "🇺🇸", RegionOverride: "manual-region"}).Error; err != nil {
+		t.Fatalf("create client: %v", err)
+	}
+	if err := saveClientBasicInfo(map[string]interface{}{"ipv4": "8.8.8.8"}, clientUUID, ""); err != nil {
+		t.Fatalf("save basic info: %v", err)
+	}
+
+	var got models.Client
+	if err := db.First(&got, "uuid = ?", clientUUID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if got.Region != geoip.GetRegionUnicodeEmoji("SG") || got.RegionOverride != "manual-region" {
+		t.Fatalf("manual region override was changed by GeoIP update: %+v", got)
+	}
+}
+
+func TestPeerIPFromRequestIgnoresForwardedHeaders(t *testing.T) {
+	req := httptest.NewRequest("POST", "/uploadBasicInfo", nil)
+	req.RemoteAddr = "203.0.113.10:443"
+	req.Header.Set("X-Forwarded-For", "8.8.8.8")
+	req.Header.Set("X-Real-IP", "9.9.9.9")
+	if got := peerIPFromRequest(req); got != "203.0.113.10" {
+		t.Fatalf("peer IP = %q, want direct remote address", got)
+	}
+}
+
+func TestPublicGeoIPCandidateNormalizesMappedIPv4(t *testing.T) {
+	if got := publicGeoIPCandidate("::ffff:8.8.8.8", "ipv4"); got == nil || got.String() != "8.8.8.8" {
+		t.Fatalf("mapped IPv4 candidate = %v, want 8.8.8.8", got)
+	}
+	if got := publicGeoIPCandidate("::ffff:8.8.8.8", "ipv6"); got != nil {
+		t.Fatalf("mapped IPv4 labelled ipv6 = %v, want rejection", got)
+	}
+}
+
+func TestApplyFallbackClientIPReplacesInvalidPrimaryAndNormalizesMappedPeer(t *testing.T) {
+	info := map[string]interface{}{"ipv4": "10.0.0.1"}
+	applyFallbackClientIP(info, "8.8.8.8")
+	if got := info["ipv4"]; got != "8.8.8.8" {
+		t.Fatalf("invalid IPv4 hid public peer fallback: got %q", got)
+	}
+
+	mapped := map[string]interface{}{}
+	applyFallbackClientIP(mapped, "::ffff:8.8.8.8")
+	if got := mapped["ipv4"]; got != "8.8.8.8" {
+		t.Fatalf("mapped peer fallback = %q, want canonical IPv4", got)
+	}
+}
+
+func TestV2BasicInfoUsesOnlyPublicDirectPeerAsFallback(t *testing.T) {
+	flags.DatabaseType = "sqlite"
+	flags.DatabaseFile = "file:v2_basic_info_geoip_peer_fallback?mode=memory&cache=shared"
+	db := dbcore.GetDBInstance()
+	if err := config.Set(config.GeoIpEnabledKey, true); err != nil {
+		t.Fatalf("enable geoip: %v", err)
+	}
+
+	oldProvider := geoip.CurrentProvider()
+	provider := &recordingGeoIPProvider{name: t.Name()}
+	geoip.SetCurrentProvider(provider)
+	t.Cleanup(func() { geoip.SetCurrentProvider(oldProvider) })
+
+	for _, clientUUID := range []string{"v2-peer-public", "v2-peer-proxy"} {
+		if err := db.Create(&models.Client{UUID: clientUUID, Token: clientUUID}).Error; err != nil {
+			t.Fatalf("create client %s: %v", clientUUID, err)
+		}
+	}
+
+	request := v2.Request{JSONRPC: v2.Version, Method: v2.MethodAgentBasicInfo, Params: v2.BasicInfoParams{Info: map[string]interface{}{"version": "2.0"}}, ID: "basic-info-peer"}
+	if resp := handleV2RPCWithPeer("v2-peer-public", request, false, "8.8.8.8"); resp.Error != nil {
+		t.Fatalf("public peer fallback failed: %+v", resp.Error)
+	}
+	if resp := handleV2RPCWithPeer("v2-peer-proxy", request, false, "10.0.0.1"); resp.Error != nil {
+		t.Fatalf("private proxy peer fallback failed: %+v", resp.Error)
+	}
+
+	var publicPeer, privatePeer models.Client
+	if err := db.First(&publicPeer, "uuid = ?", "v2-peer-public").Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.First(&privatePeer, "uuid = ?", "v2-peer-proxy").Error; err != nil {
+		t.Fatal(err)
+	}
+	if publicPeer.IPv4 != "8.8.8.8" || publicPeer.Region != geoip.GetRegionUnicodeEmoji("SG") {
+		t.Fatalf("public peer fallback was not saved and geolocated: %+v", publicPeer)
+	}
+	if privatePeer.IPv4 != "" || privatePeer.IPv6 != "" || privatePeer.Region != "" {
+		t.Fatalf("private proxy peer must not become an address or region: %+v", privatePeer)
+	}
+	if len(provider.calls) != 1 || provider.calls[0] != "8.8.8.8" {
+		t.Fatalf("GeoIP calls = %v, want only public direct peer", provider.calls)
+	}
+}
+
 func TestV2BasicInfoFillsRegionFromGeoIP(t *testing.T) {
 	flags.DatabaseType = "sqlite"
 	flags.DatabaseFile = "file:v2_basic_info_geoip?mode=memory&cache=shared"
@@ -44,10 +294,10 @@ func TestV2BasicInfoFillsRegionFromGeoIP(t *testing.T) {
 		t.Fatalf("enable geoip: %v", err)
 	}
 
-	oldProvider := geoip.CurrentProvider
-	geoip.CurrentProvider = staticGeoIPProvider{name: t.Name(), iso: "SG"}
+	oldProvider := geoip.CurrentProvider()
+	geoip.SetCurrentProvider(staticGeoIPProvider{name: t.Name(), iso: "SG"})
 	t.Cleanup(func() {
-		geoip.CurrentProvider = oldProvider
+		geoip.SetCurrentProvider(oldProvider)
 	})
 
 	clientUUID := "client-v2-geoip"

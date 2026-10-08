@@ -45,6 +45,8 @@ test("every admin language explains reset quota behavior", () => {
     assert.ok(nodeEdit.trafficResetDayRequired, locale);
     assert.ok(nodeEdit.trafficEffectiveFormula, locale);
     assert.ok(nodeEdit.trafficResetReportNotice, locale);
+    assert.ok(nodeEdit.regionManual, locale);
+    assert.ok(nodeEdit.regionUseAutomatic, locale);
     assert.equal(nodeEdit.trafficResetType, undefined, locale);
   }
   const zhCN = JSON.parse(
@@ -53,11 +55,14 @@ test("every admin language explains reset quota behavior", () => {
   assert.equal(zhCN.admin.nodeEdit.trafficResetAllowance, "Reset traffic allowance");
 });
 
-test("country selector searches by ISO code and renders local flag assets", () => {
+test("country selector searches aliases, persists canonical values, and exposes selection mode", () => {
   assert.equal(getRegionCode("🇭🇰"), "HK");
   assert.equal(getRegionCode("hk"), "HK");
+  assert.equal(getRegionCode("UK"), "GB");
   assert.match(editSource, /icon: <Flag flag=\{code\} compact \/>/);
-  assert.match(editSource, /value: code/);
+  assert.match(editSource, /filter=\{\(option, input\) => isRegionMatch\(option\.value, input\)\}/);
+  assert.match(editSource, /regionManual/);
+  assert.match(editSource, /regionUseAutomatic/);
   assert.match(selectSource, /selectedOption\?\.icon/);
   assert.match(selectSource, /\{opt\.icon\}/);
   assert.match(selectSource, /setShowAllOptions\(true\)/);

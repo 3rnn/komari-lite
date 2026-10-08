@@ -13,7 +13,7 @@ if (testFiles.length === 0) {
 }
 
 console.log("Discovered " + testFiles.length + " test files.");
-const result = spawnSync(process.execPath, ["--test", ...testFiles], {
+const result = spawnSync(process.execPath, ["./node_modules/.bin/tsx", "--test", ...testFiles], {
   stdio: "inherit",
   windowsHide: true,
 });

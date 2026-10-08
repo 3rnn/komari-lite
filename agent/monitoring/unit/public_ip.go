@@ -45,6 +45,10 @@ func publicAddress(value string) (netip.Addr, bool) {
 	if err != nil {
 		return netip.Addr{}, false
 	}
+	return publicNetipAddress(ip)
+}
+
+func publicNetipAddress(ip netip.Addr) (netip.Addr, bool) {
 	ip = ip.Unmap()
 	if !ip.IsGlobalUnicast() || ip.IsPrivate() {
 		return netip.Addr{}, false
