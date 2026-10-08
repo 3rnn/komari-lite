@@ -43,4 +43,5 @@ test("United Kingdom aliases always normalize to GB", () => {
   assert.equal(getRegionDisplayName("UK", "en"), "United Kingdom");
   assert.equal(isRegionMatch("GB", "UK"), true);
   assert.equal(isRegionMatch("🇬🇧", "britain"), true);
+  assert.ok(getSupportedRegions().includes("🇬🇧"));
 });

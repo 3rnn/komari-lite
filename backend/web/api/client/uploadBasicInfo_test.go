@@ -349,6 +349,63 @@ func TestV2BasicInfoFillsRegionFromGeoIP(t *testing.T) {
 	}
 }
 
+func TestIsolatedAgentBasicInfoFlowNormalizesCountryAndPreservesManualOverride(t *testing.T) {
+	flags.DatabaseType = "sqlite"
+	flags.DatabaseFile = "file:isolated_agent_geoip_flow?mode=memory&cache=shared"
+	db := dbcore.GetDBInstance()
+	if err := config.Set(config.GeoIpEnabledKey, true); err != nil {
+		t.Fatalf("enable geoip: %v", err)
+	}
+
+	oldProvider := geoip.CurrentProvider()
+	geoip.SetCurrentProvider(staticGeoIPProvider{name: t.Name(), iso: "GB"})
+	t.Cleanup(func() { geoip.SetCurrentProvider(oldProvider) })
+
+	const clientUUID = "isolated-agent-basic-info"
+	if err := db.Create(&models.Client{
+		UUID:           clientUUID,
+		Token:          clientUUID,
+		RegionOverride: "🇺🇸",
+	}).Error; err != nil {
+		t.Fatalf("create client: %v", err)
+	}
+
+	// This is the stable basic-info contract used by older installed Agents:
+	// legacy scalar addresses stay present while newer Agents may also include
+	// the structured public-address inventory.
+	response := handleV2RPC(clientUUID, v2.Request{
+		JSONRPC: v2.Version,
+		Method:  v2.MethodAgentBasicInfo,
+		Params: v2.BasicInfoParams{Info: map[string]interface{}{
+			"version": "1.0.19",
+			"ipv4":    "::ffff:8.8.4.4",
+			"ipv6":    "2001:4860:4860::8844",
+			"ip_addresses": []map[string]interface{}{
+				{"address": "8.8.4.4", "family": "ipv4", "primary": true, "source": "reported"},
+				{"address": "2001:4860:4860::8844", "family": "ipv6", "primary": true, "source": "reported"},
+			},
+		}},
+		ID: "isolated-agent-basic-info",
+	}, false)
+	if response.Error != nil {
+		t.Fatalf("basic-info response: %+v", response.Error)
+	}
+
+	var stored models.Client
+	if err := db.First(&stored, "uuid = ?", clientUUID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if stored.Version != "1.0.19" || stored.IPv4 != "8.8.4.4" || stored.IPv6 != "2001:4860:4860::8844" {
+		t.Fatalf("legacy Agent report was not normalized and persisted: %+v", stored)
+	}
+	if stored.Region != "🇬🇧" || stored.RegionOverride != "🇺🇸" {
+		t.Fatalf("automatic GeoIP or manual override mismatch: region=%q override=%q", stored.Region, stored.RegionOverride)
+	}
+	if len(stored.IPAddresses) != 2 {
+		t.Fatalf("public address inventory was not persisted: %+v", stored.IPAddresses)
+	}
+}
+
 func TestV2BasicInfoStoresMultiplePublicAddresses(t *testing.T) {
 	flags.DatabaseType = "sqlite"
 	flags.DatabaseFile = "file:v2_basic_info_multiple_public_addresses?mode=memory&cache=shared"
