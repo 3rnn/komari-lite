@@ -6,6 +6,8 @@ package api
 // those three locations. Priority: API key > user session > agent token > anonymous.
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"github.com/gin-gonic/gin"
 	"github.com/komari-monitor/komari/database/accounts"
 	"github.com/komari-monitor/komari/pkg/rpc"
@@ -18,8 +20,9 @@ const principalContextKey = "principal"
 // Identification priority is consistent with historical IdentityMiddleware: API Key > Session > Client Token > Anonymous.
 func IdentifyPrincipal(c *gin.Context) *rpc.Principal {
 	// 1. API Key(Authorization: Bearer <key>)
-	if isApiKeyValid(c.GetHeader("Authorization")) {
-		return rpc.NewAPIKeyPrincipal()
+	if authorization := c.GetHeader("Authorization"); isApiKeyValid(authorization) {
+		digest := sha256.Sum256([]byte(authorization))
+		return rpc.NewAPIKeyPrincipalWithFingerprint(hex.EncodeToString(digest[:]))
 	}
 
 	// 2. Session (Admin User)

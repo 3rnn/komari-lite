@@ -30,7 +30,7 @@ var aiAdminLimits = struct {
 	Rows map[string]aiAdminLimit
 }{Rows: map[string]aiAdminLimit{}}
 
-func aiAdminAllowed(key string, now time.Time) bool {
+func aiAdminAllowed(key, resource string, now time.Time) bool {
 	aiAdminLimits.Lock()
 	defer aiAdminLimits.Unlock()
 	for k, row := range aiAdminLimits.Rows {
@@ -38,6 +38,7 @@ func aiAdminAllowed(key string, now time.Time) bool {
 			delete(aiAdminLimits.Rows, k)
 		}
 	}
+	key += ":" + resource
 	row := aiAdminLimits.Rows[key]
 	if row.Count >= 5 {
 		return false
@@ -52,17 +53,20 @@ func aiAdminAllowed(key string, now time.Time) bool {
 	aiAdminLimits.Rows[key] = row
 	return true
 }
-func withAIAdmin(ctx context.Context, fn func(*aimonitor.Store) (any, error)) (any, *rpc.JsonRpcError) {
+func withAIAdmin(ctx context.Context, resource string, fn func(*aimonitor.Store) (any, error)) (any, *rpc.JsonRpcError) {
 	meta := rpc.MetaFromContext(ctx)
 	if meta == nil || meta.Principal == nil || !meta.Principal.HasRole(rpc.RoleAdmin) || (meta.Principal.Type != rpc.PrincipalUser && meta.Principal.Type != rpc.PrincipalAPIKey) {
 		return nil, rpc.MakeError(rpc.PermissionDenied, "Administrator authentication required", nil)
 	}
 	key := meta.Principal.UserUUID
 	if meta.Principal.Type == rpc.PrincipalAPIKey {
-		key = "api-key"
+		key = "api-key:" + meta.Principal.APIKeyFingerprint
+		if meta.Principal.APIKeyFingerprint == "" {
+			key += meta.RemoteIP
+		}
 	}
-	if !aiAdminAllowed(key, time.Now()) {
-		return nil, rpc.MakeError(rpc.InvalidParams, "AI admin request rate limit exceeded", nil)
+	if !aiAdminAllowed(key, resource, time.Now()) {
+		return nil, rpc.MakeError(rpc.RateLimited, "AI admin request rate limit exceeded", nil)
 	}
 	bounded, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
@@ -83,7 +87,7 @@ func strictAIParams(req *rpc.JsonRpcRequest, dst any) error {
 	return aimonitor.DecodeStrict(raw, dst)
 }
 func adminGetAIOverview(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
-	return withAIAdmin(ctx, func(s *aimonitor.Store) (any, error) {
+	return withAIAdmin(ctx, "overview", func(s *aimonitor.Store) (any, error) {
 		var params map[string]any
 		if err := req.BindParams(&params); err != nil {
 			return nil, err
@@ -126,7 +130,7 @@ func adminGetAIOverview(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc
 	})
 }
 func adminGetAIPricing(ctx context.Context, _ *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
-	return withAIAdmin(ctx, func(s *aimonitor.Store) (any, error) {
+	return withAIAdmin(ctx, "pricing", func(s *aimonitor.Store) (any, error) {
 		rules := []aimonitor.PricingRule{}
 		if err := s.DB.Order("id DESC").Limit(2049).Find(&rules).Error; err != nil {
 			return nil, err
@@ -138,7 +142,7 @@ func adminGetAIPricing(ctx context.Context, _ *rpc.JsonRpcRequest) (any, *rpc.Js
 	})
 }
 func adminAppendAIPricing(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
-	return withAIAdmin(ctx, func(s *aimonitor.Store) (any, error) {
+	return withAIAdmin(ctx, "pricing", func(s *aimonitor.Store) (any, error) {
 		var rule aimonitor.PricingRule
 		if err := strictAIParams(req, &rule); err != nil {
 			return nil, err
@@ -151,10 +155,10 @@ func adminAppendAIPricing(ctx context.Context, req *rpc.JsonRpcRequest) (any, *r
 	})
 }
 func adminGetAISettings(ctx context.Context, _ *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
-	return withAIAdmin(ctx, func(s *aimonitor.Store) (any, error) { return s.Settings() })
+	return withAIAdmin(ctx, "settings", func(s *aimonitor.Store) (any, error) { return s.Settings() })
 }
 func adminSetAISettings(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
-	return withAIAdmin(ctx, func(s *aimonitor.Store) (any, error) {
+	return withAIAdmin(ctx, "settings", func(s *aimonitor.Store) (any, error) {
 		var settings aimonitor.Settings
 		if err := strictAIParams(req, &settings); err != nil {
 			return nil, err

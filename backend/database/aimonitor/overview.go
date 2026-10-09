@@ -50,6 +50,7 @@ type Live struct {
 	RollingCalls              int64    `json:"rolling_calls"`
 	RollingTokens             int64    `json:"rolling_tokens"`
 	Calls24h                  int64    `json:"calls_24h"`
+	TodayTokens               int64    `json:"today_tokens"`
 	TodayAPIEquivalentCostUSD *float64 `json:"today_api_equivalent_cost_usd"`
 	UnpricedCalls             int64    `json:"unpriced_calls"`
 	Status                    string   `json:"status"`
@@ -274,6 +275,7 @@ func (s *Store) Overview(q Query, now time.Time) (Overview, error) {
 		recentTotals.add(totals)
 		v.Live.Calls24h += totals.Calls
 		if time.Unix(int64(at), 0).In(loc).Format("2006-01-02") == today {
+			v.Live.TodayTokens += totals.TotalTokens()
 			addMoney(&v.Live.TodayAPIEquivalentCostUSD, totals.APIEquivalentCostUSD)
 			v.Live.UnpricedCalls += totals.UnpricedCalls
 		}

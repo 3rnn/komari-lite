@@ -82,3 +82,27 @@ func TestAIAdminHandlersRejectDirectAndRoleOnlyBypass(t *testing.T) {
 		}
 	}
 }
+
+func TestAIAdminRateLimitIsPerResource(t *testing.T) {
+	aiAdminLimits.Lock()
+	aiAdminLimits.Rows = map[string]aiAdminLimit{}
+	aiAdminLimits.Unlock()
+	now := time.Now()
+	for i := 0; i < 5; i++ {
+		if !aiAdminAllowed("admin", "overview", now) {
+			t.Fatal("unexpected overview limit")
+		}
+	}
+	if aiAdminAllowed("admin", "overview", now) {
+		t.Fatal("overview limit not enforced")
+	}
+	if !aiAdminAllowed("admin", "settings", now) || !aiAdminAllowed("admin", "pricing", now) {
+		t.Fatal("unrelated resource was limited")
+	}
+	if !aiAdminAllowed("api-key:two", "overview", now) {
+		t.Fatal("separate API-key fingerprint was limited")
+	}
+	if !aiAdminAllowed("admin", "overview", now.Add(10*time.Second)) {
+		t.Fatal("window did not expire")
+	}
+}

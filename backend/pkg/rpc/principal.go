@@ -28,6 +28,8 @@ type Principal struct {
 	ClientUUID string
 	// Whether IsAPIKey is an API Key call (quick determination, equivalent to Type==PrincipalAPIKey)
 	IsAPIKey bool
+	// APIKeyFingerprint is a non-secret stable API-key identifier used only for request partitioning.
+	APIKeyFingerprint string
 	// Roles role/ability set. Default is deduced from Type:
 	//   - PrincipalAnonymous → [RoleGuest]
 	//   - PrincipalAgent → [RoleClient]
@@ -69,6 +71,13 @@ func NewAPIKeyPrincipal() *Principal {
 		IsAPIKey: true,
 		Roles:    []string{RoleAdmin},
 	}
+}
+
+// NewAPIKeyPrincipalWithFingerprint creates an API-key principal without retaining the credential itself.
+func NewAPIKeyPrincipalWithFingerprint(fingerprint string) *Principal {
+	p := NewAPIKeyPrincipal()
+	p.APIKeyFingerprint = fingerprint
+	return p
 }
 
 // PrimaryRole Returns the principal's primary role (compatible with existing single-role models).

@@ -33,6 +33,7 @@ const (
 	Unimplemented    = -32050 // not yet implemented
 	Unavailable      = -32051 // Dependent services are temporarily unavailable
 	DataLoss         = -32052 // Unrecoverable data loss
+	RateLimited      = -32053 // Retry after a bounded server-defined delay
 )
 
 // MakeError conveniently creates error objects

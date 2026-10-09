@@ -119,6 +119,8 @@ func rpcErrorHTTPStatus(code int) int {
 		return http.StatusUnauthorized
 	case rpc.NotFound:
 		return http.StatusNotFound
+	case rpc.RateLimited:
+		return http.StatusTooManyRequests
 	default:
 		return http.StatusInternalServerError
 	}
@@ -126,6 +128,9 @@ func rpcErrorHTTPStatus(code int) int {
 
 func renderResponse(c *gin.Context, cfg *bindConfig, resp *rpc.JsonRpcResponse) {
 	if resp.Error != nil {
+		if resp.Error.Code == rpc.RateLimited {
+			c.Header("Retry-After", "10")
+		}
 		// Unified error shape: {status: "error", message} —— same as api.RespondError.
 		c.JSON(rpcErrorHTTPStatus(resp.Error.Code), gin.H{"status": "error", "message": resp.Error.Message})
 		return

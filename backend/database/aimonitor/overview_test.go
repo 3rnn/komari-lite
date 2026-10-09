@@ -22,6 +22,9 @@ func TestOverviewUsesCollectedDeltasAndConservativeRates(t *testing.T) {
 	if view.Live.TPS != nil {
 		t.Fatal("unsupported coverage invented rate")
 	}
+	if view.Live.TodayTokens != 160 {
+		t.Fatalf("today tokens = %d, want 160", view.Live.TodayTokens)
+	}
 	// A single covered interval is not a whole-minute coverage proof.
 	covered := true
 	r.Samples[0].Coverage = &covered
