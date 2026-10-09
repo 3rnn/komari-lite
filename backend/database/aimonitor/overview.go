@@ -97,11 +97,15 @@ func filtered(db *gorm.DB, q Query) *gorm.DB {
 	return db
 }
 func (s *Store) details(q Query) ([]StoredSample, error) {
-	var rows []StoredSample
-	err := filtered(s.DB, q).Where("ended_at > ? AND ended_at <= ?", q.From, q.To).Order("ended_at").Limit(MaxQueryRows + 1).Find(&rows).Error
-	if len(rows) > MaxQueryRows {
+	count, err := s.countDetails(q)
+	if err != nil {
+		return nil, err
+	}
+	if count > MaxQueryRows {
 		return nil, ErrQueryLimit
 	}
+	var rows []StoredSample
+	err = filtered(s.DB, q).Where("ended_at > ? AND ended_at <= ?", q.From, q.To).Order("ended_at").Find(&rows).Error
 	return rows, err
 }
 func (s *Store) Overview(q Query, now time.Time) (Overview, error) {
@@ -128,6 +132,9 @@ func (s *Store) Overview(q Query, now time.Time) (Overview, error) {
 	}
 	rows, err := s.details(q)
 	if err != nil {
+		if err == ErrQueryLimit {
+			return s.aggregateOverview(q, now, loc, v)
+		}
 		return v, err
 	}
 	var rolls []Rollup

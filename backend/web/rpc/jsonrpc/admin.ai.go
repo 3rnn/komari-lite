@@ -3,6 +3,7 @@ package jsonrpc
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/komari-monitor/komari/database/aimonitor"
 	"github.com/komari-monitor/komari/database/dbcore"
@@ -72,6 +73,9 @@ func withAIAdmin(ctx context.Context, resource string, fn func(*aimonitor.Store)
 	defer cancel()
 	value, err := fn(aimonitor.NewStore(dbcore.GetDBInstance().WithContext(bounded)))
 	if err != nil {
+		if errors.Is(err, aimonitor.ErrQueryLimit) {
+			return nil, rpc.MakeError(rpc.ResourceExhausted, err.Error(), nil)
+		}
 		return nil, rpc.MakeError(rpc.InvalidParams, err.Error(), nil)
 	}
 	return value, nil

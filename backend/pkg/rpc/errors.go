@@ -22,18 +22,19 @@ const (
 
 // Komari defines error code
 const (
-	NotFound         = -32044
-	AlreadyExists    = -32045
-	PermissionDenied = -32041
-	Unauthenticated  = -32040 // Not logged in/no identity
-	Cancelled        = -32010 // Cancel proactively
-	DeadlineExceeded = -32011 // timeout
-	Aborted          = -32021 // Concurrency conflicts/transaction interruptions
-	OutOfRange       = -32022 // Value/index out of bounds
-	Unimplemented    = -32050 // not yet implemented
-	Unavailable      = -32051 // Dependent services are temporarily unavailable
-	DataLoss         = -32052 // Unrecoverable data loss
-	RateLimited      = -32053 // Retry after a bounded server-defined delay
+	NotFound          = -32044
+	AlreadyExists     = -32045
+	PermissionDenied  = -32041
+	Unauthenticated   = -32040 // Not logged in/no identity
+	Cancelled         = -32010 // Cancel proactively
+	DeadlineExceeded  = -32011 // timeout
+	Aborted           = -32021 // Concurrency conflicts/transaction interruptions
+	OutOfRange        = -32022 // Value/index out of bounds
+	Unimplemented     = -32050 // not yet implemented
+	Unavailable       = -32051 // Dependent services are temporarily unavailable
+	DataLoss          = -32052 // Unrecoverable data loss
+	RateLimited       = -32053 // Retry after a bounded server-defined delay
+	ResourceExhausted = -32054 // Valid request exceeded a bounded work/result budget
 )
 
 // MakeError conveniently creates error objects
