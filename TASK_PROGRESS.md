@@ -43,6 +43,17 @@ STATUS: DEPLOYED AND VERIFIED (development panel/Agent/helper only; production A
 - Accounting/pricing verification on ingested data: every model row satisfies `total=input+cache_read+cache_write+output`; every reasoning count is an output subset. No automatic price was invented: all 14 observed model rows remain unpriced, `unpriced_calls=2`, and API-equivalent cost remains null until an official exact mapping is added. Cached input and reasoning are therefore not double-counted.
 - `komari-agent-production.service` was never stopped, restarted, reconfigured or replaced. It remained active with PID `75770` and the same recorded start time throughout this development-only deployment. No production node profile was changed or enabled.
 
+### Post-deployment re-verification — October 9, 2026 (14:33 UTC)
+
+- Current source integrity: `git fsck --no-reflogs --full` and `git diff --check HEAD^ HEAD` passed. The only remaining worktree entries are the two preserved unrelated untracked restore-test files; no tracked implementation changes are pending.
+- Current deployment: development panel and development Agent binaries both report immutable Go build metadata `vcs.revision=9102b70e956be6ea4af6b3c53ca8f7ca7efee27d` with `vcs.modified=false`. Panel `current` resolves to `releases/1.0.27`, and command/API both report `1.0.27` with that same revision. The retained panel and Agent rollback artifacts are present.
+- Runtime and data: `komari-lite-panel.service`, `komari-agent.service`, `komari-agent-hermes.service`, and `komari-agent-production.service` are active/enabled. Development `komari.db` and `metrics.db` both return `PRAGMA quick_check=ok`. The panel recovery timer is active/enabled and the committed-upgrade journal/backup `20261009T184658-f662bf79` remains available.
+- Development-only identity/acknowledgement: node `8d7fff8c-958a-44ed-8511-3f9b80830988` (`berohost`, Agent `1.0.27`) has only its own deployment profile set to `enable_hermes_ai=true`, revision 2, delivery status `applied`; panel state confirms `enabled=true` and fresh successful/report timestamps. No production profile was changed.
+- Live authenticated admin recheck: the development admin dashboard and AI Monitoring route rendered successfully. The authenticated overview returned HTTP 200, the unauthenticated AI overview remains HTTP 401, and the page shows the existing node/history plus current AI totals of 6 collected calls / 1,324,146 tokens. The current helper spool has `enabled=true`, a 10-second cadence and an available sanitized quota status; no Hermes source database or auth file was modified.
+- Accounting/pricing recheck: all 32,275 stored covered samples retain nonnegative deltas. The live nonzero usage totals are 226,465 noncached input + 1,092,096 cache-read + 0 cache-write + 5,585 output = 1,324,146; 1,994 reasoning tokens are within output, so neither cached input nor reasoning is double-counted. The observed model remains Unpriced and API-equivalent cost remains `null`; no price rule or alias was invented.
+- Isolation: `/opt/komari-panel-test` artifacts and separate test databases remain intact at the earlier `1.0.26`/`07b2e1d` verification build. Its temporary loopback listener is currently stopped and it has no systemd unit; this recheck did not modify it.
+- Production isolation: `komari-agent-production.service` remains active with PID `75770`, executable `/opt/komari-agent-production/agent`, and unchanged start timestamp `2026-10-09 07:24:24 CST`.
+
 
 # komari-lite Optimization Progress
 
