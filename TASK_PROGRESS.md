@@ -2,7 +2,7 @@
 
 ## Optional Hermes AI Monitoring — current implementation
 
-STATUS: BLOCKED (local deployment target conflict)
+STATUS: BLOCKED (v1.0.27 complete-release integrity gate: missing arm64 CGO sysroot)
 
 - Inspected the local worktree and current Hermes counter/usage implementation; canonical noncached input and cache categories are disjoint, reasoning is an output subset.
 - Defined `docs/ai-monitoring-contract.md` for the backend, isolated collector/Agent and admin UI.
@@ -10,8 +10,26 @@ STATUS: BLOCKED (local deployment target conflict)
 - Backend, Agent/collector/installers and frontend are implemented with opt-in collection disabled by default.
 - Corrected pricing effective-time selection, opaque quota-key validation, sampling-interval validation, release helper packaging, durable collector outbox backpressure, timezone initialization, and exact filter sentinel handling; targeted/full component validation is recorded in the current task session.
 - AI monitoring remains disabled on all existing real nodes; no Hermes database/auth configuration, task, production endpoint, or production service has been changed.
-- A local feature commit contains the verified implementation. Local deployment remains blocked because `/opt/komari` is currently the active development Agent runtime, not a verified disposable panel runtime; do not remove or overwrite it without an explicit safe runtime-path decision.
+- A local feature commit contains the verified implementation. `/opt/komari` is the intentional development Agent runtime and must not be removed or overwritten; the development panel deployment target is the separate protected `/opt/komari-lite-panel` versioned layout.
 - No tag, GitHub Release or production rollout is authorized by this work-in-progress status.
+
+### Isolated test deployment verification — October 9, 2026
+
+- Re-read project instructions and this progress record. The committed feature remains at `07b2e1d6760a914e240ef1912bc4338b96f80aac` (`feat: add optional Hermes AI monitoring`). The source worktree has no tracked diff; two pre-existing unrelated untracked backend restore-test files were preserved. A clean detached verification worktree was created from the exact commit, excluding those untracked files.
+- Integrity and validation: `git fsck --full` completed (only pre-existing dangling unreachable objects); commit diff whitespace check passed. Frontend `npm ci`, tests (**421/421**), lint, TypeScript and production System UI build passed. Backend `CGO_ENABLED=1 go test ./...` and `go vet ./...` passed. Agent `go test ./...` and `go vet ./...` passed. The Python Hermes collector suite passed **15/15**.
+- The panel was built from the isolated commit with embedded frontend assets and installed only at `/opt/komari-panel-test/komari` (SHA-256 `8086ef7b865574f929534e626428bbe1b72eca2aef4a4da9504a61a4a3fc8aab`). It runs directly, not as a systemd service, on `127.0.0.1:28774` with separate `data/komari-test.db` and `data/metrics-test.db`. Its `version --json` reports version `1.0.26` and hash `07b2e1d6760a914e240ef1912bc4338b96f80aac`.
+- Isolated runtime checks passed: first-run state transitioned `ready` to `completed`; test administrator password login established a cookie-authenticated session; `/api/me` identified the test administrator; authenticated AI overview, pricing and settings APIs returned successfully; unauthenticated AI overview returned HTTP 401. The AI settings defaulted without any enabled node profile, and the isolated database contains zero AI deployment profiles.
+- The test admin route serves the exact built entry asset and the AI Monitoring chunk; their served SHA-256 values match the embedded build bytes. Collector integration checks passed through the committed Agent test suite, the 15 Python collector tests, and a freshly built test Agent exposing `--enable-hermes-ai`. No AI profile was enabled, no Agent was enrolled to the test panel, and no existing/live node was changed.
+- Deployment-path conflict confirmed: `komari-agent.service` remains active with executable and working directory both under `/opt/komari` (`/opt/komari/agent` and `/opt/komari`). The active local panel remains separately active from `/opt/komari-lite-panel`; the test listener is separate. No service was restarted, stopped, reconfigured, or deleted.
+- No `/opt/komari` migration is required. It remains the intentional development Agent runtime; the development panel must be upgraded through its protected `/opt/komari-lite-panel` versioned layout.
+
+### Development v1.0.27 release/cutover attempt — October 9, 2026
+
+- Created local commit `543047a770d2e3e54c68ec64dbab950ff4194bb1` (`chore: align development release version to 1.0.27`) on top of the Hermes AI Monitoring feature commit. It changes only panel, Agent and frontend version metadata plus version-alignment tests; it does not tag, push or publish a release.
+- Exact-commit validation passed in a clean detached worktree: frontend tests **421/421**, lint (0 errors; 25 pre-existing warnings), TypeScript and embedded System UI build; backend `CGO_ENABLED=1 go test ./...` and `go vet ./...`; Agent `go test ./...`, `go vet ./...`; Hermes collector tests **15/15**.
+- All development and production services were healthy immediately before the release build. Development panel remained `1.0.26` / `59b6475e0b999819a547f4c27c344e41f736397c`; the isolated test panel remained `1.0.26` / `07b2e1d6760a914e240ef1912bc4338b96f80aac` on loopback. No live service or configuration was modified.
+- The complete release builder was stopped by its integrity gate before deployment. The required Linux arm64 CGO panel build failed because the host lacks the arm64 glibc development sysroot headers: `bits/libc-header-start.h` and `bits/wordsize.h`. Consequently `komari-linux-arm64`, the full checksum manifest, and the complete release inventory were not produced. The panel safe-upgrade controller, development Agent, Hermes helper, deployment profile, databases and all production resources remain untouched.
+- Do not bypass this gate with a partial release. Resume only after the host has a verified compatible arm64 cross-compilation sysroot (or a separately verified reproducible build environment), then rebuild and verify the complete `v1.0.27` inventory before re-running preflight or any cutover.
 
 
 # komari-lite Optimization Progress
