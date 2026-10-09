@@ -15,11 +15,41 @@ const MaxOverviewNodes = 1000
 type Query struct {
 	From     float64 `json:"from"`
 	To       float64 `json:"to"`
+	Preset   string  `json:"preset,omitempty"`
 	Timezone string  `json:"timezone"`
 	Node     string  `json:"node"`
 	Model    string  `json:"model"`
 	Task     string  `json:"task"`
 }
+
+func resolveOverviewRange(q Query, now time.Time, settings Settings, loc *time.Location) (Query, error) {
+	switch q.Preset {
+	case "":
+		// Explicit ranges are custom ranges. They remain constrained against the
+		// server clock so a delayed or skewed client cannot read expired data.
+	case "24H":
+		q.From, q.To = float64(now.Add(-24*time.Hour).Unix()), float64(now.Unix())
+	case "7D":
+		q.From, q.To = float64(now.Add(-7*24*time.Hour).Unix()), float64(now.Unix())
+	case "30D":
+		q.From, q.To = float64(now.Add(-30*24*time.Hour).Unix()), float64(now.Unix())
+	case "Today":
+		local := now.In(loc)
+		start := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, loc)
+		q.From, q.To = float64(start.Unix()), float64(now.Unix())
+	default:
+		return q, fmt.Errorf("unknown AI range preset")
+	}
+	cutoff := float64(now.Add(-time.Duration(settings.RetentionDays) * 24 * time.Hour).Unix())
+	if q.From < cutoff {
+		return q, fmt.Errorf("AI range exceeds configured retention")
+	}
+	if !finite(q.From) || !finite(q.To) || q.From > q.To || (q.From == q.To && q.Preset != "Today") || q.To-q.From > 30*86400 || q.To > float64(now.Unix()+120) || !text(q.Node, 36, false) || !text(q.Model, 128, false) || !text(q.Task, 128, false) {
+		return q, fmt.Errorf("AI range must cover at most 30 retained days")
+	}
+	return q, nil
+}
+
 type Aggregate struct {
 	Totals
 	Model       string   `json:"model,omitempty"`
@@ -124,12 +154,11 @@ func (s *Store) Overview(q Query, now time.Time) (Overview, error) {
 	if err != nil {
 		return v, err
 	}
-	if q.From < float64(now.Unix()-int64(settings.RetentionDays)*86400) {
-		return v, fmt.Errorf("AI range exceeds configured retention")
+	q, err = resolveOverviewRange(q, now, settings, loc)
+	if err != nil {
+		return v, err
 	}
-	if !finite(q.From) || !finite(q.To) || q.From >= q.To || q.To-q.From > 30*86400 || q.From < float64(now.Unix()-30*86400) || q.To > float64(now.Unix()+120) || !text(q.Node, 36, false) || !text(q.Model, 128, false) || !text(q.Task, 128, false) {
-		return v, fmt.Errorf("AI range must cover at most 30 retained days")
-	}
+	v.Range = q
 	rows, err := s.details(q)
 	if err != nil {
 		if err == ErrQueryLimit {

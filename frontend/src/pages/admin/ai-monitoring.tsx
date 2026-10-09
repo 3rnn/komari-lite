@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Button, TextField } from "@radix-ui/themes";
 import AdminPageTitle from "../../components/admin/AdminPageTitle.tsx";
 import { AIAdvanced, AIMonitoringView, AISelect, AI_COST_LABEL, AI_COST_HELP, type AIOverview } from "../../components/admin/AIMonitoring.tsx";
-import { aiRange, aiISOSeconds, taskLabel } from "../../utils/aiMonitoring.ts";
+import { aiISOSeconds, taskLabel } from "../../utils/aiMonitoring.ts";
 import { aiRequest, referenceRule, type AISettings, type AIPricing, type PriceRule } from "../../utils/aiMonitoringApi.ts";
 import { subscribeAdminRevocation, getAdminRevocationGeneration, adminRequestInvalidated } from "../../utils/adminRevocation.ts";
 
@@ -40,9 +40,7 @@ export default function AIMonitoringPage() {
   const load=async()=>{
    if(busy || controller.signal.aborted) return;busy=true;
    const generation=getAdminRevocationGeneration();
-   const range=aiRange(period);
-   if(!range){setLoading(false);busy=false;return;}
-   const query=new URLSearchParams({from:String(range.from),to:String(range.to),timezone,node,model,task});
+   const query=new URLSearchParams({preset:period,timezone,node,model,task});
    try {const result=await aiRequest<AIOverview>("overview",query.toString(),controller.signal);adminRequestInvalidated(generation);if(!controller.signal.aborted){setData(result);setError("");setChoices(previous=>{
  const merge=(a:{value:string;label:string}[],b:{value:string;label:string}[])=>Array.from(new Map([...a,...b].map(option=>[option.value,option])).values());
  return {nodes:merge(previous.nodes,(result.nodes || []).map(n=>({value:n.uuid,label:n.name}))),models:merge(previous.models,(result.models || []).filter(m=>m.model).map(m=>({value:m.model!,label:m.model!}))),tasks:merge(previous.tasks,(result.tasks || []).map(t=>({value:t.task || "unknown",label:taskLabel(t.task)})))};

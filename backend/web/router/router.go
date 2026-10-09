@@ -89,7 +89,7 @@ func registerAgentRoutes(r *gin.Engine) {
 // registerAdminRoutes binds admin JSON endpoints to admin:* RPC methods; binary/streaming endpoints remain REST.
 func registerAdminRoutes(r *gin.Engine) {
 	g := r.Group("/api/admin", api.RequireRole(api.RoleAdmin))
-	g.GET("/ai/overview", jsonRpc.Bind("admin:getAIOverview", jsonRpc.WithQuery("from", "to", "timezone", "node", "model", "task"), jsonRpc.WithRaw()))
+	g.GET("/ai/overview", jsonRpc.Bind("admin:getAIOverview", jsonRpc.WithQuery("from", "to", "preset", "timezone", "node", "model", "task"), jsonRpc.WithRaw()))
 	g.GET("/ai/pricing", jsonRpc.Bind("admin:getAIPricing", jsonRpc.WithRaw()))
 	g.POST("/ai/pricing", jsonRpc.Bind("admin:appendAIPricing", jsonRpc.WithRaw()))
 	g.GET("/ai/settings", jsonRpc.Bind("admin:getAISettings", jsonRpc.WithRaw()))

@@ -88,6 +88,50 @@ func TestOverviewCompleteMinuteAndModelFilters(t *testing.T) {
 	}
 }
 
+func TestOverviewPresetUsesServerAuthoritativeThirtyDayBoundary(t *testing.T) {
+	s := fixture(t)
+	now := time.Unix(1780000000, 0).UTC()
+	for preset, duration := range map[string]time.Duration{"24H": 24 * time.Hour, "7D": 7 * 24 * time.Hour, "30D": 30 * 24 * time.Hour} {
+		view, err := s.Overview(Query{Preset: preset, From: float64(now.Add(-duration - time.Minute).Unix()), To: float64(now.Add(-time.Minute).Unix()), Timezone: "UTC"}, now)
+		if err != nil {
+			t.Fatalf("server-authoritative %s preset rejected after client delay: %v", preset, err)
+		}
+		if view.Range.From != float64(now.Add(-duration).Unix()) || view.Range.To != float64(now.Unix()) {
+			t.Fatalf("%s preset range = %#v, want exact server trailing duration", preset, view.Range)
+		}
+	}
+	if _, err := s.Overview(Query{From: float64(now.Add(-30*24*time.Hour - time.Second).Unix()), To: float64(now.Unix()), Timezone: "UTC"}, now); err == nil {
+		t.Fatal("custom range beyond strict retention was accepted")
+	}
+	if _, err := s.Overview(Query{From: float64(now.Add(-time.Hour).Unix()), To: float64(now.Add(121 * time.Second).Unix()), Timezone: "UTC"}, now); err == nil {
+		t.Fatal("custom range beyond allowed future skew was accepted")
+	}
+}
+
+func TestOverviewTodayUsesSelectedTimezoneCalendarBoundary(t *testing.T) {
+	s := fixture(t)
+	for _, tc := range []struct {
+		name, timezone string
+		now            time.Time
+		wantFrom       time.Time
+	}{
+		{"utc", "UTC", time.Date(2026, 3, 8, 12, 0, 0, 0, time.UTC), time.Date(2026, 3, 8, 0, 0, 0, 0, time.UTC)},
+		{"utc-midnight", "UTC", time.Date(2026, 3, 8, 0, 0, 0, 0, time.UTC), time.Date(2026, 3, 8, 0, 0, 0, 0, time.UTC)},
+		{"shanghai", "Asia/Shanghai", time.Date(2026, 3, 8, 1, 0, 0, 0, time.UTC), time.Date(2026, 3, 7, 16, 0, 0, 0, time.UTC)},
+		{"dst", "America/New_York", time.Date(2026, 3, 8, 16, 0, 0, 0, time.UTC), time.Date(2026, 3, 8, 5, 0, 0, 0, time.UTC)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			view, err := s.Overview(Query{Preset: "Today", Timezone: tc.timezone}, tc.now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if view.Range.From != float64(tc.wantFrom.Unix()) || view.Range.To != float64(tc.now.Unix()) {
+				t.Fatalf("today range = %#v, want %v..%v", view.Range, tc.wantFrom, tc.now)
+			}
+		})
+	}
+}
+
 func TestOverviewAggregatesMoreThanMaxRawSamplesInDatabase(t *testing.T) {
 	s := fixture(t)
 	now := time.Unix(1780000000, 0).UTC()
@@ -108,7 +152,7 @@ func TestOverviewAggregatesMoreThanMaxRawSamplesInDatabase(t *testing.T) {
 		t.Fatal(err)
 	}
 	started := time.Now()
-	view, err := s.Overview(Query{From: float64(now.Add(-24 * time.Hour).Unix()), To: float64(now.Unix()), Timezone: "UTC"}, now)
+	view, err := s.Overview(Query{Preset: "24H", From: float64(now.Add(-48 * time.Hour).Unix()), To: float64(now.Add(-time.Hour).Unix()), Timezone: "UTC"}, now)
 	if err != nil {
 		t.Fatalf("large overview returned %v", err)
 	}
@@ -118,7 +162,11 @@ func TestOverviewAggregatesMoreThanMaxRawSamplesInDatabase(t *testing.T) {
 	if len(view.Models) != 2 || len(view.Tasks) != 2 || len(view.Trends) == 0 || len(view.Daily) != 1 {
 		t.Fatalf("large aggregate groups = models:%d tasks:%d trends:%d daily:%d", len(view.Models), len(view.Tasks), len(view.Trends), len(view.Daily))
 	}
-	month, err := s.Overview(Query{From: float64(now.Add(-30 * 24 * time.Hour).Unix()), To: float64(now.Unix()), Timezone: "Asia/Shanghai"}, now)
+	week, err := s.Overview(Query{Preset: "7D", Timezone: "UTC"}, now)
+	if err != nil || week.PricingCoverage.Calls != int64(len(rows)) || len(week.Trends) == 0 {
+		t.Fatalf("7-day aggregate = %#v, %v", week.PricingCoverage, err)
+	}
+	month, err := s.Overview(Query{Preset: "30D", Timezone: "Asia/Shanghai"}, now)
 	if err != nil || month.PricingCoverage.Calls != int64(len(rows)) || len(month.Trends) == 0 {
 		t.Fatalf("30-day aggregate = %#v, %v", month.PricingCoverage, err)
 	}

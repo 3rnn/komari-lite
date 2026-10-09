@@ -117,11 +117,13 @@ func adminGetAIOverview(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc
 		if err = aimonitor.DecodeStrict(raw, &query); err != nil {
 			return nil, err
 		}
-		if _, exists := params["to"]; !exists {
-			query.To = float64(now.Unix())
-		}
-		if _, exists := params["from"]; !exists {
-			query.From = query.To - 3600
+		if query.Preset == "" {
+			if _, exists := params["to"]; !exists {
+				query.To = float64(now.Unix())
+			}
+			if _, exists := params["from"]; !exists {
+				query.From = query.To - 3600
+			}
 		}
 		if query.Timezone == "" {
 			settings, err := s.Settings()
