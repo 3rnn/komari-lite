@@ -66,6 +66,7 @@ type EventResult struct {
 }
 
 type ConfigParams struct {
+	EnableHermesAI      *bool    `json:"enable_hermes_ai,omitempty"`
 	Revision            uint64   `json:"revision,omitempty"`
 	MonthRotate         *int     `json:"month_rotate,omitempty"`
 	MonthRotateTime     *string  `json:"month_rotate_time,omitempty"`
@@ -79,10 +80,11 @@ type ConfigParams struct {
 }
 
 type ConfigResultParams struct {
-	Revision uint64 `json:"revision"`
-	EventID  string `json:"event_id,omitempty"`
-	Status   string `json:"status"`
-	Error    string `json:"error,omitempty"`
+	EnableHermesAI *bool  `json:"enable_hermes_ai,omitempty"`
+	Revision       uint64 `json:"revision"`
+	EventID        string `json:"event_id,omitempty"`
+	Status         string `json:"status"`
+	Error          string `json:"error,omitempty"`
 }
 
 type BasicInfoParams struct {

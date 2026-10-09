@@ -24,6 +24,102 @@ def function(source, name):
 
 
 class InstallerSecurity(unittest.TestCase):
+    def test_hermes_helper_integrity_fails_before_service_mutation(self):
+        src=SH.read_text()
+        self.assertIn('stage_hermes_helper || exit 1',src)
+        self.assertLess(src.index('stage_hermes_helper || exit 1'),src.index('commit_install || exit 1'))
+        stage=function(src,'stage_hermes_helper')
+        with tempfile.TemporaryDirectory() as temp:
+            path=pathlib.Path(temp)
+            helper=path/'hermes_collector.py'; helper.write_text('print("fixture")\n')
+            digest=hashlib.sha256(helper.read_bytes()).hexdigest()
+            script='''
+log_error() { :; }; enable_hermes_ai=true
+staging_dir=$1; install_source=https://panel.invalid/agent/download
+install_hermes_sha256=$2
+curl() { [[ $FAIL != missing ]] || return 1; cp "$staging_dir/hermes_collector.py" "$staging_dir/helper"; }
+''' + stage + '\nstage_hermes_helper\n'
+            for value,fail,success in [(digest,'',True),('0'*64,'',False),(digest,'missing',False)]:
+                run=subprocess.run(['bash','-c',script,'--',temp,value],env={'PATH':'/usr/bin:/bin','FAIL':fail},capture_output=True,text=True)
+                self.assertEqual(run.returncode==0,success,run.stderr)
+
+    def test_hermes_generated_unit_is_owner_isolated_and_source_files_only(self):
+        src=SH.read_text()
+        unit=function(src,'write_hermes_unit')
+        script='''
+hermes_owner=fixture; hermes_group=fixture; hermes_home=/root/.hermes
+ai_runtime=komari-fixture-hermes; ai_base=/var/lib/komari-fixture-hermes
+ai_private=$ai_base/private; ai_spool=$ai_base/spool
+ai_helper=/opt/komari-fixture/hermes_collector.py
+''' + function(src,'systemd_quote')+'\n'+unit+'\nwrite_hermes_unit\n'
+        run=subprocess.run(['bash','-c',script],capture_output=True,text=True,check=True)
+        out=run.stdout
+        for line in ('User=fixture','ProtectHome=tmpfs','ProtectSystem=strict','NoNewPrivileges=true','CapabilityBoundingSet=','/state.db:','/auth.json:','--database','--spool'):
+            self.assertIn(line,out)
+        self.assertNotIn('ReadOnlyPaths=/root/.hermes\n',out)
+        self.assertNotIn('BindReadOnlyPaths=/root/.hermes\n',out)
+        self.assertNotIn('chmod',out)
+
+    @unittest.skipUnless(shutil.which('systemd-analyze'), 'systemd-analyze unavailable')
+    def test_generated_hermes_unit_verifies_with_systemd(self):
+        src=SH.read_text()
+        script='''
+hermes_owner=root; hermes_group=root; hermes_home=/root/.hermes
+ai_runtime=komari-fixture-hermes
+ai_private=/var/lib/komari-fixture-hermes/private
+ai_spool=/var/lib/komari-fixture-hermes/spool
+ai_helper=/opt/komari-fixture/hermes_collector.py
+''' + function(src,'systemd_quote')+'\n'+function(src,'write_hermes_unit')+'\nwrite_hermes_unit\n'
+        generated=subprocess.run(['bash','-c',script],capture_output=True,text=True,check=True).stdout
+        with tempfile.TemporaryDirectory() as temp:
+            unit=pathlib.Path(temp)/'komari-hermes-fixture.service'
+            unit.write_text(generated)
+            result=subprocess.run(['systemd-analyze','verify',str(unit)],capture_output=True,text=True)
+            self.assertEqual(result.returncode,0,result.stderr)
+            self.assertNotIn('Unknown',result.stderr)
+
+    def test_windows_hermes_enable_rejected_before_any_mutation(self):
+        src=PS.read_text()
+        self.assertIn('Hermes AI monitoring is unsupported on Windows',src)
+        reject=src.index('Hermes AI monitoring is unsupported on Windows')
+        for marker in ('Set-PrivateDirectory $StagingDir','Move-Item -LiteralPath $StagedAgent'):
+            self.assertLess(reject,src.index(marker))
+        self.assertIn('--enable-hermes-ai',src[:reject])
+
+    def test_hermes_transaction_restores_helper_control_and_agent_after_failure(self):
+        src=SH.read_text()
+        self.assertIn('start_hermes_helper',function(src,'commit_install'))
+        with tempfile.TemporaryDirectory() as temp:
+            root=pathlib.Path(temp)
+            for name in ('agent','agent-config.json','service','helper','helper-service','control'):
+                (root/name).write_text('old-'+name)
+                (root/('new-'+name)).write_text('new-'+name)
+            (root/'stage').mkdir()
+            script='''
+log_error() { :; }; service_name=fixture; init_system=systemd; enable_hermes_ai=true
+komari_agent_path=$1/agent; config_path=$1/agent-config.json; service_file=$1/service
+ai_helper=$1/helper; ai_service=$1/helper-service; ai_spool=$1; ai_runtime=fixture-hermes
+staged_agent=$1/new-agent; config_tmp=$1/new-agent-config.json; staged_service=$1/new-service
+staged_helper=$1/new-helper; staged_ai_service=$1/new-helper-service; staging_dir=$1/stage
+# Control in the fixture uses the production name.
+mv "$1/control" "$1/control.json"
+systemctl() { return 0; }
+start_hermes_helper() { return 1; }
+verify_started_service() { return 0; }
+''' + function(src,'rollback_install')+'\n'+function(src,'commit_install')+'\ncommit_install\n'
+            run=subprocess.run(['bash','-c',script,'--',temp],capture_output=True,text=True)
+            self.assertNotEqual(run.returncode,0,run.stdout+run.stderr)
+            for name in ('agent','agent-config.json','service','helper','helper-service'):
+                self.assertEqual((root/name).read_text(),'old-'+name)
+            self.assertEqual((root/'control.json').read_text(),'old-control')
+
+    def test_disabled_hermes_preflight_does_not_inspect_home(self):
+        src=SH.read_text()
+        preflight=function(src,'preflight_hermes')
+        script='enable_hermes_ai=false; stat() { exit 99; }; getent() { exit 99; }; '+preflight+'\npreflight_hermes\n'
+        result=subprocess.run(['bash','-c',script],capture_output=True,text=True)
+        self.assertEqual(result.returncode,0,result.stderr)
+
     @unittest.skipUnless(shutil.which('systemd-analyze'), 'systemd-analyze unavailable')
     def test_generated_systemd_working_directory_is_valid(self):
         source = SH.read_text()

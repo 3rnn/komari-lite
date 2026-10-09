@@ -215,7 +215,7 @@
       "noData": "No data",
       "nodeList": "Node list",
       "noResults": "No results",
-      "onlineApplicable": "Applied after saving",
+      "onlineApplicable": "Applied after Agent acknowledgment",
       "onlineCollectionSettings": "Live collection settings",
       "onlineShort": "Live",
       "pageSummary": "Showing {{start}}-{{end}} of {{total}}",
@@ -654,6 +654,7 @@
   "navigation": {
     "account_menu": "Account",
     "account_security": "Account & Security",
+    "ai_monitoring": "AI Monitoring",
     "appearance": "Appearance",
     "dashboard_settings": "Dashboard",
     "data_storage": "Storage",

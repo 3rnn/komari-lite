@@ -19,6 +19,11 @@
           "labelKey": "ping.title",
           "path": "/admin/ping",
           "icon": "Activity"
+        },
+        {
+          "labelKey": "navigation.ai_monitoring",
+          "path": "/admin/ai-monitoring",
+          "icon": "Activity"
         }
       ]
     },

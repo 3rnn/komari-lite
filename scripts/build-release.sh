@@ -21,7 +21,7 @@ mkdir -p "$out"
 rm -f "$out"/komari "$out"/komari-linux-amd64 "$out"/komari-linux-arm64 \
   "$out"/komari-agent-* "$out"/install.sh "$out"/install.ps1 "$out"/manifest.json \
   "$out"/SHA256SUMS.txt "$out"/Glass.zip "$out"/komari-manager.py "$out"/safe_upgrade.py \
-  "$out"/komari-oneclick.py "$out"/update-komari.sh "$out"/release-manifest.json
+  "$out"/komari-oneclick.py "$out"/update-komari.sh "$out"/release-manifest.json "$out"/hermes_collector.py
 
 # Build the embedded administrator UI before compiling either panel binary.
 (
@@ -49,6 +49,10 @@ cp "$out/komari-linux-amd64" "$out/komari"
   go vet ./...
 )
 "$root/scripts/build-agent-release.sh" "${version#v}" "$out"
+# Optional Hermes collection is provisioned only from the same concrete
+# release inventory as the Agent. The installer verifies this checksum before
+# installing the helper and never downloads an unpinned source file.
+install -m 0755 "$root/agent/helpers/hermes_collector.py" "$out/hermes_collector.py"
 # The Agent builder writes its own agent-only checksum file. Replace it below
 # with the complete release inventory so it never attempts to checksum itself.
 rm -f "$out/SHA256SUMS.txt"
@@ -87,7 +91,7 @@ entries = {}
 for line in (out/'SHA256SUMS.txt').read_text().splitlines():
     digest, name = line.split(None, 1)
     entries[name.strip()] = digest
-for name in ('komari-linux-amd64', 'komari-linux-arm64', 'komari', 'update-komari.sh', 'Glass.zip'):
+for name in ('komari-linux-amd64', 'komari-linux-arm64', 'komari', 'update-komari.sh', 'Glass.zip', 'hermes_collector.py'):
     if name not in entries: raise SystemExit('missing release asset: ' + name)
 (out/'release-manifest.json').write_text(json.dumps({'tag': version, 'artifacts': entries}, indent=2, sort_keys=True) + '\n')
 PY

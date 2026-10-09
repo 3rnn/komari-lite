@@ -116,13 +116,15 @@ type ConfigParams struct {
 	IncludeMountpoints *string  `json:"include_mountpoints,omitempty"`
 	MemoryIncludeCache *bool    `json:"memory_include_cache,omitempty"`
 	EnableGPU          *bool    `json:"enable_gpu,omitempty"`
+	EnableHermesAI     *bool    `json:"enable_hermes_ai,omitempty"`
 }
 
 type ConfigResultParams struct {
-	Revision uint64 `json:"revision"`
-	EventID  string `json:"event_id,omitempty"`
-	Status   string `json:"status"`
-	Error    string `json:"error,omitempty"`
+	EnableHermesAI *bool  `json:"enable_hermes_ai,omitempty"`
+	Revision       uint64 `json:"revision"`
+	EventID        string `json:"event_id,omitempty"`
+	Status         string `json:"status"`
+	Error          string `json:"error,omitempty"`
 }
 
 func Success(id any, result any) Response {

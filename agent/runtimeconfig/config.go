@@ -5,6 +5,7 @@ import "sync/atomic"
 const DefaultReportInterval = 3.0
 
 type State struct {
+	EnableHermesAI      bool
 	MonthRotate         int
 	MonthRotateTime     string
 	MonthRotateTimezone string

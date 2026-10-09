@@ -748,6 +748,9 @@ func registerScheduledWork() {
 	if err := corn.AddFunc("records:cleanup", "@every 30m", cleanupScheduledData); err != nil {
 		logger.ErrorArgs("server", "Failed to add cleanup scheduled task:", err)
 	}
+	if err := corn.AddContextFunc("ai:compact", "@every 10s", false, compactAIStorage); err != nil {
+		logger.ErrorArgs("server", "Failed to add AI retention task:", err)
+	}
 	if err := corn.AddContextFunc("metrics:compact", "@every 10s", true, compactMetricStore); err != nil {
 		logger.ErrorArgs("server", "Failed to add metric compact scheduled task:", err)
 	}

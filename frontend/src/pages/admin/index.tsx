@@ -108,6 +108,8 @@ import {
 } from "@/utils/adminAlertFilters";
 import { getAdminRevocationGeneration, subscribeAdminRevocation } from "@/utils/adminRevocation";
 import { adminNodeRequest, postAdminNode } from "@/utils/adminNodeRequest";
+import { hermesInstallArgs, hermesProfileEnabled } from "@/utils/aiMonitoring";
+import { HermesMonitoringToggle } from "@/components/admin/AIMonitoring";
 import { useAccount } from "@/contexts/AccountContext";
 import type {
   DashboardAlertAffectedItem,
@@ -1304,6 +1306,7 @@ type InstallOptions = {
   memoryIncludeCache: boolean;
   getIpAddrFromNic: boolean;
   enableGpu: boolean;
+  enableHermesAI: boolean;
   ghproxy: string;
   dir: string;
   serviceName: string;
@@ -1322,6 +1325,7 @@ type DeploymentProfilePayload = {
   get_ip_addr_from_nic: boolean;
   memory_include_cache: boolean;
   enable_gpu: boolean;
+  enable_hermes_ai: boolean;
   enable_ghproxy: boolean;
   ghproxy: string;
   enable_custom_dir: boolean;
@@ -1378,6 +1382,7 @@ function GenerateCommandButton({ node, settings }: { node: NodeDetail, settings:
     memoryIncludeCache: false,
     getIpAddrFromNic: false,
     enableGpu: false,
+    enableHermesAI: false,
     ghproxy: "",
     dir: "",
     serviceName: "",
@@ -1438,6 +1443,7 @@ function GenerateCommandButton({ node, settings }: { node: NodeDetail, settings:
           memoryIncludeCache: profile.memory_include_cache,
           getIpAddrFromNic: profile.get_ip_addr_from_nic,
           enableGpu: profile.enable_gpu,
+          enableHermesAI: hermesProfileEnabled(profile),
           ghproxy: profile.ghproxy || "",
           dir: profile.dir || "",
           serviceName: profile.service_name || "",
@@ -1522,6 +1528,7 @@ function GenerateCommandButton({ node, settings }: { node: NodeDetail, settings:
     get_ip_addr_from_nic: false,
     memory_include_cache: installOptions.memoryIncludeCache,
     enable_gpu: installOptions.enableGpu,
+    enable_hermes_ai: installOptions.enableHermesAI,
     enable_ghproxy: false,
     ghproxy: "",
     enable_custom_dir: false,
@@ -1541,6 +1548,7 @@ function GenerateCommandButton({ node, settings }: { node: NodeDetail, settings:
   });
 
   const generateCommand = () => {
+    if (selectedPlatform === "windows" && installOptions.enableHermesAI) return "Hermes AI monitoring is unsupported on Windows. Disable it to generate a Windows command.";
     const host = resolveAgentSource(settings?.script_domain).host;
     const token = node.token || "";
     let args = ["-e", host, "-t", token, "--disable-web-ssh", "--disable-auto-update", "--install-source", agentReleaseSource, "--install-version", agentReleaseVersion];
@@ -1551,6 +1559,7 @@ function GenerateCommandButton({ node, settings }: { node: NodeDetail, settings:
     if (installOptions.enableGpu) {
       args.push("--gpu");
     }
+    args.push(...hermesInstallArgs(selectedPlatform, installOptions.enableHermesAI));
     const includeNics = installOptions.includeNics.trim();
     if (enableIncludeNics && includeNics) {
       args.push(`--include-nics`);
@@ -1594,6 +1603,10 @@ function GenerateCommandButton({ node, settings }: { node: NodeDetail, settings:
 
   const saveProfile = async (copyCommand: boolean) => {
     if (profileAction) return;
+    if (selectedPlatform === "windows" && installOptions.enableHermesAI) {
+      toast.error("Hermes AI monitoring is unsupported on Windows. Disable it before saving or copying.");
+      return;
+    }
     setCopyFeedback(undefined);
     const trafficResetDay = selectedTrafficResetDay();
     if (trafficResetDay === null) {
@@ -1775,7 +1788,7 @@ function GenerateCommandButton({ node, settings }: { node: NodeDetail, settings:
                   {t("admin.nodeTable.onlineCollectionSettings", "Live collection settings")}
                 </Text>
                 <Text size="1" color="green">
-                  {t("admin.nodeTable.onlineApplicable", "Applied after saving")}
+                  {t("admin.nodeTable.onlineApplicable", "Applied after Agent acknowledgment")}
                 </Text>
               </Flex>
               <div className="admin-install-options-grid grid grid-cols-2 gap-2">
@@ -1826,6 +1839,11 @@ function GenerateCommandButton({ node, settings }: { node: NodeDetail, settings:
                     {t("admin.nodeTable.enableGpuMonitoring", "Enable detailed GPU monitoring")}
                   </label>
                 </Flex>
+                <HermesMonitoringToggle
+                  platform={selectedPlatform}
+                  enabled={installOptions.enableHermesAI}
+                  onChange={(enableHermesAI) => setInstallOptions(prev => ({ ...prev, enableHermesAI }))}
+                />
               </div>
               <Flex gap="2" align="center">
                 <Checkbox

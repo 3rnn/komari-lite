@@ -38,6 +38,7 @@ const adminRoutePreloaders: Record<string, () => Promise<unknown>> = {
   "/admin": loadAdminDashboard,
   "/admin/servers": loadAdminServers,
   "/admin/ping": loadAdminPing,
+  "/admin/ai-monitoring": () => import("./pages/admin/ai-monitoring"),
   "/admin/logs": () => import("./pages/admin/log"),
   "/admin/theme_managed": () => import("./pages/admin/theme_managed.tsx"),
   "/admin/settings": loadAdminSettingsLayout,
@@ -212,6 +213,10 @@ export const routes: RouteObject[] = [
       {
         path: "ping",
         element: React.createElement(AdminPing),
+      },
+      {
+        path: "ai-monitoring",
+        element: React.createElement(lazy(() => import("./pages/admin/ai-monitoring"))),
       },
       {
         path: "logs",

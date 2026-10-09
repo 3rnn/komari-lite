@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/komari-monitor/komari/cmd/flags"
+	"github.com/komari-monitor/komari/database/aimonitor"
 	"github.com/komari-monitor/komari/database/models"
 	"github.com/komari-monitor/komari/pkg/config"
 	"github.com/komari-monitor/komari/pkg/migrations"
@@ -290,6 +291,21 @@ func retireInterruptedRestoreArchive(dataDir string) {
 	}
 }
 
+// Missing markers require no filesystem mutation. On read-only filesystems,
+// unlink may return EROFS before looking up an absent name. Do not suppress
+// permission errors for existing markers or widen the parent permissions.
+func removeExistingRestoreMarker(path string, inspect func(string) (os.FileInfo, error), remove func(string) error) error {
+	if _, err := inspect(path); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	if err := remove(path); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
 func recoverInterruptedRestore(dataDir string) error {
 	absDataDir, pendingMarker, committedMarker, err := restoreMarkerPaths(dataDir)
 	if err != nil {
@@ -297,7 +313,7 @@ func recoverInterruptedRestore(dataDir string) error {
 	}
 	if _, err := os.Stat(pendingMarker); err != nil {
 		if os.IsNotExist(err) {
-			if removeErr := os.Remove(committedMarker); removeErr != nil && !os.IsNotExist(removeErr) {
+			if removeErr := removeExistingRestoreMarker(committedMarker, os.Lstat, os.Remove); removeErr != nil {
 				return fmt.Errorf("remove completed restore marker: %w", removeErr)
 			}
 			return nil
@@ -804,6 +820,9 @@ func doInitialize() error {
 	// Legacy records are left intact for the separate metric-store migration.
 	if err := migrations.RunVersioned(instance); err != nil {
 		return fmt.Errorf("failed to migrate main database schema: %w", err)
+	}
+	if err := aimonitor.Migrate(instance); err != nil {
+		return fmt.Errorf("failed to migrate independent AI storage: %w", err)
 	}
 	if err := cleanupOrphanedClientData(instance); err != nil {
 		return fmt.Errorf("failed to clean orphaned client data: %w", err)

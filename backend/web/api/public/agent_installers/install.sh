@@ -41,6 +41,9 @@ target_dir="/opt/komari"
 install_source=""
 install_version="" # the panel's one-click command supplies the pinned release version
 install_sha256="" # caller-pinned digest for custom download sources
+# Opt-in helper inputs are local installation choices, never remote configuration.
+enable_hermes_ai=false
+hermes_owner="" hermes_home="" install_hermes_sha256=""
  
 
 # Detect OS
@@ -76,7 +79,7 @@ esac
 komari_args=()
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --install-dir|--install-service-name|--install-source|--install-ghproxy|--install-version|--install-sha256)
+        --install-dir|--install-service-name|--install-source|--install-ghproxy|--install-version|--install-sha256|--install-hermes-owner|--install-hermes-home|--install-hermes-sha256)
             if [[ $# -lt 2 || -z $2 || $2 == --install* ]]; then
                 log_error "$1 requires a value"
                 exit 1
@@ -84,6 +87,20 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
     case $1 in
+        --enable-hermes-ai|--enable-hermes-ai=true)
+            enable_hermes_ai=true; shift ;;
+        --enable-hermes-ai=false)
+            enable_hermes_ai=false; shift ;;
+        --enable-hermes-ai=*|-enable-hermes-ai*)
+            log_error 'Use --enable-hermes-ai or --enable-hermes-ai=false'; exit 1 ;;
+        --install-hermes-owner)
+            hermes_owner=$2; shift 2 ;;
+        --install-hermes-home)
+            hermes_home=$2; shift 2 ;;
+        --install-hermes-sha256)
+            install_hermes_sha256=$2; shift 2 ;;
+        --hermes-ai-spool*)
+            log_error 'Installer manages the local spool; configure custom paths directly in local Agent config'; exit 1 ;;
         --install-dir)
             target_dir="$2"
             shift 2
@@ -513,6 +530,118 @@ detect_init_system() {
     echo "unknown"
 }
 
+# This function must return before even stat/getent when disabled.
+preflight_hermes() {
+    [[ $enable_hermes_ai == true ]] || return 0
+    [[ $init_system == systemd ]] || { log_error 'Hermes AI monitoring requires Linux systemd'; return 1; }
+    command -v python3 >/dev/null && command -v sha256sum >/dev/null || {
+        log_error 'Hermes helper requires existing Python 3 and sha256sum'; return 1;
+    }
+    [[ -z $install_hermes_sha256 || $install_hermes_sha256 =~ ^[[:xdigit:]]{64}$ ]] || {
+        log_error 'Invalid --install-hermes-sha256'; return 1;
+    }
+    if [[ ! $install_source =~ ^https://github[.]com/3rnn/komari-lite/releases/download/v[^/?#]+$ && -z $install_hermes_sha256 ]]; then
+        log_error 'Custom helper source requires independently pinned --install-hermes-sha256'; return 1
+    fi
+    if [[ -z $hermes_owner ]]; then
+        if [[ -n $hermes_home && -f $hermes_home/state.db && ! -L $hermes_home/state.db ]]; then
+            hermes_owner=$(stat -c '%U' "$hermes_home/state.db") || return 1
+        else
+            hermes_owner=${SUDO_USER:-root}
+        fi
+    fi
+    [[ $hermes_owner =~ ^[a-zA-Z_][a-zA-Z0-9_.-]*[$]?$ ]] || { log_error 'Invalid Hermes owner'; return 1; }
+    local entry uid home group
+    entry=$(getent passwd "$hermes_owner") || { log_error 'Hermes owner does not exist'; return 1; }
+    IFS=: read -r _ _ uid _ _ home _ <<< "$entry"
+    hermes_group=$(id -gn "$hermes_owner") || return 1
+    [[ -n $hermes_home ]] || hermes_home="$home/.hermes"
+    [[ $hermes_home =~ ^/[A-Za-z0-9_./-]+$ && $hermes_home != *'/../'* && $hermes_home != *'/./'* && $hermes_home != */.. && $hermes_home != */. ]] || {
+        log_error 'Hermes home must be a literal absolute local path'; return 1;
+    }
+    # Inspect paths/ownership only. Never open DB/auth or alter their permissions.
+    python3 - "$hermes_home" "$uid" <<'PY'
+import os, pathlib, stat, sys
+home=pathlib.Path(sys.argv[1]); uid=int(sys.argv[2])
+for path in (home,*home.parents):
+    s=path.lstat()
+    if not stat.S_ISDIR(s.st_mode) or s.st_uid not in (0,uid) or s.st_mode&0o022:
+        raise SystemExit('Unsafe Hermes source directory')
+for name in ('state.db','state.db-wal','state.db-shm','auth.json'):
+    p=home/name
+    if not p.exists() and not p.is_symlink():
+        if name=='state.db': raise SystemExit('Hermes database not detected')
+        continue
+    s=p.lstat()
+    if not stat.S_ISREG(s.st_mode) or s.st_uid!=uid or s.st_mode&0o022:
+        raise SystemExit('Unsafe Hermes source file')
+PY
+}
+
+# Source-file-only bind mounts prevent reading any prompts/config/session files
+# through the helper namespace. Missing live WAL/SHM remains unavailable.
+write_hermes_unit() {
+    cat <<EOF
+[Unit]
+# komari-hermes installer
+Description=Restricted Komari Hermes aggregate observer
+After=network.target
+[Service]
+Type=simple
+User=$hermes_owner
+Group=$hermes_group
+UMask=0027
+ExecStart=/usr/bin/python3 -I /run/$ai_runtime/helper.py --database /run/$ai_runtime/source/state.db --auth-path /run/$ai_runtime/source/auth.json --state-dir $ai_private --spool $ai_spool
+RuntimeDirectory=$ai_runtime
+RuntimeDirectoryMode=0700
+ProtectHome=tmpfs
+ProtectSystem=strict
+ReadWritePaths=$ai_private $ai_spool
+BindReadOnlyPaths=$(systemd_quote "$ai_helper:/run/$ai_runtime/helper.py")
+BindReadOnlyPaths=$(systemd_quote "$hermes_home/state.db:/run/$ai_runtime/source/state.db")
+BindReadOnlyPaths=$(systemd_quote "-$hermes_home/state.db-wal:/run/$ai_runtime/source/state.db-wal")
+BindReadOnlyPaths=$(systemd_quote "-$hermes_home/state.db-shm:/run/$ai_runtime/source/state.db-shm")
+BindReadOnlyPaths=$(systemd_quote "-$hermes_home/auth.json:/run/$ai_runtime/source/auth.json")
+NoNewPrivileges=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+PrivateDevices=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+Restart=on-failure
+RestartSec=10
+[Install]
+WantedBy=multi-user.target
+EOF
+}
+
+stage_hermes_helper() {
+    [[ $enable_hermes_ai == true ]] || return 0
+    staged_helper="$staging_dir/helper"
+    local expected_helper=$install_hermes_sha256 actual_helper
+    if [[ -z $expected_helper ]]; then
+        [[ -f $staging_dir/SHA256SUMS.txt ]] || curl --fail --show-error --proto '=https' --proto-redir '=https' -L -o "$staging_dir/SHA256SUMS.txt" "$install_source/SHA256SUMS.txt" || return 1
+        expected_helper=$(awk '$2 == "hermes_collector.py" && length($1) == 64 { print tolower($1) }' "$staging_dir/SHA256SUMS.txt")
+    fi
+    [[ $expected_helper =~ ^[[:xdigit:]]{64}$ ]] || { log_error 'Missing or ambiguous pinned helper checksum'; return 1; }
+    curl --fail --show-error --proto '=https' --proto-redir '=https' -L -o "$staged_helper" "$install_source/hermes_collector.py" || return 1
+    actual_helper=$(sha256sum "$staged_helper"); actual_helper=${actual_helper%% *}
+    [[ $actual_helper == ${expected_helper,,} ]] || { log_error 'Hermes helper checksum mismatch'; return 1; }
+    chmod 644 "$staged_helper" || return 1
+}
+
+ai_runtime="${service_name}-hermes"
+ai_base="/var/lib/$ai_runtime"
+ai_private="$ai_base/private"
+ai_spool="$ai_base/spool"
+ai_helper="$target_dir/hermes_collector.py"
+ai_service="/etc/systemd/system/${ai_runtime}.service"
 init_system=$(detect_init_system)
 log_info "Detected init system: ${GREEN}$init_system${NC}"
 case $init_system in
@@ -598,6 +727,18 @@ if [[ $init_system == openrc && ( -e $komari_agent_path || -e $target_dir/agent-
     log_error 'OpenRC artifacts already exist; manual migration required before installation'
     exit 1
 fi
+preflight_hermes || exit 1
+if [[ $enable_hermes_ai == true ]]; then
+    # A preexisting helper must be our exact unit, not a foreign service/drop-in.
+    if [[ -e $ai_service || -L $ai_service ]]; then
+        [[ -f $ai_service && ! -L $ai_service ]] && grep -Fxq '# komari-hermes installer' "$ai_service" || exit 1
+        [[ $(stat -c '%u' "$ai_service") == 0 ]] || exit 1
+        [[ -z $(systemctl show "$ai_runtime.service" -p DropInPaths --value) ]] || exit 1
+        grep -Fxq "User=$hermes_owner" "$ai_service" && grep -Fxq "ReadWritePaths=$ai_private $ai_spool" "$ai_service" || { log_error 'Hermes helper ownership/path changes require local migration'; exit 1; }
+    elif [[ $(systemctl show "$ai_runtime.service" -p LoadState --value) != not-found ]]; then
+        log_error 'Foreign Hermes helper service'; exit 1
+    fi
+fi
 install_dependencies
 log_step "Creating installation directory: ${GREEN}$target_dir${NC}"
 validate_install_directory "$target_dir" || exit 1
@@ -655,6 +796,28 @@ if [ "$actual" != "$expected" ]; then
     exit 1
 fi
 log_success "Verified $file_name against SHA-256 checksum"
+
+# Helper missing/mismatch fails before any existing service is stopped/replaced.
+stage_hermes_helper || exit 1
+if [[ $enable_hermes_ai == true ]]; then
+    # Write only independent collector state; never chown/chmod the Hermes home.
+    validate_install_directory "$ai_base" || exit 1
+    for directory in "$ai_private" "$ai_spool" "$ai_spool/acks"; do
+        [[ ! -L $directory ]] || exit 1
+        if [[ -e $directory ]]; then
+            [[ -d $directory && $(stat -c '%U' "$directory") == "$hermes_owner" ]] || exit 1
+        else
+            mkdir -m 700 "$directory" && chown "$hermes_owner:$hermes_group" "$directory" || exit 1
+        fi
+    done
+    chmod 750 "$ai_spool" "$ai_spool/acks" || exit 1
+    # Allow the owner to traverse only this independent state parent.
+    chmod 755 "$ai_base" || exit 1
+    staged_ai_service="$staging_dir/helper-service"
+    write_hermes_unit > "$staged_ai_service" || exit 1
+    chmod 600 "$staged_ai_service" || exit 1
+fi
+komari_args+=("--hermes-ai-spool" "$ai_spool" "--enable-hermes-ai=$enable_hermes_ai")
 
 # Set executable permissions
 chmod +x "$staged_agent"
@@ -728,6 +891,8 @@ ExecStart=${systemd_command}
 WorkingDirectory=$(systemd_workdir "$target_dir")
 Restart=always
 User=root
+# Agent itself gets no source mount or permission grant.
+$(if [[ $enable_hermes_ai == true ]]; then printf 'InaccessiblePaths=%s\n' "$hermes_home"; fi)
 
 [Install]
 WantedBy=multi-user.target
@@ -741,17 +906,23 @@ fi
 rollback_install() {
     local path name failed=0
     transaction_pending=no
+    if [[ ${enable_hermes_ai:-false} == true ]]; then
+        systemctl stop "$ai_runtime.service" >/dev/null 2>&1 || :
+    fi
     if [[ $init_system == systemd ]]; then
         systemctl stop "${service_name}.service" >/dev/null 2>&1 || :
     else
         rc-service "$service_name" stop >/dev/null 2>&1 || :
     fi
-    for name in agent agent-config.json service agent-service.sh; do
+    for name in agent agent-config.json service agent-service.sh helper helper-service helper-control; do
         case $name in
             agent) path=$komari_agent_path ;;
             agent-config.json) path=$config_path ;;
             service) path=$service_file ;;
             agent-service.sh) [[ $init_system == openrc ]] || continue; path=$wrapper ;;
+            helper) [[ ${enable_hermes_ai:-false} == true ]] || continue; path=$ai_helper ;;
+            helper-service) [[ ${enable_hermes_ai:-false} == true ]] || continue; path=$ai_service ;;
+            helper-control) [[ ${enable_hermes_ai:-false} == true ]] || continue; path=$ai_spool/control.json ;;
         esac
         if [[ -f $staging_dir/backup-$name ]]; then
             cp -p "$staging_dir/backup-$name" "$path" || failed=1
@@ -759,6 +930,14 @@ rollback_install() {
             rm -f "$path" || failed=1
         fi
     done
+    if [[ ${enable_hermes_ai:-false} == true ]]; then
+        systemctl daemon-reload || failed=1
+        if [[ ${previous_ai_enabled:-no} == yes ]]; then systemctl enable "$ai_runtime.service" || failed=1
+        else systemctl disable "$ai_runtime.service" || failed=1; fi
+        if [[ ${previous_ai_running:-no} == yes ]]; then
+            systemctl start "$ai_runtime.service" && systemctl is-active --quiet "$ai_runtime.service" || failed=1
+        fi
+    fi
     if [[ $init_system == systemd ]]; then
         systemctl daemon-reload || failed=1
         if [[ $previous_enabled == yes ]]; then
@@ -781,19 +960,52 @@ rollback_install() {
     log_error 'Installation failed; previous artifacts and service state restored'
 }
 
+# Start with disabled control: readiness checks do not sample the source or quota.
+# The newly started Agent applies the opt-in flag only after a fresh helper report.
+start_hermes_helper() {
+    local control_tmp="$staging_dir/disabled-control" i
+    printf '{"enabled":false}\n' > "$control_tmp" && chmod 644 "$control_tmp" && mv -f "$control_tmp" "$ai_spool/control.json" || return 1
+    # Remove an old report only after backups. Never treat an old snapshot as ready.
+    [[ ! -L $ai_spool/report.json ]] || return 1
+    rm -f "$ai_spool/report.json" || return 1
+    systemctl daemon-reload && systemctl enable "$ai_runtime.service" && systemctl start "$ai_runtime.service" || return 1
+    for ((i=0;i<10;i++)); do
+        if [[ -f $ai_spool/report.json ]]; then
+            python3 - "$ai_spool/report.json" <<'PY'
+import json,sys,time
+with open(sys.argv[1]) as f: report=json.load(f)
+if report.get('version')!=1 or report.get('status')!='disabled' or not 0<=time.time()-report.get('observed_at',0)<60:
+    raise SystemExit(1)
+PY
+            return $?
+        fi
+        systemctl is-active --quiet "$ai_runtime.service" || return 1
+        sleep 1
+    done
+    log_error 'Restricted Hermes helper did not become ready'; return 1
+}
+
 commit_install() {
     local path name
     previous_running=no previous_enabled=no
+    previous_ai_running=no previous_ai_enabled=no
+    if [[ ${enable_hermes_ai:-false} == true ]]; then
+        if systemctl is-active --quiet "$ai_runtime.service"; then previous_ai_running=yes; fi
+        if systemctl is-enabled --quiet "$ai_runtime.service"; then previous_ai_enabled=yes; fi
+    fi
     if [[ $init_system == systemd ]]; then
         if systemctl is-active --quiet "${service_name}.service"; then previous_running=yes; fi
         if systemctl is-enabled --quiet "${service_name}.service"; then previous_enabled=yes; fi
     fi
-    for name in agent agent-config.json service agent-service.sh; do
+    for name in agent agent-config.json service agent-service.sh helper helper-service helper-control; do
         case $name in
             agent) path=$komari_agent_path ;;
             agent-config.json) path=$config_path ;;
             service) path=$service_file ;;
             agent-service.sh) [[ $init_system == openrc ]] || continue; path=$wrapper ;;
+            helper) [[ ${enable_hermes_ai:-false} == true ]] || continue; path=$ai_helper ;;
+            helper-service) [[ ${enable_hermes_ai:-false} == true ]] || continue; path=$ai_service ;;
+            helper-control) [[ ${enable_hermes_ai:-false} == true ]] || continue; path=$ai_spool/control.json ;;
         esac
         if [[ -e $path ]]; then
             [[ -f $path && ! -L $path ]] || return 1
@@ -804,6 +1016,14 @@ commit_install() {
     transaction_pending=yes
     if [[ $previous_running == yes ]]; then
         systemctl stop "${service_name}.service" || { rollback_install; return 1; }
+    fi
+    if [[ ${enable_hermes_ai:-false} == true ]]; then
+        if [[ $previous_ai_running == yes ]]; then
+            systemctl stop "$ai_runtime.service" || { rollback_install; return 1; }
+        fi
+        if ! mv -f "$staged_helper" "$ai_helper" || ! mv -f "$staged_ai_service" "$ai_service" || ! start_hermes_helper; then
+            rollback_install; return 1
+        fi
     fi
     if ! mv -f "$staged_agent" "$komari_agent_path" ||
        ! mv -f "$config_tmp" "$config_path" ||

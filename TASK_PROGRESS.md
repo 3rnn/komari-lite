@@ -1,5 +1,19 @@
 # TASK_PROGRESS.md
 
+## Optional Hermes AI Monitoring — current implementation
+
+STATUS: BLOCKED (local deployment target conflict)
+
+- Inspected the local worktree and current Hermes counter/usage implementation; canonical noncached input and cache categories are disjoint, reasoning is an output subset.
+- Defined `docs/ai-monitoring-contract.md` for the backend, isolated collector/Agent and admin UI.
+- Verified the official OpenAI reference pricing source and recorded an informational, source-versioned catalog in `docs/ai-pricing-reference.json`; tiers/modes are not guessed from cumulative counters.
+- Backend, Agent/collector/installers and frontend are implemented with opt-in collection disabled by default.
+- Corrected pricing effective-time selection, opaque quota-key validation, sampling-interval validation, release helper packaging, durable collector outbox backpressure, timezone initialization, and exact filter sentinel handling; targeted/full component validation is recorded in the current task session.
+- AI monitoring remains disabled on all existing real nodes; no Hermes database/auth configuration, task, production endpoint, or production service has been changed.
+- A local feature commit contains the verified implementation. Local deployment remains blocked because `/opt/komari` is currently the active development Agent runtime, not a verified disposable panel runtime; do not remove or overwrite it without an explicit safe runtime-path decision.
+- No tag, GitHub Release or production rollout is authorized by this work-in-progress status.
+
+
 # komari-lite Optimization Progress
 
 ## Current Goal

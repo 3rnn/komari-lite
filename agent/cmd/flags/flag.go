@@ -1,6 +1,8 @@
 package flags_pkg
 
 type Config struct {
+	EnableHermesAI       bool    `json:"enable_hermes_ai" env:"AGENT_ENABLE_HERMES_AI"`
+	HermesAISpool        string  `json:"hermes_ai_spool" env:"AGENT_HERMES_AI_SPOOL"`                 // Operator-local only; not remotely configurable.
 	AutoDiscoveryKey     string  `json:"auto_discovery_key" env:"AGENT_AUTO_DISCOVERY_KEY"`           // Deprecated: legacy marker to read auto-discovery.json; not a registration key
 	DisableAutoUpdate    bool    `json:"disable_auto_update" env:"AGENT_DISABLE_AUTO_UPDATE"`         // Disable auto-update.
 	RemoteControlEnabled bool    `json:"remote_control_enabled" env:"AGENT_REMOTE_CONTROL_ENABLED"`   // Deprecated: no remote control/terminal/exec/MCP in the lite Agent; parsed for compatibility.

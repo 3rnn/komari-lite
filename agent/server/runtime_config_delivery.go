@@ -1,6 +1,7 @@
 package server
 
 import (
+	"github.com/nuomiiiii/lite-agent/runtimeconfig"
 	"log"
 	"strings"
 	"sync"
@@ -52,6 +53,8 @@ func processRuntimeConfig(config v2.ConfigParams, eventID string) bool {
 		log.Printf("failed to apply runtime config revision %d: %v", config.Revision, err)
 	} else {
 		appliedConfigRevision.Store(config.Revision)
+		enabled := runtimeconfig.Snapshot().EnableHermesAI
+		result.EnableHermesAI = &enabled
 	}
 	setPendingConfigResult(result)
 	requestRuntimeConfigStateUpload()

@@ -8,6 +8,17 @@ function Log-Error { param([string]$Message) Write-Host "[ERROR] $Message"    -F
 function Log-Step { param([string]$Message) Write-Host "$Message"    -ForegroundColor Magenta }
 function Log-Config { param([string]$Message) Write-Host "- $Message"    -ForegroundColor White }
 
+# Reject --enable-hermes-ai before directory/network/service mutation. Explicit
+# false preserves the existing Windows installation workflow.
+foreach ($argument in $args) {
+    if ([string]$argument -cmatch '^--?enable-hermes-ai(?:=(.*))?$') {
+        if ($Matches[1] -cne 'false') {
+            Log-Error 'Hermes AI monitoring is unsupported on Windows'
+            exit 1
+        }
+    }
+}
+
 # Default parameters
 $InstallDir = Join-Path $Env:ProgramFiles "Komari"
 $ServiceName = "komari-agent"

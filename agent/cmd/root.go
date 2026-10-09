@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/nuomiiiii/lite-agent/dnsresolver"
+	"github.com/nuomiiiii/lite-agent/hermesai"
 	"github.com/nuomiiiii/lite-agent/monitoring/netstatic"
 	monitoring "github.com/nuomiiiii/lite-agent/monitoring/unit"
 	"github.com/nuomiiiii/lite-agent/runtimeconfig"
@@ -48,7 +49,20 @@ var RootCmd = &cobra.Command{
 		if _, err := applySavedAgentToken(); err != nil {
 			return fmt.Errorf("load saved node token: %w", err)
 		}
+		if flags.HermesAISpool == "" {
+			flags.HermesAISpool = hermesai.DefaultSpool
+		}
+		if err := hermesai.SetEnabled(flags.HermesAISpool, flags.EnableHermesAI); err != nil {
+			// Optional helper failures must not take ordinary monitoring offline.
+			// Never advertise the requested true value as successfully applied.
+			log.Print("Hermes AI helper unavailable; ordinary monitoring remains enabled")
+			flags.EnableHermesAI = false
+			if disableErr := hermesai.SetEnabled(flags.HermesAISpool, false); disableErr != nil {
+				log.Print("Hermes AI helper control unavailable; local operator intervention required")
+			}
+		}
 		runtimeconfig.Initialize(runtimeconfig.State{
+			EnableHermesAI:      flags.EnableHermesAI,
 			MonthRotate:         flags.MonthRotate,
 			MonthRotateTime:     flags.MonthRotateTime,
 			MonthRotateTimezone: flags.MonthRotateTimezone,
@@ -116,6 +130,7 @@ var RootCmd = &cobra.Command{
 			http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 		}
 		// The update package and auto-update were removed. --disable-auto-update is still accepted for old installers, but no updates occur.
+		go (hermesai.Relay{Spool: flags.HermesAISpool, Endpoint: strings.TrimRight(flags.Endpoint, "/"), Token: flags.Token, CFAccessClientID: flags.CFAccessClientID, CFAccessClientSecret: flags.CFAccessClientSecret}).Run(stopCtx, func() bool { return runtimeconfig.Snapshot().EnableHermesAI })
 		go server.DoUploadBasicInfoWorks()
 		go server.DoRuntimeConfigStateUploadWorks()
 		for {
@@ -252,6 +267,8 @@ func Execute() {
 }
 
 func init() {
+	RootCmd.PersistentFlags().BoolVar(&flags.EnableHermesAI, "enable-hermes-ai", false, "Enable provisioned Linux Hermes aggregate collector")
+	RootCmd.PersistentFlags().StringVar(&flags.HermesAISpool, "hermes-ai-spool", hermesai.DefaultSpool, "Local aggregate helper spool (never Hermes database/auth)")
 	RootCmd.PersistentFlags().StringVarP(&flags.Token, "token", "t", "", "API token")
 	//RootCmd.MarkPersistentFlagRequired("token")
 	RootCmd.PersistentFlags().StringVarP(&flags.Endpoint, "endpoint", "e", "", "API endpoint")

@@ -47,6 +47,7 @@ type DeploymentProfile struct {
 	GetIPAddrFromNIC         bool    `json:"get_ip_addr_from_nic"`
 	MemoryIncludeCache       bool    `json:"memory_include_cache"`
 	EnableGPU                bool    `json:"enable_gpu"`
+	EnableHermesAI           bool    `json:"enable_hermes_ai"`
 	EnableGHProxy            bool    `json:"enable_ghproxy"`
 	GHProxy                  string  `json:"ghproxy"`
 	EnableCustomDir          bool    `json:"enable_custom_dir"`
@@ -262,6 +263,22 @@ func completeDeploymentConfig(db *gorm.DB, clientUUID string, result v2.ConfigRe
 	if result.Revision == 0 || (result.Status != DeploymentDeliveryApplied && result.Status != DeploymentDeliveryFailed) {
 		return false, fmt.Errorf("invalid deployment config result")
 	}
+	if result.Status == DeploymentDeliveryApplied {
+		var stored models.ClientDeploymentProfile
+		if err := db.First(&stored, "client = ? AND revision = ?", clientUUID, result.Revision).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return false, nil
+			}
+			return false, err
+		}
+		var profile DeploymentProfile
+		if err := json.Unmarshal([]byte(stored.Config), &profile); err != nil {
+			return false, err
+		}
+		if profile.EnableHermesAI && (result.EnableHermesAI == nil || !*result.EnableHermesAI) {
+			return false, nil
+		}
+	}
 	errorMessage := strings.TrimSpace(result.Error)
 	errorMessage = strings.Map(func(r rune) rune {
 		if r < 0x20 || r == 0x7f {
@@ -418,6 +435,7 @@ func (profile DeploymentProfile) RuntimeConfig() v2.ConfigParams {
 	}
 	memoryIncludeCache := profile.MemoryIncludeCache
 	enableGPU := profile.EnableGPU
+	enableHermesAI := profile.EnableHermesAI
 	return v2.ConfigParams{
 		MonthRotate:        &monthRotate,
 		Interval:           &interval,
@@ -426,6 +444,7 @@ func (profile DeploymentProfile) RuntimeConfig() v2.ConfigParams {
 		IncludeMountpoints: &includeMountpoints,
 		MemoryIncludeCache: &memoryIncludeCache,
 		EnableGPU:          &enableGPU,
+		EnableHermesAI:     &enableHermesAI,
 	}
 }
 
@@ -459,6 +478,9 @@ func deploymentProfileFromRuntime(platform string, config v2.ConfigParams) (Depl
 	}
 	if config.MemoryIncludeCache != nil {
 		profile.MemoryIncludeCache = *config.MemoryIncludeCache
+	}
+	if config.EnableHermesAI != nil {
+		profile.EnableHermesAI = *config.EnableHermesAI
 	}
 	if config.EnableGPU != nil {
 		profile.EnableGPU = *config.EnableGPU
@@ -540,7 +562,7 @@ func adoptDeploymentRuntimeConfig(db *gorm.DB, clientUUID, platform string, conf
 			}
 
 			updates := map[string]any{}
-			if reflect.DeepEqual(managed.RuntimeConfig(), reported.RuntimeConfig()) {
+			if (!managed.EnableHermesAI || config.EnableHermesAI != nil) && reflect.DeepEqual(managed.RuntimeConfig(), reported.RuntimeConfig()) {
 				revision := existing.Revision
 				if revision == 0 {
 					revision = 1

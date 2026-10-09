@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nuomiiiii/lite-agent/hermesai"
 	"github.com/nuomiiiii/lite-agent/monitoring/netstatic"
 	monitoring "github.com/nuomiiiii/lite-agent/monitoring/unit"
 	v2 "github.com/nuomiiiii/lite-agent/protocol/v2"
@@ -48,6 +49,7 @@ func currentRuntimeConfigParams() v2.ConfigParams {
 	state := runtimeconfig.Snapshot()
 	return v2.ConfigParams{
 		Revision:            appliedRuntimeConfigRevision(),
+		EnableHermesAI:      &state.EnableHermesAI,
 		MonthRotate:         &state.MonthRotate,
 		MonthRotateTime:     &state.MonthRotateTime,
 		MonthRotateTimezone: &state.MonthRotateTimezone,
@@ -122,6 +124,16 @@ func applyRuntimeConfig(config v2.ConfigParams) (bool, error) {
 	}
 	if config.EnableGPU != nil {
 		next.EnableGPU = *config.EnableGPU
+	}
+	if config.EnableHermesAI != nil {
+		spool := flags.HermesAISpool
+		if spool == "" {
+			spool = hermesai.DefaultSpool
+		}
+		if err := hermesai.SetEnabled(spool, *config.EnableHermesAI); err != nil {
+			return false, err
+		}
+		next.EnableHermesAI = *config.EnableHermesAI
 	}
 	if next == current {
 		return false, nil
