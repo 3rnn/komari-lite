@@ -10,6 +10,7 @@ readonly REPOSITORY='3rnn/komari-lite'
 readonly DEFAULT_ROOT='/opt/komari'
 readonly DEFAULT_SERVICE='komari.service'
 readonly DEFAULT_STATE_DIR='/var/lib/komari-upgrade'
+readonly DEFAULT_UNIT_DIR='/etc/systemd/system'
 readonly DEFAULT_SAFE_UPGRADE_SHA256='6db6232b7f01cb641c8a0bda842c7467d7374b59ccdaa163d45456b6acdebb92,1fe3c0525b3358fff7367ef5ef0b1174bcfa3e23f6f03a9d8fb9362301659cd1'
 readonly API_BASE="https://api.github.com/repos/${REPOSITORY}/releases"
 readonly DOWNLOAD_BASE="https://github.com/${REPOSITORY}/releases/download"
@@ -17,8 +18,10 @@ readonly DOWNLOAD_BASE="https://github.com/${REPOSITORY}/releases/download"
 root="${KOMARI_ROOT:-$DEFAULT_ROOT}"
 service="${KOMARI_SERVICE:-$DEFAULT_SERVICE}"
 state_dir="${KOMARI_UPGRADE_STATE_DIR:-$DEFAULT_STATE_DIR}"
+unit_dir="${KOMARI_UPGRADE_UNIT_DIR:-$DEFAULT_UNIT_DIR}"
 requested_tag='latest'
 dry_run=0
+recover_flat=0
 stage=''
 layout=''
 current_binary=''
@@ -87,6 +90,15 @@ safe_regular_file() {
   metadata="$(stat -Lc '%u %a %F' -- "$path")" || return 1
   IFS=' ' read -r uid mode kind <<<"$metadata"
   [[ "$uid" == '0' && "$kind" == 'regular file' ]] || return 1
+  (( (8#$mode & 8#022) == 0 ))
+}
+
+safe_invoked_updater() {
+  local path=$1 metadata uid mode kind
+  [[ -f "$path" && ! -L "$path" ]] || return 1
+  metadata="$(stat -Lc '%u %a %F' -- "$path")" || return 1
+  IFS=' ' read -r uid mode kind <<<"$metadata"
+  [[ "$kind" == 'regular file' && ( "$uid" == '0' || "${SUDO_UID:-}" == "$uid" ) ]] || return 1
   (( (8#$mode & 8#022) == 0 ))
 }
 
@@ -317,6 +329,155 @@ PY
   [[ "$output" == 'accepted' ]] || die 'Safe-upgrade transaction preflight returned an unexpected result.'
 }
 
+prepare_flat_state_dir() {
+  if [[ -e "$state_dir" ]]; then
+    safe_directory "$state_dir" || die "Flat-layout upgrade state directory is unsafe: $state_dir"
+  else
+    install -d -m 0700 "$state_dir"
+    safe_directory "$state_dir" || die "Unable to create protected flat-layout upgrade state directory: $state_dir"
+  fi
+}
+
+flat_recovery_unit_name() {
+  printf 'komari-flat-recovery-%s.service\n' "$(printf '%s\0%s\0%s' "$root" "$service" "$state_dir" | sha256sum | awk '{print substr($1, 1, 16)}')"
+}
+
+flat_recovery_script() { printf '%s/flat-recovery/update-komari.sh\n' "$state_dir"; }
+
+durable_file() {
+  local path=$1
+  python3 - "$path" <<'PY'
+import os, sys
+path = sys.argv[1]
+fd = os.open(path, os.O_RDONLY)
+try:
+    os.fsync(fd)
+finally:
+    os.close(fd)
+directory = os.open(os.path.dirname(path), os.O_DIRECTORY)
+try:
+    os.fsync(directory)
+finally:
+    os.close(directory)
+PY
+}
+
+flat_journal_write() {
+  local phase=$1 journal="$state_dir/flat-journal.json"
+  python3 - "$journal" "$phase" "$root" "$service" "$backup_dir" "$previous_version" "$target_version" "$previous_schema" "$target_schema" <<'PY'
+import json, os, pathlib, sys, tempfile
+journal, phase, root, service, backup, previous, target, old_schema, new_schema = sys.argv[1:]
+path = pathlib.Path(journal)
+payload = {'phase': phase, 'root': root, 'service': service, 'backup_dir': backup, 'previous_version': previous, 'target_version': target, 'previous_schema': int(old_schema), 'target_schema': int(new_schema)}
+fd, temporary = tempfile.mkstemp(prefix='.flat-journal.', dir=path.parent)
+try:
+    with os.fdopen(fd, 'w', encoding='utf-8') as handle:
+        json.dump(payload, handle, sort_keys=True); handle.write('\n'); handle.flush(); os.fsync(handle.fileno())
+    os.replace(temporary, path)
+    directory = os.open(path.parent, os.O_DIRECTORY)
+    try: os.fsync(directory)
+    finally: os.close(directory)
+finally:
+    try: os.unlink(temporary)
+    except FileNotFoundError: pass
+PY
+}
+
+install_flat_recovery() {
+  local recovery_dir recovery_script recovery_unit unit_path temporary dropin_dir dropin_path updater_source
+  prepare_flat_state_dir
+  updater_source="$(realpath -e -- "$0")" || die 'Flat-layout recovery source updater is missing.'
+  safe_invoked_updater "$updater_source" || die "Flat-layout recovery source updater is unsafe: $updater_source"
+  recovery_dir="$state_dir/flat-recovery"
+  recovery_script="$(flat_recovery_script)"
+  recovery_unit="$(flat_recovery_unit_name)"
+  [[ "$root$state_dir$unit_dir" != *$'\n'* && "$root$state_dir$unit_dir" != *' '* && "$service" =~ ^[A-Za-z0-9_.@:-]+$ ]] || die 'Flat-layout automatic recovery requires safe systemd names and paths without spaces or newlines.'
+  if [[ -e "$recovery_dir" ]]; then safe_directory "$recovery_dir" || die "Flat-layout recovery directory is unsafe: $recovery_dir"; else install -d -m 0700 "$recovery_dir"; fi
+  install -o root -g root -m 0700 "$updater_source" "$recovery_script"
+  safe_regular_file "$recovery_script" || die "Flat-layout recovery helper is unsafe: $recovery_script"
+  if [[ -e "$unit_dir" ]]; then safe_directory "$unit_dir" || die "Flat-layout recovery unit directory is unsafe: $unit_dir"; else die "Flat-layout recovery unit directory is missing: $unit_dir"; fi
+  unit_path="$unit_dir/$recovery_unit"; temporary="$unit_path.new"
+  cat >"$temporary" <<EOF
+[Unit]
+Description=Komari flat-layout interrupted-update recovery
+ConditionPathExists=$state_dir/flat-journal.json
+After=local-fs.target
+Before=$service
+
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+Environment=KOMARI_ROOT=$root
+Environment=KOMARI_SERVICE=$service
+Environment=KOMARI_UPGRADE_STATE_DIR=$state_dir
+Environment=KOMARI_UPGRADE_UNIT_DIR=$unit_dir
+ExecStart=/bin/bash $recovery_script --recover-flat
+
+[Install]
+WantedBy=multi-user.target
+EOF
+  install -o root -g root -m 0600 "$temporary" "$unit_path"; rm -f -- "$temporary"
+  safe_regular_file "$unit_path" || die "Flat-layout recovery unit is unsafe: $unit_path"
+  dropin_dir="$unit_dir/$service.d"; dropin_path="$dropin_dir/10-komari-flat-recovery.conf"
+  if [[ -e "$dropin_dir" ]]; then safe_directory "$dropin_dir" || die "Flat-layout service recovery drop-in directory is unsafe: $dropin_dir"; else install -d -o root -g root -m 0755 "$dropin_dir"; fi
+  printf '[Unit]\nRequires=%s\nAfter=%s\n' "$recovery_unit" "$recovery_unit" >"$dropin_path.new"
+  install -o root -g root -m 0600 "$dropin_path.new" "$dropin_path"; rm -f -- "$dropin_path.new"
+  safe_regular_file "$dropin_path" || die "Flat-layout service recovery drop-in is unsafe: $dropin_path"
+  systemctl daemon-reload || die 'Unable to reload systemd after installing flat-layout recovery.'
+  systemctl enable "$recovery_unit" || die 'Unable to enable flat-layout automatic recovery before service stop.'
+}
+
+recover_flat_interrupted_transaction() {
+  local journal="$state_dir/flat-journal.json" details phase saved_backup saved_previous saved_schema
+  [[ -e "$journal" ]] || return 0
+  safe_directory "$state_dir" || die "Flat-layout recovery state directory is unsafe: $state_dir"
+  safe_regular_file "$journal" || die "Flat-layout recovery journal is unsafe: $journal"
+  safe_regular_file "$(flat_recovery_script)" || die 'Flat-layout recovery helper is unsafe.'
+  details="$(python3 - "$journal" "$root" "$service" <<'PY'
+import json, pathlib, sys
+journal, root, service = sys.argv[1:]
+data = json.load(open(journal, encoding='utf-8'))
+if data.get('root') != root or data.get('service') != service: raise SystemExit('journal belongs to another installation')
+if data.get('phase') == 'rolled_back': raise SystemExit(0)
+if data.get('phase') not in {'prepared', 'stopping', 'stopped', 'snapshotted', 'replaced', 'starting', 'recovering', 'recovered_files'}: raise SystemExit('unknown journal phase')
+backup = pathlib.Path(data.get('backup_dir', ''))
+if backup.parent not in (pathlib.Path(root) / 'backup', pathlib.Path(root) / 'backups') or backup.is_symlink(): raise SystemExit('unsafe backup directory')
+previous = data.get('previous_version')
+schema = data.get('previous_schema')
+if not isinstance(previous, str) or not previous or not isinstance(schema, int) or schema < 0: raise SystemExit('invalid recovery metadata')
+print(data['phase']); print(backup); print(previous); print(schema)
+PY
+)" || die 'Flat-layout recovery journal is malformed or belongs to another installation.'
+  mapfile -t _flat_recovery < <(printf '%s\n' "$details")
+  phase="${_flat_recovery[0]:-}"; saved_backup="${_flat_recovery[1]:-}"; saved_previous="${_flat_recovery[2]:-}"; saved_schema="${_flat_recovery[3]:-}"
+  [[ -n "$phase" ]] || return 0
+  safe_directory "$saved_backup" || die "Flat-layout recovery backup directory is unsafe: $saved_backup"
+  safe_regular_file "$saved_backup/komari.previous" || die "Flat-layout recovery backup is missing or unsafe: $saved_backup/komari.previous"
+  backup_dir="$saved_backup"; previous_version="$saved_previous"; target_version='recovery'; previous_schema="$saved_schema"; target_schema="$saved_schema"
+  flat_journal_write recovering
+  log "Automatically recovering unfinished flat-layout transaction ($phase) from $saved_backup."
+  systemctl stop "$service" || true
+  install -m 0755 "$saved_backup/komari.previous" "$root/komari.recovery"; mv -f "$root/komari.recovery" "$root/komari"
+  if [[ "$phase" == 'snapshotted' || "$phase" == 'replaced' || "$phase" == 'starting' || "$phase" == 'recovering' || "$phase" == 'recovered_files' ]]; then
+    safe_directory "$saved_backup/sqlite" || die 'Flat-layout recovery SQLite backup directory is missing or unsafe.'
+    safe_regular_file "$saved_backup/sqlite/komari.db" || die 'Flat-layout recovery SQLite backup is missing or unsafe.'
+    schema_from_database "$saved_backup/sqlite/komari.db" >/dev/null || die 'Flat-layout recovery SQLite backup failed integrity verification.'
+    if [[ -e "$saved_backup/sqlite/metrics.db" ]]; then
+      safe_regular_file "$saved_backup/sqlite/metrics.db" || die 'Flat-layout recovery metrics backup is unsafe.'
+      schema_from_database "$saved_backup/sqlite/metrics.db" >/dev/null || die 'Flat-layout recovery metrics backup failed integrity verification.'
+    fi
+    install -m 0600 "$saved_backup/sqlite/komari.db" "$root/data/komari.db.recovery"; mv -f "$root/data/komari.db.recovery" "$root/data/komari.db"
+    if [[ -e "$saved_backup/sqlite/metrics.db" ]]; then install -m 0600 "$saved_backup/sqlite/metrics.db" "$root/data/metrics.db.recovery"; mv -f "$root/data/metrics.db.recovery" "$root/data/metrics.db"; fi
+  fi
+  schema_from_database "$root/data/komari.db" >/dev/null || die 'Recovered SQLite database failed integrity verification.'
+  flat_journal_write recovered_files
+  systemctl start "$service" || die "Flat-layout recovery restored the previous executable but could not start $service."
+  verify_flat_health "$saved_previous" || die "Flat-layout recovery restored the previous executable but it did not become healthy."
+  flat_journal_write rolled_back
+  log 'Flat-layout interrupted transaction was rolled back and the previous version is healthy.'
+}
+
 flat_backup_parent() {
   if [[ -e "$root/backup" ]]; then
     [[ -d "$root/backup" && ! -L "$root/backup" ]] || die "Unsafe flat-layout backup path: $root/backup"
@@ -351,6 +512,7 @@ restore_flat_after_failure() {
   fi
   systemctl start "$service" || return 1
   if verify_flat_health "$previous_version"; then
+    flat_journal_write rolled_back
     log 'Flat-layout rollback completed and the previous version is healthy.'
     return 0
   fi
@@ -364,18 +526,33 @@ update_flat() {
   prepare_flat_backup_parent "$parent"
   backup_dir="$(mktemp -d "$parent/update-${resolved_tag}-$(date -u +%Y%m%dT%H%M%SZ)-XXXXXX")"
   cp -a -- "$root/komari" "$backup_dir/komari.previous"
+  durable_file "$backup_dir/komari.previous"
   printf '%s\n' "$previous_version" >"$backup_dir/previous-version.txt"
   printf '%s\n' "$resolved_tag" >"$backup_dir/target-release.txt"
   printf '%s\n' "$expected_sha" >"$backup_dir/$asset.sha256"
+  durable_file "$backup_dir/previous-version.txt"
+  durable_file "$backup_dir/target-release.txt"
+  durable_file "$backup_dir/$asset.sha256"
+  install_flat_recovery
+  flat_journal_write prepared
 
   log 'Download and checksum verification succeeded. Stopping the service.'
+  flat_journal_write stopping
   systemctl stop "$service"
+  flat_journal_write stopped
   install -d -m 0700 "$backup_dir/sqlite"
   sqlite_backup "$root/data/komari.db" "$backup_dir/sqlite/komari.db"
-  if [[ -f "$root/data/metrics.db" ]]; then sqlite_backup "$root/data/metrics.db" "$backup_dir/sqlite/metrics.db"; fi
+  durable_file "$backup_dir/sqlite/komari.db"
+  if [[ -f "$root/data/metrics.db" ]]; then
+    sqlite_backup "$root/data/metrics.db" "$backup_dir/sqlite/metrics.db"
+    durable_file "$backup_dir/sqlite/metrics.db"
+  fi
+  flat_journal_write snapshotted
 
   install -m 0755 "$stage/$asset" "$root/komari.new"
   mv -f "$root/komari.new" "$root/komari"
+  flat_journal_write replaced
+  flat_journal_write starting
   if ! systemctl start "$service" || ! verify_flat_health "$target_version"; then
     if restore_flat_after_failure; then rollback_status=0; else rollback_status=$?; fi
     if (( rollback_status == 2 )); then
@@ -384,12 +561,14 @@ update_flat() {
     die "Flat-layout update failed. Previous executable backup: $backup_dir"
   fi
   log "Flat-layout update successful. Backup location: $backup_dir"
+  rm -f -- "$state_dir/flat-journal.json"
 }
 
 while (( $# > 0 )); do
   case "$1" in
     --help|-h) usage; exit 0 ;;
     --dry-run) dry_run=1 ;;
+    --recover-flat) recover_flat=1 ;;
     v[0-9]*.[0-9]*.[0-9]*) [[ "$requested_tag" == 'latest' ]] || die 'Only one release version may be specified.'; requested_tag=$1 ;;
     *) die "Unknown argument: $1 (use --help)" ;;
   esac
@@ -399,6 +578,10 @@ done
 (( EUID == 0 )) || die 'Run this script as root.'
 for command in bash curl python3 sha256sum systemctl install mv cp awk sed date stat realpath readlink; do require_command "$command"; done
 root="$(realpath -e -- "$root" 2>/dev/null || printf '%s' "$root")"
+if (( recover_flat == 1 )); then
+  recover_flat_interrupted_transaction
+  exit 0
+fi
 detect_layout
 verify_service_target
 previous_version="$(version_from_binary "$current_binary")" || die "Existing executable does not support \`version --json\`."

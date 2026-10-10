@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -222,6 +223,27 @@ func TestInstallCompletesAndPersistsSettings(t *testing.T) {
 	})
 	if repeat.Code != http.StatusConflict {
 		t.Fatalf("repeat install status = %d, want %d", repeat.Code, http.StatusConflict)
+	}
+}
+
+func TestInstallSettingsFailureRollsBackNewAccountAndConfiguration(t *testing.T) {
+	r, db, _ := setupInstallRouter(t)
+	oldSave := saveInstallSettings
+	saveInstallSettings = func(*gorm.DB, map[string]any) error { return errors.New("injected settings failure") }
+	t.Cleanup(func() { saveInstallSettings = oldSave })
+
+	response := performJSON(r, http.MethodPost, APIPath+"/complete", completeRequest{
+		Username: "owner", Password: "Correct-horse-battery-staple1", Sitename: "My Komari", MetricDSN: "./data/metrics.db",
+	})
+	if response.Code != http.StatusInternalServerError {
+		t.Fatalf("settings failure status = %d, want %d: %s", response.Code, http.StatusInternalServerError, response.Body.String())
+	}
+	var users, configs int64
+	if err := db.Model(&models.User{}).Count(&users).Error; err != nil || users != 0 {
+		t.Fatalf("settings failure persisted users: count=%d err=%v", users, err)
+	}
+	if err := db.Model(&appconfig.ConfigItem{}).Count(&configs).Error; err != nil || configs != 0 {
+		t.Fatalf("settings failure persisted config: count=%d err=%v", configs, err)
 	}
 }
 

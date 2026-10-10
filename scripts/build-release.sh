@@ -6,7 +6,7 @@ IFS=$'\n\t'
 root="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 version="${1:?usage: $0 <vX.Y.Z> [output-directory] [previous-tag]}"
 out="${2:-$root/release/$version}"
-previous_tag="${3:-v1.0.20}"
+previous_tag="${3:-v1.0.26}"
 revision="$(git -C "$root" rev-parse HEAD)"
 
 [[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'Version must be vX.Y.Z' >&2; exit 1; }

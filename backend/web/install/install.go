@@ -59,6 +59,7 @@ func NewController(db *gorm.DB) *Controller {
 var (
 	scheduleInstallRestart = func(delay time.Duration, task func()) { time.AfterFunc(delay, task) }
 	exitInstallProcess     = os.Exit
+	saveInstallSettings    = appconfig.SetManyWithDB
 )
 
 // restoreRestartExitCode asks common service managers with Restart=on-failure
@@ -213,28 +214,25 @@ func (c *Controller) fail() {
 }
 
 func (c *Controller) createAccountAndSettings(request *completeRequest, cfg *metricstore.MetricStoreConfig) error {
-	var count int64
-	if err := c.db.Model(&models.User{}).Count(&count).Error; err != nil {
-		return err
-	}
-	if count != 0 {
-		return fmt.Errorf("installation is already completed")
-	}
-	user, err := accounts.CreateAccountWithDB(c.db, request.Username, request.Password)
-	if err != nil {
-		return err
-	}
 	settings := map[string]any{
 		appconfig.SitenameKey:         request.Sitename,
 		appconfig.DescriptionKey:      request.Description,
 		metricstore.MetricDBDriverKey: cfg.Driver,
 		metricstore.MetricDBDSNKey:    cfg.DSN,
 	}
-	if err := appconfig.SetMany(settings); err != nil {
-		_ = accounts.DeleteAccountByUsernameWithDB(c.db, user.Username)
-		return err
-	}
-	return nil
+	return c.db.Transaction(func(tx *gorm.DB) error {
+		var count int64
+		if err := tx.Model(&models.User{}).Count(&count).Error; err != nil {
+			return err
+		}
+		if count != 0 {
+			return fmt.Errorf("installation is already completed")
+		}
+		if _, err := accounts.CreateAccountWithDB(tx, request.Username, request.Password); err != nil {
+			return err
+		}
+		return saveInstallSettings(tx, settings)
+	})
 }
 
 func validateRequest(request *completeRequest) error {

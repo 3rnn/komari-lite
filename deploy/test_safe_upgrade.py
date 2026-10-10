@@ -29,13 +29,13 @@ class UpgradeTests(unittest.TestCase):
         (self.root / 'data' / 'theme' / 'Glass' / 'dist').mkdir(parents=True)
         (self.root / 'data' / 'theme' / 'Glass' / 'dist' / 'index.html').write_text('<html>old</html>')
         (self.root / 'data' / 'theme' / 'Glass' / 'komari-theme.json').write_text('{"name":"Glass"}')
-        db = sqlite3.connect(self.root / 'data' / 'komari.db')
-        db.execute('create table configs (key text, value text)')
-        db.execute('insert into configs values (?,?)', ('metric_db_driver', json.dumps('sqlite')))
-        db.execute('insert into configs values (?,?)', ('metric_db_dsn', json.dumps('./data/metrics.db')))
-        db.execute('create table users (name text)')
-        db.execute('insert into users values (?)', ('alice',))
-        db.commit(); db.close()
+        with closing(sqlite3.connect(self.root / 'data' / 'komari.db')) as db:
+            db.execute('create table configs (key text, value text)')
+            db.execute('insert into configs values (?,?)', ('metric_db_driver', json.dumps('sqlite')))
+            db.execute('insert into configs values (?,?)', ('metric_db_dsn', json.dumps('./data/metrics.db')))
+            db.execute('create table users (name text)')
+            db.execute('insert into users values (?)', ('alice',))
+            db.commit()
         sqlite3.connect(self.root / 'data' / 'metrics.db').close()
         self.old = self.root / 'komari'
         self.binary(self.old, '1.0.16', legacy=True)
@@ -227,6 +227,17 @@ class UpgradeTests(unittest.TestCase):
         result = self.upgrade('--expected-version', '8.2.0')
         self.assertNotEqual(result.returncode, 0, result.stderr)
         self.assertIn('release tag', result.stderr)
+        self.assertFalse((self.state/'journal.json').exists())
+        self.assertEqual((self.base/'state').read_text(), before)
+
+    def test_candidate_schema_downgrade_is_rejected_before_service_stop(self):
+        self.install()
+        with closing(sqlite3.connect(self.root/'data'/'komari.db')) as db, db:
+            db.execute('pragma user_version=2')
+        before = (self.base/'state').read_text()
+        result = self.upgrade()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('schema downgrade', result.stderr)
         self.assertFalse((self.state/'journal.json').exists())
         self.assertEqual((self.base/'state').read_text(), before)
 

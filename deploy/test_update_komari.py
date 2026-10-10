@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import shutil
 import sqlite3
+from contextlib import closing
 import subprocess
 import sys
 import tempfile
@@ -26,10 +27,12 @@ class UpdateKomariScriptTests(unittest.TestCase):
         self.state = self.base / "state"
         self.release = self.base / "release"
         self.bin = self.base / "bin"
+        self.unit_dir = self.base / "units"
         self.root.mkdir()
         self.state.mkdir()
         self.release.mkdir()
         self.bin.mkdir()
+        self.unit_dir.mkdir()
         self._make_database(self.root / "data" / "komari.db")
         self._make_database(self.root / "data" / "metrics.db")
         self._make_release()
@@ -38,9 +41,10 @@ class UpdateKomariScriptTests(unittest.TestCase):
 
     def _make_database(self, database):
         database.parent.mkdir(parents=True, exist_ok=True)
-        with sqlite3.connect(database) as db:
+        with closing(sqlite3.connect(database)) as db:
             db.execute("create table preserved (value text)")
             db.execute("insert into preserved values ('before')")
+            db.commit()
 
     def _make_binary(self, path, version):
         path.write_text(
@@ -97,7 +101,7 @@ class UpdateKomariScriptTests(unittest.TestCase):
         fake = self.bin / "systemctl"
         fake.write_text(
             "#!/usr/bin/env python3\n"
-            "import os, pathlib, sys\n"
+            "import os, pathlib, shlex, subprocess, sys\n"
             "log=pathlib.Path(os.environ['UPDATE_FIXTURE_SYSTEMCTL_LOG'])\n"
             "args=sys.argv[1:]\n"
             "if args[0] == 'show':\n"
@@ -105,9 +109,22 @@ class UpdateKomariScriptTests(unittest.TestCase):
             " if '-p' in args and 'LoadState' in args: print('loaded')\n"
             " else: print('ExecStart={ path='+root+'/komari ; argv[]='+root+'/komari server ; }\\nWorkingDirectory='+root)\n"
             "elif args[0] == 'is-active': raise SystemExit(0)\n"
+            "elif args[0] == 'start' and len(args) > 1 and (pathlib.Path(os.environ['KOMARI_UPGRADE_UNIT_DIR']) / args[1]).is_file():\n"
+            " unit=(pathlib.Path(os.environ['KOMARI_UPGRADE_UNIT_DIR']) / args[1]).read_text()\n"
+            " command=next(line.split('=', 1)[1] for line in unit.splitlines() if line.startswith('ExecStart='))\n"
+            " environment=os.environ.copy()\n"
+            " for key in ('KOMARI_ROOT','KOMARI_SERVICE','KOMARI_UPGRADE_STATE_DIR','KOMARI_UPGRADE_UNIT_DIR'): environment.pop(key, None)\n"
+            " for line in unit.splitlines():\n"
+            "  if line.startswith('Environment='):\n"
+            "   key, value=line.removeprefix('Environment=').split('=', 1); environment[key]=value\n"
+            " log.write_text((log.read_text() if log.exists() else '') + 'boot '+args[1]+'\\n')\n"
+            " raise SystemExit(subprocess.call(shlex.split(command), env=environment))\n"
             "elif args[0] == 'start' and os.environ.get('UPDATE_FIXTURE_FAIL_START'): raise SystemExit(1)\n"
+            "elif args[0] == 'stop' and os.environ.get('UPDATE_FIXTURE_KILL_PARENT_ON_STOP'):\n"
+            " log.write_text((log.read_text() if log.exists() else '') + 'stop\\n'); os.kill(os.getppid(), 9)\n"
             "else:\n"
-            " log.write_text((log.read_text() if log.exists() else '') + args[0]+'\\n')\n"
+            " action=('enable '+args[1]) if args[0] == 'enable' else args[0]\n"
+            " log.write_text((log.read_text() if log.exists() else '') + action+'\\n')\n"
         )
         fake.chmod(0o755)
 
@@ -153,6 +170,7 @@ class UpdateKomariScriptTests(unittest.TestCase):
             "KOMARI_ROOT": str(self.root),
             "KOMARI_SERVICE": "komari.service",
             "KOMARI_UPGRADE_STATE_DIR": str(self.state),
+            "KOMARI_UPGRADE_UNIT_DIR": str(self.unit_dir),
             "KOMARI_SAFE_UPGRADE_SHA256_ALLOWLIST": controller_hash,
             "UPDATE_FIXTURE_RELEASE": str(self.release),
             "UPDATE_FIXTURE_SYSTEMCTL_LOG": str(self.base / "systemctl.log"),
@@ -163,7 +181,7 @@ class UpdateKomariScriptTests(unittest.TestCase):
                               env={**self._env(), **(env or {})})
 
     def _assert_db_preserved(self, name):
-        with sqlite3.connect(self.root / "data" / name) as db:
+        with closing(sqlite3.connect(self.root / "data" / name)) as db:
             self.assertEqual(db.execute("select value from preserved").fetchone()[0], "before")
 
     def test_production_controller_fingerprint_is_supported(self):
@@ -277,6 +295,33 @@ class UpdateKomariScriptTests(unittest.TestCase):
         self._assert_db_preserved("metrics.db")
         self.assertIn("stop", (self.base / "systemctl.log").read_text())
 
+    def test_flat_interruption_is_automatically_recovered_on_reboot(self):
+        self._make_binary(self.root / "komari", "1.0.19")
+        previous = (self.root / "komari").read_bytes()
+        interrupted = self._run("v1.0.26", env={"UPDATE_FIXTURE_KILL_PARENT_ON_STOP": "1"})
+        self.assertNotEqual(interrupted.returncode, 0)
+        journal = self.state / "flat-journal.json"
+        self.assertTrue(journal.is_file(), "interruption must leave durable recovery state")
+        self.assertIn(json.loads(journal.read_text())["phase"], {"stopping", "stopped"})
+        recovery_copy = self.state / "flat-recovery" / "update-komari.sh"
+        self.assertTrue(recovery_copy.is_file(), "reboot recovery must not depend on the caller's script")
+        units = list(self.unit_dir.glob("komari-flat-recovery-*.service"))
+        self.assertEqual(len(units), 1)
+        unit = units[0]
+        self.assertIn(f"ExecStart=/bin/bash {recovery_copy} --recover-flat", unit.read_text())
+        drop_in = self.unit_dir / "komari.service.d" / "10-komari-flat-recovery.conf"
+        self.assertEqual(drop_in.read_text(), f"[Unit]\nRequires={unit.name}\nAfter={unit.name}\n")
+        actions = (self.base / "systemctl.log").read_text().splitlines()
+        self.assertLess(actions.index("enable " + unit.name), actions.index("stop"))
+
+        reboot = subprocess.run(["systemctl", "start", unit.name], text=True, capture_output=True,
+                                env={**self._env(), "PATH": str(self.bin) + os.pathsep + os.environ["PATH"]})
+        self.assertEqual(reboot.returncode, 0, reboot.stderr)
+        self.assertEqual((self.root / "komari").read_bytes(), previous)
+        self.assertEqual(json.loads(journal.read_text())["phase"], "rolled_back")
+        self._assert_db_preserved("komari.db")
+        self._assert_db_preserved("metrics.db")
+
     def test_versioned_interruption_preserves_journal_and_next_run_fails_closed(self):
         releases = self.root / "releases" / "1.0.19"
         releases.mkdir(parents=True)
@@ -333,7 +378,7 @@ class UpdateKomariScriptTests(unittest.TestCase):
         })
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual((self.root / "komari").read_bytes(), previous)
-        with sqlite3.connect(self.root / "data" / "komari.db") as db:
+        with closing(sqlite3.connect(self.root / "data" / "komari.db")) as db:
             self.assertEqual(db.execute("pragma user_version").fetchone()[0], 3)
         self.assertEqual((self.base / "systemctl.log").read_text().splitlines()[-1], "stop")
 

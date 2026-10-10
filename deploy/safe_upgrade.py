@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Offline-first, journaled native Komari upgrade. Python 3 standard library only."""
 import argparse
+from contextlib import closing
 import fcntl
 import hashlib
 import html.parser
@@ -79,14 +80,14 @@ def safe_tree(path):
 
 def sqlite_check(path):
     require(path.is_file() and not path.is_symlink(), 'missing SQLite: ' + str(path))
-    with sqlite3.connect('file:' + str(path) + '?mode=ro', uri=True) as db:
+    with closing(sqlite3.connect('file:' + str(path) + '?mode=ro', uri=True)) as db:
         require(db.execute('pragma quick_check').fetchone()[0] == 'ok', 'SQLite integrity failed: ' + str(path))
 
 
 def config_check(root):
     dbpath = root / 'data' / 'komari.db'
     sqlite_check(dbpath)
-    with sqlite3.connect('file:' + str(dbpath) + '?mode=ro', uri=True) as db:
+    with closing(sqlite3.connect('file:' + str(dbpath) + '?mode=ro', uri=True)) as db:
         columns = {row[1] for row in db.execute('pragma table_info(configs)')}
         if {'key', 'value'} <= columns:
             rows = dict(db.execute("select key, value from configs where key in ('metric_db_driver','metric_db_dsn')"))
@@ -101,9 +102,17 @@ def config_check(root):
     if metrics.exists(): sqlite_check(metrics)
     return dbpath
 
+def database_schema(root):
+    dbpath = root / 'data' / 'komari.db'
+    with closing(sqlite3.connect('file:' + str(dbpath) + '?mode=ro', uri=True)) as db:
+        value = db.execute('pragma user_version').fetchone()[0]
+    require(isinstance(value, int) and value >= 0, 'invalid installed database schema')
+    return value
+
+
 def check_restricted_migrations(root):
     dbpath = root/'data'/'komari.db'
-    with sqlite3.connect('file:' + str(dbpath) + '?mode=ro', uri=True) as db:
+    with closing(sqlite3.connect('file:' + str(dbpath) + '?mode=ro', uri=True)) as db:
         for table in ('records', 'records_long_term', 'gpu_records', 'ping_records'):
             if db.execute('select 1 from sqlite_master where type=? and name=?', ('table', table)).fetchone():
                 require(db.execute('select 1 from "' + table + '" limit 1').fetchone() is None,
@@ -547,6 +556,9 @@ def preflight(a, require_gate=True):
         require(version == a.expected_version, 'candidate version mismatch with release tag')
     require(version != old_version, 'identical version refused')
     config_check(root)
+    installed_schema = database_schema(root)
+    require(schema >= installed_schema,
+            'schema downgrade refused: installed database schema %d exceeds candidate schema %d' % (installed_schema, schema))
     check_restricted_migrations(root)
     safe_tree(root/'data')
     if (root/'config').exists(): safe_tree(root/'config')
