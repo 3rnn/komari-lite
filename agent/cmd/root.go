@@ -52,6 +52,11 @@ var RootCmd = &cobra.Command{
 		if flags.HermesAISpool == "" {
 			flags.HermesAISpool = hermesai.DefaultSpool
 		}
+		if flags.EnableHermesAI {
+			if err := hermesai.SetProtocolVersion(flags.HermesAISpool, 2); err != nil {
+				log.Print("Hermes AI protocol capability unavailable; using compatible helper report")
+			}
+		}
 		if err := hermesai.SetEnabled(flags.HermesAISpool, flags.EnableHermesAI); err != nil {
 			// Optional helper failures must not take ordinary monitoring offline.
 			// Never advertise the requested true value as successfully applied.

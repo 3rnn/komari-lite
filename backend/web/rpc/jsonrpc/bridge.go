@@ -119,8 +119,10 @@ func rpcErrorHTTPStatus(code int) int {
 		return http.StatusUnauthorized
 	case rpc.NotFound:
 		return http.StatusNotFound
-	case rpc.RateLimited, rpc.ResourceExhausted:
+	case rpc.RateLimited:
 		return http.StatusTooManyRequests
+	case rpc.ResourceExhausted:
+		return http.StatusUnprocessableEntity
 	default:
 		return http.StatusInternalServerError
 	}

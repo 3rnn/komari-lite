@@ -596,6 +596,7 @@ RuntimeDirectory=$ai_runtime
 RuntimeDirectoryMode=0700
 ProtectHome=tmpfs
 ProtectSystem=strict
+InaccessiblePaths=$hermes_home
 ReadWritePaths=$ai_private $ai_spool
 BindReadOnlyPaths=$(systemd_quote "$ai_helper:/run/$ai_runtime/helper.py")
 BindReadOnlyPaths=$(systemd_quote "$hermes_home/state.db:/run/$ai_runtime/source/state.db")
@@ -616,6 +617,31 @@ RestrictRealtime=true
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 Restart=on-failure
 RestartSec=10
+[Install]
+WantedBy=multi-user.target
+EOF
+}
+
+# Keep source-file isolation. A path unit restarts the restricted helper after
+# an atomic auth.json replacement so its file bind mount never pins a deleted inode.
+write_hermes_auth_refresh_service() {
+    cat <<EOF
+[Unit]
+# komari-hermes installer
+Description=Refresh restricted Komari Hermes observer after OAuth replacement
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemctl try-restart $ai_runtime.service
+EOF
+}
+write_hermes_auth_refresh_path() {
+    cat <<EOF
+[Unit]
+# komari-hermes installer
+Description=Watch Hermes OAuth file for restricted observer refresh
+[Path]
+PathChanged=$hermes_home/auth.json
+Unit=$ai_runtime-auth-refresh.service
 [Install]
 WantedBy=multi-user.target
 EOF
@@ -642,6 +668,8 @@ ai_private="$ai_base/private"
 ai_spool="$ai_base/spool"
 ai_helper="$target_dir/hermes_collector.py"
 ai_service="/etc/systemd/system/${ai_runtime}.service"
+ai_auth_refresh_service="/etc/systemd/system/${ai_runtime}-auth-refresh.service"
+ai_auth_refresh_path="/etc/systemd/system/${ai_runtime}-auth-refresh.path"
 init_system=$(detect_init_system)
 log_info "Detected init system: ${GREEN}$init_system${NC}"
 case $init_system in
@@ -814,8 +842,12 @@ if [[ $enable_hermes_ai == true ]]; then
     # Allow the owner to traverse only this independent state parent.
     chmod 755 "$ai_base" || exit 1
     staged_ai_service="$staging_dir/helper-service"
+    staged_ai_auth_refresh_service="$staging_dir/helper-auth-refresh-service"
+    staged_ai_auth_refresh_path="$staging_dir/helper-auth-refresh-path"
     write_hermes_unit > "$staged_ai_service" || exit 1
-    chmod 600 "$staged_ai_service" || exit 1
+    write_hermes_auth_refresh_service > "$staged_ai_auth_refresh_service" || exit 1
+    write_hermes_auth_refresh_path > "$staged_ai_auth_refresh_path" || exit 1
+    chmod 600 "$staged_ai_service" "$staged_ai_auth_refresh_service" "$staged_ai_auth_refresh_path" || exit 1
 fi
 komari_args+=("--hermes-ai-spool" "$ai_spool" "--enable-hermes-ai=$enable_hermes_ai")
 
@@ -907,6 +939,7 @@ rollback_install() {
     local path name failed=0
     transaction_pending=no
     if [[ ${enable_hermes_ai:-false} == true ]]; then
+        systemctl stop "$ai_runtime-auth-refresh.path" >/dev/null 2>&1 || :
         systemctl stop "$ai_runtime.service" >/dev/null 2>&1 || :
     fi
     if [[ $init_system == systemd ]]; then
@@ -914,7 +947,7 @@ rollback_install() {
     else
         rc-service "$service_name" stop >/dev/null 2>&1 || :
     fi
-    for name in agent agent-config.json service agent-service.sh helper helper-service helper-control; do
+    for name in agent agent-config.json service agent-service.sh helper helper-service helper-auth-refresh-service helper-auth-refresh-path helper-control; do
         case $name in
             agent) path=$komari_agent_path ;;
             agent-config.json) path=$config_path ;;
@@ -922,6 +955,8 @@ rollback_install() {
             agent-service.sh) [[ $init_system == openrc ]] || continue; path=$wrapper ;;
             helper) [[ ${enable_hermes_ai:-false} == true ]] || continue; path=$ai_helper ;;
             helper-service) [[ ${enable_hermes_ai:-false} == true ]] || continue; path=$ai_service ;;
+            helper-auth-refresh-service) [[ ${enable_hermes_ai:-false} == true ]] || continue; path=$ai_auth_refresh_service ;;
+            helper-auth-refresh-path) [[ ${enable_hermes_ai:-false} == true ]] || continue; path=$ai_auth_refresh_path ;;
             helper-control) [[ ${enable_hermes_ai:-false} == true ]] || continue; path=$ai_spool/control.json ;;
         esac
         if [[ -f $staging_dir/backup-$name ]]; then
@@ -934,6 +969,11 @@ rollback_install() {
         systemctl daemon-reload || failed=1
         if [[ ${previous_ai_enabled:-no} == yes ]]; then systemctl enable "$ai_runtime.service" || failed=1
         else systemctl disable "$ai_runtime.service" || failed=1; fi
+        if [[ ${previous_ai_path_enabled:-no} == yes ]]; then systemctl enable "$ai_runtime-auth-refresh.path" || failed=1
+        else systemctl disable "$ai_runtime-auth-refresh.path" || failed=1; fi
+        if [[ ${previous_ai_path_running:-no} == yes ]]; then
+            systemctl start "$ai_runtime-auth-refresh.path" && systemctl is-active --quiet "$ai_runtime-auth-refresh.path" || failed=1
+        fi
         if [[ ${previous_ai_running:-no} == yes ]]; then
             systemctl start "$ai_runtime.service" && systemctl is-active --quiet "$ai_runtime.service" || failed=1
         fi
@@ -968,7 +1008,7 @@ start_hermes_helper() {
     # Remove an old report only after backups. Never treat an old snapshot as ready.
     [[ ! -L $ai_spool/report.json ]] || return 1
     rm -f "$ai_spool/report.json" || return 1
-    systemctl daemon-reload && systemctl enable "$ai_runtime.service" && systemctl start "$ai_runtime.service" || return 1
+    systemctl daemon-reload && systemctl enable "$ai_runtime.service" "$ai_runtime-auth-refresh.path" && systemctl start "$ai_runtime.service" "$ai_runtime-auth-refresh.path" || return 1
     for ((i=0;i<10;i++)); do
         if [[ -f $ai_spool/report.json ]]; then
             python3 - "$ai_spool/report.json" <<'PY'
@@ -988,16 +1028,18 @@ PY
 commit_install() {
     local path name
     previous_running=no previous_enabled=no
-    previous_ai_running=no previous_ai_enabled=no
+    previous_ai_running=no previous_ai_enabled=no previous_ai_path_enabled=no previous_ai_path_running=no
     if [[ ${enable_hermes_ai:-false} == true ]]; then
         if systemctl is-active --quiet "$ai_runtime.service"; then previous_ai_running=yes; fi
         if systemctl is-enabled --quiet "$ai_runtime.service"; then previous_ai_enabled=yes; fi
+        if systemctl is-enabled --quiet "$ai_runtime-auth-refresh.path"; then previous_ai_path_enabled=yes; fi
+        if systemctl is-active --quiet "$ai_runtime-auth-refresh.path"; then previous_ai_path_running=yes; fi
     fi
     if [[ $init_system == systemd ]]; then
         if systemctl is-active --quiet "${service_name}.service"; then previous_running=yes; fi
         if systemctl is-enabled --quiet "${service_name}.service"; then previous_enabled=yes; fi
     fi
-    for name in agent agent-config.json service agent-service.sh helper helper-service helper-control; do
+    for name in agent agent-config.json service agent-service.sh helper helper-service helper-auth-refresh-service helper-auth-refresh-path helper-control; do
         case $name in
             agent) path=$komari_agent_path ;;
             agent-config.json) path=$config_path ;;
@@ -1005,6 +1047,8 @@ commit_install() {
             agent-service.sh) [[ $init_system == openrc ]] || continue; path=$wrapper ;;
             helper) [[ ${enable_hermes_ai:-false} == true ]] || continue; path=$ai_helper ;;
             helper-service) [[ ${enable_hermes_ai:-false} == true ]] || continue; path=$ai_service ;;
+            helper-auth-refresh-service) [[ ${enable_hermes_ai:-false} == true ]] || continue; path=$ai_auth_refresh_service ;;
+            helper-auth-refresh-path) [[ ${enable_hermes_ai:-false} == true ]] || continue; path=$ai_auth_refresh_path ;;
             helper-control) [[ ${enable_hermes_ai:-false} == true ]] || continue; path=$ai_spool/control.json ;;
         esac
         if [[ -e $path ]]; then
@@ -1021,7 +1065,7 @@ commit_install() {
         if [[ $previous_ai_running == yes ]]; then
             systemctl stop "$ai_runtime.service" || { rollback_install; return 1; }
         fi
-        if ! mv -f "$staged_helper" "$ai_helper" || ! mv -f "$staged_ai_service" "$ai_service" || ! start_hermes_helper; then
+        if ! mv -f "$staged_helper" "$ai_helper" || ! mv -f "$staged_ai_service" "$ai_service" || ! mv -f "$staged_ai_auth_refresh_service" "$ai_auth_refresh_service" || ! mv -f "$staged_ai_auth_refresh_path" "$ai_auth_refresh_path" || ! start_hermes_helper; then
             rollback_install; return 1
         fi
     fi

@@ -52,20 +52,24 @@ INSERT INTO session_model_usage VALUES ('SECRET_SESSION','test-model','openai','
     def test_recreated_row_with_higher_counters_rebaselines(self):
         h=self.collector(); self.enable(); h.tick(100)
         self.update('UPDATE session_model_usage SET first_seen=105,last_seen=105,input_tokens=900;')
-        self.assertEqual(h.tick(110)['samples'], [], 'recreated row must not replay its counters')
+        reset=h.tick(110)['samples'][0]
+        self.assertIs(reset['coverage'],False);self.assertEqual(reset['input_tokens'],0)
         self.update('UPDATE session_model_usage SET input_tokens=910,last_seen=120;')
-        self.assertEqual(h.tick(120)['samples'][0]['input_tokens'], 10)
+        self.assertEqual(h.tick(120)['samples'][-1]['input_tokens'], 10)
 
     def test_rewind_reset_and_proven_new_rows(self):
         h = self.collector(); self.enable(); h.tick(100)
         self.update('UPDATE sessions SET rewind_count=1; UPDATE session_model_usage SET input_tokens=150,last_seen=105;')
-        self.assertEqual(h.tick(105)['samples'], [], 'rewind must not replay')
+        reset=h.tick(105)['samples'][0]
+        self.assertIs(reset['coverage'],False);self.assertEqual(reset['input_tokens'],0)
         self.update('UPDATE session_model_usage SET input_tokens=170,last_seen=110;')
-        self.assertEqual(h.tick(110)['samples'][0]['input_tokens'],20)
+        self.assertEqual(h.tick(110)['samples'][-1]['input_tokens'],20)
         self.update("INSERT INTO sessions VALUES ('NEW',0,'PRIVATE'); INSERT INTO session_model_usage SELECT 'NEW',model,billing_provider,billing_base_url,billing_mode,'vision',1,15,3,2,0,1,0,0,NULL,NULL,115,115 FROM session_model_usage WHERE session_id='SECRET_SESSION';")
         self.assertEqual(next(s for s in h.tick(120)['samples'] if s['task']=='vision')['input_tokens'],15)
         self.update('UPDATE session_model_usage SET input_tokens=0;')
-        before=len(h.state['outbox']);self.assertEqual(len(h.tick(130)['samples']),before)
+        before=len(h.state['outbox']);report=h.tick(130)
+        self.assertEqual(len(report['samples']),before+2)
+        self.assertTrue(all(s['coverage'] is False for s in report['samples'][-2:]))
 
     def test_ack_ttl_boundaries_and_safe_gap(self):
         h = self.collector(); self.enable(); h.tick(100)
@@ -139,6 +143,17 @@ INSERT INTO session_model_usage VALUES ('SECRET_SESSION','test-model','openai','
             self.assertEqual(quota['status'],'unavailable')
             self.assertNotIn('last_success_at',quota)
 
+    def test_delivery_diagnostics_require_agent_capability_marker(self):
+        h=self.collector();self.enable()
+        (self.root/'spool'/'delivery.json').write_text(json.dumps({'last_attempt_at':1,'last_success_at':0,'consecutive_failures':1,'last_error_class':'http_5xx'}))
+        legacy=h.tick(100)
+        self.assertNotIn('delivery',legacy)
+        self.assertNotIn('pending_sample_count',legacy)
+        (self.root/'spool'/'protocol.json').write_text('{"version":2}')
+        enriched=h.tick(110)
+        self.assertEqual(enriched['delivery']['last_error_class'],'http_5xx')
+        self.assertEqual(enriched['pending_sample_count'],len(h.state['outbox']))
+
     def test_quota_unidentifiable_expired_and_redirects_fail_closed(self):
         h=self.collector(); self.enable()
         self.assertTrue(hasattr(self.m,'NoRedirect'),'redirect guard missing')
@@ -203,10 +218,44 @@ INSERT INTO session_model_usage VALUES ('SECRET_SESSION','test-model','openai','
         h=self.collector();self.enable()
         h.state['quota']={'provider':'openai-codex','status':'available','account_key':'a'*64,'observed_at':100,'last_success_at':100,'windows':[{'label':'Weekly','used_percent':25}]}
         h.state['quota_attempt_at']=100
+        h.quota_identity=lambda:('unused',None,5000,'a'*64)
         h.read_quota=lambda now:{'provider':'openai-codex','status':'unavailable','account_key':'a'*64,'observed_at':now,'windows':[]}
         q=h.tick(1000)['quota']
         self.assertEqual(q['status'],'stale');self.assertEqual(q['last_success_at'],100)
         self.assertEqual(q['windows'][0]['used_percent'],25)
+
+    def test_account_switch_clears_cached_quota_and_forces_refresh(self):
+        h=self.collector();self.enable()
+        import base64
+        def auth(account):
+            claims={'exp':5000,'https://api.openai.com/auth':{'chatgpt_account_id':account}}
+            token='x.'+base64.urlsafe_b64encode(json.dumps(claims).encode()).decode().rstrip('=')+'.x'
+            path=self.root/'auth.json'
+            path.write_text(json.dumps({'providers':{'openai-codex':{'tokens':{'access_token':token}}}}))
+            return path
+        h.auth_path=auth('old-account')
+        calls=[]
+        h.quota_get=lambda request:(calls.append(request) or {'plan_type':'plus','rate_limit':{'primary_window':{'limit_window_seconds':18000,'used_percent':10}}})
+        old=h.tick(100)['quota']
+        h.auth_path=auth('new-account')
+        h.quota_get=lambda request:(calls.append(request) or {'plan_type':'team','rate_limit':{'primary_window':{'limit_window_seconds':18000,'used_percent':20}}})
+        report=h.tick(110)
+        self.assertEqual(len(calls),2,'identity replacement must bypass the quota throttle')
+        self.assertNotEqual(report['quota']['account_key'],old['account_key'])
+        self.assertEqual(report['quota']['plan'],'team')
+
+    def test_outbox_boundary_does_not_append_partial_interval(self):
+        h=self.collector();self.enable();h.tick(100)
+        self.update("INSERT INTO sessions VALUES ('SECOND',0,'PRIVATE'); INSERT INTO session_model_usage SELECT 'SECOND',model,billing_provider,billing_base_url,billing_mode,'second',api_call_count,input_tokens,output_tokens,cache_read_tokens,cache_write_tokens,reasoning_tokens,estimated_cost_usd,actual_cost_usd,cost_status,cost_source,101,101 FROM session_model_usage;")
+        h.tick(101)
+        h.state['outbox']=[{'sample_id':str(self.m.uuid.uuid4()),'ended_at':100} for _ in range(4095)]
+        baseline=json.loads(json.dumps(h.state['baseline']))
+        self.update('UPDATE session_model_usage SET input_tokens=110,last_seen=110;')
+        report=h.tick(110)
+        self.assertEqual(report['status'],'stale')
+        self.assertEqual(len(h.state['outbox']),4095)
+        self.assertEqual(h.state['baseline'],baseline)
+        self.assertEqual(h.state['last'],101)
 
     def test_partial_group_reset_never_claims_complete_rate_coverage(self):
         h=self.collector();self.enable()
@@ -217,6 +266,17 @@ INSERT INTO session_model_usage VALUES ('SECRET_SESSION','test-model','openai','
         self.assertEqual(s['input_tokens'],5)
         self.assertIs(s['coverage'],False,'partial reset makes sampled rates unknown')
         self.assertEqual(s['reset_count'],1)
+
+    def test_all_group_reset_emits_explicit_uncovered_zero_sample(self):
+        h=self.collector();self.enable();h.tick(100)
+        self.update('UPDATE session_model_usage SET input_tokens=0;')
+        report=h.tick(110)
+        self.assertEqual(report['status'],'collecting')
+        self.assertEqual(len(report['samples']),1)
+        sample=report['samples'][0]
+        self.assertIs(sample['coverage'],False)
+        self.assertGreater(sample['reset_count'],0)
+        self.assertEqual(sum(sample[k] for k in self.m.COUNTERS),0)
 
     def test_disabled_retention_expires_private_baselines_and_quota_without_reads(self):
         h=self.collector();self.enable();h.tick(100)

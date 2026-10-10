@@ -23,6 +23,12 @@ type NodeState struct {
 	SamplingIntervalSeconds float64
 	QuotaProvider           string `gorm:"size:64"`
 	QuotaAccount            string `gorm:"size:128"`
+	PendingSampleCount      int
+	OldestPendingEndedAt    *float64
+	DeliveryLastAttemptAt   *float64
+	DeliveryLastSuccessAt   *float64
+	DeliveryFailures        int
+	DeliveryErrorClass      string `gorm:"size:32"`
 }
 
 func (NodeState) TableName() string { return "ai_node_states" }
@@ -66,12 +72,25 @@ func saveState(tx *gorm.DB, node string, r Report, now time.Time) error {
 		state.CurrentModel = r.CurrentModel
 		state.ObservedAt = r.ObservedAt
 		state.SamplingIntervalSeconds = r.SamplingIntervalSeconds
+		state.PendingSampleCount = r.PendingSampleCount
+		state.OldestPendingEndedAt = r.OldestPendingEndedAt
+		if r.Delivery != nil {
+			state.DeliveryLastAttemptAt = &r.Delivery.LastAttemptAt
+			state.DeliveryLastSuccessAt = &r.Delivery.LastSuccessAt
+			state.DeliveryFailures = r.Delivery.ConsecutiveFailures
+			state.DeliveryErrorClass = r.Delivery.LastErrorClass
+		}
 		if r.LastSuccessAt != nil && (state.LastSuccessAt == nil || *r.LastSuccessAt > *state.LastSuccessAt) {
 			state.LastSuccessAt = r.LastSuccessAt
 		}
-		if r.Quota != nil {
+		if r.Quota != nil && r.Quota.AccountKey != "" {
 			state.QuotaProvider = r.Quota.Provider
 			state.QuotaAccount = r.Quota.AccountKey
+		} else {
+			// A newer collector observation without a matched fingerprint makes
+			// prior quota state unavailable; old accounts stay historical only.
+			state.QuotaProvider = ""
+			state.QuotaAccount = ""
 		}
 	}
 	if err := tx.Save(&state).Error; err != nil {

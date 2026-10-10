@@ -178,7 +178,7 @@ func (s *Store) Maintain(now time.Time) error {
 			}
 		}
 		var ledger []Dedup
-		if err := tx.Where("ended_at < ?", float64(now.Unix()-30*86400)).Limit(MaintenanceBatch).Find(&ledger).Error; err != nil {
+		if err := tx.Where("ended_at < ?", float64(now.Add(-DedupRetention).Unix())).Limit(MaintenanceBatch).Find(&ledger).Error; err != nil {
 			return err
 		}
 		for _, v := range ledger {

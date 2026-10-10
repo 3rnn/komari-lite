@@ -2,6 +2,7 @@ package aimonitor
 
 import (
 	"encoding/json"
+	"github.com/google/uuid"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -106,6 +107,47 @@ func TestNodeRateLimitAndQuotaMonotonicDedup(t *testing.T) {
 	json.Unmarshal([]byte(quotas[0].Payload), &q)
 	if *q.Windows[0].UsedPercent != 40 {
 		t.Fatal("older quota overwrote latest")
+	}
+}
+func TestNewerReportWithoutMatchedQuotaClearsOldAccountAssociation(t *testing.T) {
+	s := fixture(t)
+	now := time.Unix(1780000000, 0)
+	r := validReport(now)
+	r.Quota = &Quota{AccountKey: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", Provider: "openai", Plan: "plus", Status: "available", ObservedAt: float64(now.Unix()), Windows: []QuotaWindow{}}
+	if _, err := s.Ingest("node", r, now); err != nil {
+		t.Fatal(err)
+	}
+	r.ObservedAt++
+	r.Quota = nil
+	if _, err := s.Ingest("node", r, now.Add(3*time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	view, err := s.Overview(Query{Preset: "24H", Timezone: "UTC"}, now.Add(3*time.Second))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(view.Accounts) != 0 {
+		t.Fatalf("old account remained visible: %+v", view.Accounts)
+	}
+}
+func TestRetainedDedupRowsDoNotBlockAtomicRelayBatch(t *testing.T) {
+	s := fixture(t)
+	now := time.Unix(1780000000, 0)
+	rows := make([]Dedup, 0, 100000)
+	for range 100000 {
+		rows = append(rows, Dedup{Node: "node", SampleID: uuid.NewString(), EndedAt: float64(now.Add(-time.Hour).Unix())})
+	}
+	if err := s.DB.CreateInBatches(rows, 1000).Error; err != nil {
+		t.Fatal(err)
+	}
+	r := validReport(now)
+	r.Samples = append(r.Samples, Sample{SampleID: uuid.NewString(), StartedAt: float64(now.Unix() - 10), EndedAt: float64(now.Unix()), Model: "gpt-explicit", Provider: "openai", BillingMode: "reference", Task: "chat"})
+	ack, err := s.Ingest("node", r, now)
+	if err != nil {
+		t.Fatalf("retained dedup rows blocked atomic relay batch: %v", err)
+	}
+	if len(ack) != 2 {
+		t.Fatalf("accepted %d samples, want full batch", len(ack))
 	}
 }
 func floatPtr(v float64) *float64 { return &v }

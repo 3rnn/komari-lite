@@ -10,7 +10,10 @@ import (
 )
 
 const MaxDimensionsPerNode = 128
-const MaxDedupPerNode = 100000
+// Dedup markers remain for the complete replay-protection horizon. Do not add
+// an arbitrary row-count cap or evict them early: either can permanently
+// strand a relay outbox or replay a sample after detail compaction.
+const DedupRetention = 30 * 24 * time.Hour
 const MaxPricingRules = 2048
 const MaxResponseGroups = 512
 const MaxSafeJSONInteger int64 = 9007199254740991

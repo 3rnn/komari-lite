@@ -81,6 +81,7 @@ type Live struct {
 	RollingTokens             int64    `json:"rolling_tokens"`
 	Calls24h                  int64    `json:"calls_24h"`
 	TodayTokens               int64    `json:"today_tokens"`
+	TodayCoverage             string   `json:"today_coverage"`
 	TodayAPIEquivalentCostUSD *float64 `json:"today_api_equivalent_cost_usd"`
 	UnpricedCalls             int64    `json:"unpriced_calls"`
 	Status                    string   `json:"status"`
@@ -100,6 +101,12 @@ type Node struct {
 	LastReportAt            *float64 `json:"last_report_at"`
 	SamplingIntervalSeconds float64  `json:"sampling_interval_seconds"`
 	DeliveryStatus          string   `json:"delivery_status"`
+	PendingSampleCount      int      `json:"pending_sample_count"`
+	OldestPendingEndedAt    *float64 `json:"oldest_pending_ended_at"`
+	DeliveryLastAttemptAt   *float64 `json:"delivery_last_attempt_at"`
+	DeliveryLastSuccessAt   *float64 `json:"delivery_last_success_at"`
+	DeliveryFailures        int      `json:"delivery_failures"`
+	DeliveryErrorClass      string   `json:"delivery_error_class"`
 }
 type Overview struct {
 	Range           Query             `json:"range"`
@@ -145,7 +152,7 @@ func (s *Store) Overview(q Query, now time.Time) (Overview, error) {
 		"throughput":    "Sampled token throughput, not generation speed. TPS/RPS use the latest covered 10 seconds; RPM/TPM use a separately covered rolling 60 seconds ending at the latest common sample. Unknown coverage is N/A.",
 		"history":       "Collected deltas only. Detailed samples are assigned by ended_at; older hourly rollups are included only for fully selected UTC hour buckets. Historical daily timezone boundaries assign whole buckets; no interpolation.",
 		"cost_coverage": "Cost totals sum priced usage only; unpriced_calls is separate. Hermes estimated and recorded actual costs are separate known-value subtotals, not reference costs.",
-	}, Live: Live{Status: "unavailable"}, Accounts: []Account{}, Trends: []Trend{}, Daily: []Day{}, Models: []Aggregate{}, Tasks: []Aggregate{}, Nodes: []Node{}}
+	}, Live: Live{Status: "unavailable", TodayCoverage: "unknown"}, Accounts: []Account{}, Trends: []Trend{}, Daily: []Day{}, Models: []Aggregate{}, Tasks: []Aggregate{}, Nodes: []Node{}}
 	loc, err := time.LoadLocation(q.Timezone)
 	if err != nil {
 		return v, fmt.Errorf("unknown timezone")
@@ -304,6 +311,7 @@ func (s *Store) Overview(q Query, now time.Time) (Overview, error) {
 	}
 	today := now.In(loc).Format("2006-01-02")
 	var recentTotals Totals
+	todayGap := false
 	addRecent := func(at float64, totals Totals) error {
 		if !safeAdd(recentTotals, totals) {
 			return fmt.Errorf("AI recent totals exceed safe JSON integer range")
@@ -318,6 +326,9 @@ func (s *Store) Overview(q Query, now time.Time) (Overview, error) {
 		return nil
 	}
 	for _, row := range recent {
+		if time.Unix(int64(row.EndedAt), 0).In(loc).Format("2006-01-02") == today && (row.Coverage == nil || !*row.Coverage || row.ResetCount > 0) {
+			todayGap = true
+		}
 		var totals Totals
 		totals.addSample(row)
 		if err := addRecent(row.EndedAt, totals); err != nil {
@@ -331,6 +342,9 @@ func (s *Store) Overview(q Query, now time.Time) (Overview, error) {
 		}
 	}
 	v.Live = computeLive(v.Live, recent, states, v.Nodes, now)
+	if !todayGap && (v.Live.Status == "collecting" || v.Live.Status == "no_usage") {
+		v.Live.TodayCoverage = "covered"
+	}
 	return v, nil
 }
 func setShare(a *Aggregate, total Totals) {
@@ -419,6 +433,12 @@ func (s *Store) nodes(states []NodeState, node string, now time.Time) ([]Node, e
 			at := state.LastReportAt
 			n.LastReportAt = &at
 			n.SamplingIntervalSeconds = state.SamplingIntervalSeconds
+			n.PendingSampleCount = state.PendingSampleCount
+			n.OldestPendingEndedAt = state.OldestPendingEndedAt
+			n.DeliveryLastAttemptAt = state.DeliveryLastAttemptAt
+			n.DeliveryLastSuccessAt = state.DeliveryLastSuccessAt
+			n.DeliveryFailures = state.DeliveryFailures
+			n.DeliveryErrorClass = state.DeliveryErrorClass
 			if n.Enabled && state.Enabled {
 				n.Status = state.Status
 				if float64(now.Unix())-state.ObservedAt > freshness(state) {
@@ -501,10 +521,14 @@ func computeLive(live Live, rows []StoredSample, states []NodeState, nodes []Nod
 	for _, state := range states {
 		stateMap[state.Node] = state
 	}
+	allNoUsage := true
 	for node := range enabled {
 		state, ok := stateMap[node]
-		if !ok || !state.Enabled || state.Status != "collecting" || float64(now.Unix())-state.ObservedAt > freshness(state) {
+		if !ok || !state.Enabled || (state.Status != "collecting" && state.Status != "no_usage") || float64(now.Unix())-state.ObservedAt > freshness(state) {
 			return live
+		}
+		if state.Status != "no_usage" {
+			allNoUsage = false
 		}
 	}
 	latest := map[string]float64{}
@@ -516,6 +540,9 @@ func computeLive(live Live, rows []StoredSample, states []NodeState, nodes []Nod
 	for node := range enabled {
 		at := latest[node]
 		if at == 0 || float64(now.Unix())-at > freshness(stateMap[node]) {
+			if allNoUsage {
+				live.Status = "no_usage"
+			}
 			return live
 		}
 		if at < end {

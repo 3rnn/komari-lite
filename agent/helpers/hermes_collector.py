@@ -23,6 +23,7 @@ import uuid
 
 COUNTERS = ('calls', 'input_tokens', 'output_tokens', 'cache_read_tokens',
             'cache_write_tokens', 'reasoning_tokens')
+MAX_OUTBOX = 4096
 # No SELECT *, message, prompt, conversation or session content columns.
 METRIC_SQL = '''SELECT u.session_id,u.model,u.billing_provider,u.billing_base_url,
 u.billing_mode,u.task,u.api_call_count,u.input_tokens,u.output_tokens,
@@ -121,26 +122,31 @@ class Collector:
             raise ValueError('metric cardinality exceeds local limit')
         return rows
 
+    def quota_identity(self):
+        if self.auth_path is None:
+            return None
+        store = bounded_json(self.auth_path, 1024*1024)
+        tokens = store.get('providers',{}).get('openai-codex',{}).get('tokens',{})
+        token = tokens.get('access_token')
+        if not isinstance(token,str) or len(token)>32768:
+            return None
+        segment = token.split('.')[1]
+        claims = json.loads(base64.urlsafe_b64decode(segment+'='*(-len(segment)%4)))
+        expiry = claims.get('exp')
+        account = tokens.get('account_id') or claims.get('https://api.openai.com/auth',{}).get('chatgpt_account_id')
+        identity = account or self.account_alias
+        if not isinstance(identity,str) or not identity or len(identity)>256:
+            return None
+        return token, account, expiry, hashlib.sha256(('komari:openai-codex:account:'+identity).encode()).hexdigest()
+
     def read_quota(self, now):
         result = {'provider':'openai-codex','status':'unavailable','observed_at':float(now),'windows':[]}
         try:
-            if self.auth_path is None:
+            identity = self.quota_identity()
+            if identity is None:
                 return result
-            store = bounded_json(self.auth_path, 1024*1024)
-            tokens = store.get('providers',{}).get('openai-codex',{}).get('tokens',{})
-            token = tokens.get('access_token')
-            if not isinstance(token,str) or len(token)>32768:
-                return result
-            # Decode claims locally ONLY to obtain expiry and a non-secret account ID.
-            # This is not authentication; the official endpoint validates the token.
-            segment = token.split('.')[1]
-            claims = json.loads(base64.urlsafe_b64decode(segment+'='*(-len(segment)%4)))
-            expiry = claims.get('exp')
-            account = tokens.get('account_id') or claims.get('https://api.openai.com/auth',{}).get('chatgpt_account_id')
-            identity = account or self.account_alias
-            if not isinstance(identity,str) or not identity or len(identity)>256:
-                return result
-            result['account_key'] = hashlib.sha256(('komari:openai-codex:account:'+identity).encode()).hexdigest()
+            token, account, expiry, account_key = identity
+            result['account_key'] = account_key
             if not isinstance(expiry,(int,float)) or not math.isfinite(expiry) or expiry<=now+30:
                 return result
             headers={'Authorization':'Bearer '+token,'Accept':'application/json'}
@@ -173,6 +179,29 @@ class Collector:
             pass
         return result
 
+    def delivery_state(self):
+        try:
+            value=bounded_json(self.spool/'delivery.json',4096)
+            allowed={'last_attempt_at','last_success_at','consecutive_failures','last_error_class'}
+            if not isinstance(value,dict) or set(value)-allowed:
+                return None
+            if value.get('last_error_class','') not in ('none','network','timeout','http_4xx','http_5xx','invalid_ack','spool_io'):
+                return None
+            if not isinstance(value.get('consecutive_failures',0),int) or isinstance(value.get('consecutive_failures'),bool) or not 0<=value.get('consecutive_failures',0)<=MAX_OUTBOX:
+                return None
+            return value
+        except (OSError,ValueError,TypeError):
+            return None
+
+    def relay_capabilities(self):
+        try:
+            value=bounded_json(self.spool/'protocol.json',128)
+            if isinstance(value,dict) and set(value)=={'version'} and value['version']==2:
+                return 2
+        except (OSError,ValueError,TypeError):
+            pass
+        return 1
+
     def tick(self, now):
         if not isinstance(now,(int,float)) or not math.isfinite(now):
             raise ValueError('finite sampling time required')
@@ -200,12 +229,25 @@ class Collector:
                   'sampling_interval_seconds': self.interval, 'samples': self.state['outbox'][:256]}
         if not enabled:
             self.state['last'] = None
-        elif len(self.state['outbox']) >= 4096:
+        elif len(self.state['outbox']) >= MAX_OUTBOX:
             # Do not advance baselines or discard unacknowledged history when
             # the relay/panel is unavailable. This is a collection gap, not
             # zero usage, and ordinary Agent heartbeats remain independent.
             report['status'] = 'stale'
         else:
+            old_quota=self.state.get('quota',{})
+            try:
+                identity=self.quota_identity()
+                account_key=identity[3] if identity else None
+            except (OSError,ValueError,KeyError,IndexError,TypeError,AttributeError,OverflowError):
+                account_key=None
+            if old_quota and old_quota.get('account_key') != account_key:
+                # Account transitions invalidate cached entitlements before a
+                # network refresh; never associate an old snapshot with a new
+                # OAuth identity or an unidentifiable replacement.
+                self.state.pop('quota',None)
+                self.state.pop('quota_attempt_at',None)
+                quota=None
             due = self.state.get('quota_attempt_at')
             if due is None or now-due>=self.quota_interval:
                 self.state['quota_attempt_at']=float(now)
@@ -246,12 +288,14 @@ class Collector:
                         # Only a first_seen within the uninterrupted covered interval proves new usage.
                         if not start <= float(row[12] or 0) <= now:
                             resets[group]=resets.get(group,0)+1
+                            groups.setdefault(group,[0]*6)
                             continue
                         old = {'counts':[0]*6,'rewind':rewind,'first_seen':first_seen}
                     # Recreated rows and older checkpoints lack a trustworthy
                     # common origin even when the new counters are larger.
                     if old.get('first_seen') != first_seen or old['rewind'] != rewind or any(a < b for a,b in zip(counts,old['counts'])):
                         resets[group]=resets.get(group,0)+1
+                        groups.setdefault(group,[0]*6)
                         continue
                     delta = [a-b for a,b in zip(counts, old['counts'])]
                     totals = groups.setdefault(group, [0]*6)
@@ -259,15 +303,20 @@ class Collector:
                         totals[i] += x
                 if len(groups)>256 or any(v>2**53-1 for counts in groups.values() for v in counts):
                     raise ValueError('aggregate cardinality exceeds local limit')
-                for group, counts in groups.items():
-                    sample = {'sample_id': str(uuid.uuid4()), 'started_at': float(start), 'ended_at': float(now),
-                              **dict(zip(('model','provider','billing_mode','task'),group)),
-                              **dict(zip(COUNTERS,counts)), 'coverage':group not in resets, 'reset_count':resets.get(group,0)}
-                    self.state['outbox'].append(sample)
-                self.state['baseline'] = baseline
-                self.state['last'] = float(now)
-                self.state['last_success_at'] = float(now)
-                report['status'] = 'collecting' if any(any(c) for c in groups.values()) else 'no_usage'
+                if len(self.state['outbox']) + len(groups) > MAX_OUTBOX:
+                    # Keep the baseline/last timestamp unchanged so a later
+                    # accepted drain rebaselines rather than claiming a gap.
+                    report['status']='stale'
+                else:
+                    for group, counts in groups.items():
+                        sample = {'sample_id': str(uuid.uuid4()), 'started_at': float(start), 'ended_at': float(now),
+                                  **dict(zip(('model','provider','billing_mode','task'),group)),
+                                  **dict(zip(COUNTERS,counts)), 'coverage':group not in resets, 'reset_count':resets.get(group,0)}
+                        self.state['outbox'].append(sample)
+                    self.state['baseline'] = baseline
+                    self.state['last'] = float(now)
+                    self.state['last_success_at'] = float(now)
+                    report['status'] = 'collecting' if resets or any(any(c) for c in groups.values()) else 'no_usage'
             except (sqlite3.Error, OSError, ValueError):
                 report['status'] = 'database_unavailable' if self.database.exists() else 'hermes_not_detected'
                 self.state['last'] = None
@@ -282,6 +331,16 @@ class Collector:
                 if entry.is_file(follow_symlinks=False) and entry.name not in pending:
                     pathlib.Path(entry.path).unlink(missing_ok=True)
         report['samples'] = self.state['outbox'][:256]
+        # Existing panels decode report version 1 strictly. Only include the
+        # additive delivery fields after the local Agent explicitly advertises
+        # the matching capability; an old Agent leaves the legacy wire shape.
+        if self.relay_capabilities() >= 2:
+            report['pending_sample_count']=len(self.state['outbox'])
+            if self.state['outbox']:
+                report['oldest_pending_ended_at']=min(float(s.get('ended_at',now)) for s in self.state['outbox'])
+            delivery=self.delivery_state()
+            if delivery is not None:
+                report['delivery']=delivery
         atomic_json(self.spool / 'report.json', report, 0o640)
         return report
 

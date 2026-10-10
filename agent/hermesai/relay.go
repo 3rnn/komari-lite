@@ -15,6 +15,7 @@ import (
 	"os"
 	"regexp"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/nuomiiiii/lite-agent/requestheaders"
@@ -62,17 +63,90 @@ type Quota struct {
 	Windows        []QuotaWindow `json:"windows"`
 	ResetBankCount *float64      `json:"reset_bank_count,omitempty"`
 }
+type Delivery struct {
+	LastAttemptAt       float64 `json:"last_attempt_at"`
+	LastSuccessAt       float64 `json:"last_success_at,omitempty"`
+	ConsecutiveFailures int     `json:"consecutive_failures"`
+	LastErrorClass      string  `json:"last_error_class"`
+}
 type Report struct {
-	Version                 int      `json:"version"`
-	CollectorID             string   `json:"collector_id"`
-	Enabled                 bool     `json:"enabled"`
-	Status                  string   `json:"status"`
-	ObservedAt              float64  `json:"observed_at"`
-	LastSuccessAt           *float64 `json:"last_success_at,omitempty"`
-	SamplingIntervalSeconds float64  `json:"sampling_interval_seconds"`
-	CurrentModel            string   `json:"current_model,omitempty"`
-	Samples                 []Sample `json:"samples"`
-	Quota                   *Quota   `json:"quota,omitempty"`
+	Version                 int       `json:"version"`
+	CollectorID             string    `json:"collector_id"`
+	Enabled                 bool      `json:"enabled"`
+	Status                  string    `json:"status"`
+	ObservedAt              float64   `json:"observed_at"`
+	LastSuccessAt           *float64  `json:"last_success_at,omitempty"`
+	SamplingIntervalSeconds float64   `json:"sampling_interval_seconds"`
+	CurrentModel            string    `json:"current_model,omitempty"`
+	Samples                 []Sample  `json:"samples"`
+	Quota                   *Quota    `json:"quota,omitempty"`
+	Delivery                *Delivery `json:"delivery,omitempty"`
+	PendingSampleCount      int       `json:"pending_sample_count,omitempty"`
+	OldestPendingEndedAt    *float64  `json:"oldest_pending_ended_at,omitempty"`
+}
+
+func readDelivery(spool string) (Delivery, error) {
+	var delivery Delivery
+	root, err := os.OpenRoot(spool)
+	if err != nil {
+		return delivery, err
+	}
+	defer root.Close()
+	info, err := root.Lstat("delivery.json")
+	if os.IsNotExist(err) {
+		return delivery, nil
+	}
+	if err != nil || !info.Mode().IsRegular() || info.Size() > 4096 {
+		return delivery, errors.New("invalid delivery state")
+	}
+	f, err := root.Open("delivery.json")
+	if err != nil {
+		return delivery, err
+	}
+	defer f.Close()
+	decoder := json.NewDecoder(io.LimitReader(f, 4097))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&delivery); err != nil {
+		return delivery, errors.New("invalid delivery state")
+	}
+	if delivery.ConsecutiveFailures < 0 || delivery.ConsecutiveFailures > 4096 || (delivery.LastErrorClass != "" && delivery.LastErrorClass != "none" && delivery.LastErrorClass != "network" && delivery.LastErrorClass != "timeout" && delivery.LastErrorClass != "http_4xx" && delivery.LastErrorClass != "http_5xx" && delivery.LastErrorClass != "invalid_ack" && delivery.LastErrorClass != "spool_io") {
+		return Delivery{}, errors.New("invalid delivery state")
+	}
+	return delivery, nil
+}
+func persistDelivery(spool string, delivery Delivery) error {
+	data, err := json.Marshal(delivery)
+	if err != nil {
+		return err
+	}
+	root, err := os.OpenRoot(spool)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	return writeWithinRoot(root, "delivery.json", data)
+}
+func deliveryClass(err error) string {
+	if err == nil {
+		return "none"
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return "timeout"
+	}
+	text := err.Error()
+	if strings.HasPrefix(text, "AI report HTTP 4") {
+		return "http_4xx"
+	}
+	if strings.HasPrefix(text, "AI report HTTP 5") {
+		return "http_5xx"
+	}
+	if strings.Contains(text, "ACK") {
+		return "invalid_ack"
+	}
+	if strings.Contains(text, "persist") || strings.Contains(text, "helper") || strings.Contains(text, "spool") {
+		return "spool_io"
+	}
+	return "network"
 }
 
 func readReport(spool string) (Report, error) {
@@ -150,6 +224,15 @@ func SetEnabled(spool string, enabled bool) error {
 	return writeWithinRoot(root, "control.json", payload)
 }
 
+func SetProtocolVersion(spool string, version int) error {
+	if version != 2 { return errors.New("unsupported Hermes report protocol") }
+	payload, _ := json.Marshal(struct { Version int `json:"version"` }{version})
+	root, err := os.OpenRoot(spool)
+	if err != nil { return errors.New("helper spool unavailable") }
+	defer root.Close()
+	return writeWithinRoot(root, "protocol.json", payload)
+}
+
 // writeWithinRoot is atomic and durable without ever following a path outside
 // the spool. A helper owner cannot redirect privileged Agent writes via symlinks.
 func writeWithinRoot(root *os.Root, name string, data []byte) error {
@@ -208,7 +291,7 @@ type Relay struct {
 
 // Once deletes nothing: it persists individual ACK markers for offered IDs only.
 // The helper atomically removes accepted samples from its durable private outbox.
-func (r Relay) Once(ctx context.Context, enabled bool) error {
+func (r Relay) Once(ctx context.Context, enabled bool) (err error) {
 	if !enabled {
 		return nil
 	}
@@ -216,6 +299,20 @@ func (r Relay) Once(ctx context.Context, enabled bool) error {
 	if err != nil {
 		return err
 	}
+	previous, _ := readDelivery(r.Spool)
+	defer func() {
+		now := float64(time.Now().UnixNano()) / 1e9
+		outcome := Delivery{LastAttemptAt: now, LastSuccessAt: previous.LastSuccessAt, ConsecutiveFailures: previous.ConsecutiveFailures, LastErrorClass: deliveryClass(err)}
+		if err == nil {
+			outcome.LastSuccessAt = now
+			outcome.ConsecutiveFailures = 0
+		} else {
+			outcome.ConsecutiveFailures++
+		}
+		if persistErr := persistDelivery(r.Spool, outcome); persistErr != nil && err == nil {
+			err = errors.New("persist AI delivery state failed")
+		}
+	}()
 	age := float64(time.Now().UnixNano())/1e9 - report.ObservedAt
 	if age > 90 || age < -5 {
 		report.Status = "stale"

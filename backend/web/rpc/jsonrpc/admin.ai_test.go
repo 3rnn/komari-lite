@@ -106,3 +106,11 @@ func TestAIAdminRateLimitIsPerResource(t *testing.T) {
 		t.Fatal("window did not expire")
 	}
 }
+func TestAIQueryBudgetIsNotReportedAsRetryableRateLimit(t *testing.T) {
+	if got := rpcErrorHTTPStatus(rpc.ResourceExhausted); got != 422 {
+		t.Fatalf("resource exhausted status = %d, want 422", got)
+	}
+	if got := rpcErrorHTTPStatus(rpc.RateLimited); got != 429 {
+		t.Fatalf("rate limited status = %d, want 429", got)
+	}
+}

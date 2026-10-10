@@ -203,7 +203,23 @@ func (r Report) Validate(now time.Time) error {
 		}
 	}
 	if r.Quota != nil {
-		return r.Quota.Validate(now)
+		if err := r.Quota.Validate(now); err != nil {
+			return err
+		}
+	}
+	if r.PendingSampleCount < 0 || r.PendingSampleCount > 4096 || !optionalTime(r.OldestPendingEndedAt, now) || (r.PendingSampleCount == 0 && r.OldestPendingEndedAt != nil) {
+		return fmt.Errorf("invalid AI delivery backlog")
+	}
+	if r.Delivery != nil {
+		d := r.Delivery
+		if !finite(d.LastAttemptAt) || d.LastAttemptAt < 0 || !finite(d.LastSuccessAt) || d.LastSuccessAt < 0 || d.ConsecutiveFailures < 0 || d.ConsecutiveFailures > 4096 || !text(d.LastErrorClass, 32, true) {
+			return fmt.Errorf("invalid AI delivery state")
+		}
+		switch d.LastErrorClass {
+		case "none", "network", "timeout", "http_4xx", "http_5xx", "invalid_ack", "spool_io":
+		default:
+			return fmt.Errorf("invalid AI delivery error class")
+		}
 	}
 	return nil
 }

@@ -62,6 +62,29 @@ func TestCoveredRangeSupportsSampledAggregateAverages(t *testing.T) {
 		}
 	}
 }
+
+func TestTodayTokensAreUnknownWhenCollectedCoverageHasAGap(t *testing.T) {
+	s := fixture(t)
+	now := time.Unix(1780000000, 0)
+	r := validReport(now)
+	covered := false
+	r.Samples[0].Coverage = &covered
+	r.Samples[0].ResetCount = 1
+	if _, err := s.Ingest("node", r, now); err != nil {
+		t.Fatal(err)
+	}
+	view, err := s.Overview(Query{Preset: "Today", Timezone: "UTC"}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.Live.TodayCoverage != "unknown" {
+		t.Fatalf("today coverage = %q, want unknown", view.Live.TodayCoverage)
+	}
+	if view.Live.TodayTokens != 160 {
+		t.Fatalf("uncovered collected tokens = %d, want retained partial value", view.Live.TodayTokens)
+	}
+}
+
 func TestOverviewCompleteMinuteAndModelFilters(t *testing.T) {
 	s := fixture(t)
 	now := time.Unix(1780000000, 0)
@@ -169,6 +192,10 @@ func TestOverviewAggregatesMoreThanMaxRawSamplesInDatabase(t *testing.T) {
 	month, err := s.Overview(Query{Preset: "30D", Timezone: "Asia/Shanghai"}, now)
 	if err != nil || month.PricingCoverage.Calls != int64(len(rows)) || len(month.Trends) == 0 {
 		t.Fatalf("30-day aggregate = %#v, %v", month.PricingCoverage, err)
+	}
+	today, err := s.Overview(Query{Preset: "Today", Timezone: "UTC"}, now)
+	if err != nil || today.PricingCoverage.Calls != int64(len(rows)) || today.Live.TodayTokens != int64(len(rows))*10 {
+		t.Fatalf("today aggregate = %#v, %v", today.PricingCoverage, err)
 	}
 	t.Logf("aggregated %d samples in %s", len(rows), time.Since(started))
 }

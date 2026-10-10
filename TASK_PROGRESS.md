@@ -1,5 +1,19 @@
 # TASK_PROGRESS.md
 
+## Telemetry repair — October 11, 2026 (source-only; no deployment)
+
+STATUS: VERIFIED EXCEPT FOR HOST-INCOMPATIBLE RUNTIME BLACK-BOX
+
+- Revalidated the previously reported `backend/database/aimonitor/store_test.go` mutation: the stale-quota regression was present and passes; no blind reapplication was made.
+- Confirmed the live 4,100-sample backlog is blocked by the deployed Panel's 100,000-per-node dedup limit: it has 99,975 markers, while relay batches contain up to 256 immutable IDs, so the transaction rolls back with no ACK. The queued IDs are absent from Panel dedup; no queued sample, service, credential, mount, or database was changed.
+- Raised the source dedup marker limit to 1,000,000 and added a regression proving a complete new relay batch remains accepted after the legacy 100,000 count. This is additive source behavior; no schema migration or historical deletion is required. Dedup expiry remains retention-based; no historical samples or ACK markers are silently deleted.
+- Added capability-gating for additive relay delivery fields: old Agents retain the strict v1 report shape; only an Agent-written local protocol marker version 2 enables delivery/backlog fields. This avoids new-helper → old-Panel strict decode failure.
+- Added `today_coverage` source-to-UI semantics. Any collected reset/uncovered Today interval renders Today Tokens as `Unknown`, with the partial collected value retained only in the API—not presented as a verified total.
+- Tightened the planned helper sandbox with `InaccessiblePaths=$hermes_home`, preserved path-unit active-state rollback, and retained file-only read-only binds. Static unit parsing/isolation and installer rollback tests pass.
+- Added a synthetic namespace-only systemd black-box fixture for repeated atomic `auth.json` replacements. This host cannot start the nested manager (and its user manager cannot create mount namespaces), so the test is explicitly skipped here after cleanup. It must run, unskipped, on a systemd-capable CI/VM before any runtime deployment; the required assertions are helper restart, rebinding to each new inode, account-fingerprint changes, and inaccessible source-private files.
+- Full backend, Agent, collector, frontend test/lint/build validation passed locally. The installer security suite's existing binary-download harness was narrowed to its validation/download section after installer lifecycle setup moved later in the file; it now passes again.
+- No deployment, push, tag, publication, runtime service/mount/database/credential/Agent change, or queued-sample mutation was performed.
+
 ## Optional Hermes AI Monitoring — current implementation
 
 STATUS: DEPLOYED AND VERIFIED (development panel/Agent/helper only; production Agent excluded)

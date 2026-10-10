@@ -35,17 +35,26 @@ func (s Sample) TotalTokens() int64 {
 	return s.InputTokens + s.OutputTokens + s.CacheReadTokens + s.CacheWriteTokens
 }
 
+type Delivery struct {
+	LastAttemptAt       float64 `json:"last_attempt_at"`
+	LastSuccessAt       float64 `json:"last_success_at,omitempty"`
+	ConsecutiveFailures int     `json:"consecutive_failures"`
+	LastErrorClass      string  `json:"last_error_class"`
+}
 type Report struct {
-	Version                 int      `json:"version"`
-	CollectorID             string   `json:"collector_id"`
-	Enabled                 bool     `json:"enabled"`
-	Status                  string   `json:"status"`
-	ObservedAt              float64  `json:"observed_at"`
-	LastSuccessAt           *float64 `json:"last_success_at,omitempty"`
-	SamplingIntervalSeconds float64  `json:"sampling_interval_seconds"`
-	CurrentModel            string   `json:"current_model,omitempty"`
-	Samples                 []Sample `json:"samples"`
-	Quota                   *Quota   `json:"quota,omitempty"`
+	Version                 int       `json:"version"`
+	CollectorID             string    `json:"collector_id"`
+	Enabled                 bool      `json:"enabled"`
+	Status                  string    `json:"status"`
+	ObservedAt              float64   `json:"observed_at"`
+	LastSuccessAt           *float64  `json:"last_success_at,omitempty"`
+	SamplingIntervalSeconds float64   `json:"sampling_interval_seconds"`
+	CurrentModel            string    `json:"current_model,omitempty"`
+	Samples                 []Sample  `json:"samples"`
+	Quota                   *Quota    `json:"quota,omitempty"`
+	Delivery                *Delivery `json:"delivery,omitempty"`
+	PendingSampleCount      int       `json:"pending_sample_count,omitempty"`
+	OldestPendingEndedAt    *float64  `json:"oldest_pending_ended_at,omitempty"`
 }
 type Quota struct {
 	AccountKey     string        `json:"account_key,omitempty"`
@@ -123,10 +132,10 @@ func Migrate(db *gorm.DB) error {
 		if err := db.First(&row, "id = ?", 1).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
 		}
-		if row.Version > 1 {
-			return fmt.Errorf("AI schema is newer than supported version 1")
+		if row.Version > 2 {
+			return fmt.Errorf("AI schema is newer than supported version 2")
 		}
-		if row.Version == 1 {
+		if row.Version == 2 {
 			return nil
 		}
 	}
@@ -134,7 +143,7 @@ func Migrate(db *gorm.DB) error {
 		if err := tx.AutoMigrate(&Schema{}, &PricingRule{}, &StoredSample{}, &Dedup{}, &NodeState{}, &AccountQuota{}, &SettingsRow{}, &Rollup{}, &Dimension{}); err != nil {
 			return err
 		}
-		return tx.Save(&Schema{ID: 1, Version: 1}).Error
+		return tx.Save(&Schema{ID: 1, Version: 2}).Error
 	})
 }
 func (s *Store) AppendPricing(rule PricingRule, now time.Time) (PricingRule, error) {
@@ -185,20 +194,12 @@ func (s *Store) Ingest(node string, r Report, now time.Time) ([]string, error) {
 		if err := saveState(tx, node, r, now); err != nil {
 			return err
 		}
-		var dedupCount int64
-		if err := tx.Model(&Dedup{}).Where("node = ?", node).Count(&dedupCount).Error; err != nil {
-			return err
-		}
 		for _, sample := range r.Samples {
 			result := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&Dedup{Node: node, SampleID: sample.SampleID, EndedAt: sample.EndedAt})
 			if result.Error != nil {
 				return result.Error
 			}
 			if result.RowsAffected > 0 {
-				dedupCount++
-				if dedupCount > MaxDedupPerNode {
-					return fmt.Errorf("AI dedup retention capacity reached")
-				}
 				if err := recordDimension(tx, node, sample, now); err != nil {
 					return err
 				}

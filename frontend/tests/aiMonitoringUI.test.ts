@@ -24,6 +24,12 @@ test("healthy zero-delta periods use an empty state and suppress zero-only model
  assert.ok(html.includes("No new usage in this range."));
  assert.ok(!html.includes("zero-only"));
 });
+test("Today Tokens render Unknown rather than a verified zero during a coverage gap", () => {
+ const html=renderToStaticMarkup(React.createElement(AIMonitoringView,{timezone:"UTC",data:{live:{today_tokens:0,today_coverage:"unknown",status:"stale"}}}));
+ assert.ok(html.includes("Today Tokens"));
+ assert.ok(html.includes("Unknown"));
+ assert.ok(html.includes("Collection coverage gap; collected zero is not a verified total."));
+});
 test("Windows checkbox is explicitly disabled and Linux defaults unchecked", () => {
  const windows=renderToStaticMarkup(React.createElement(HermesMonitoringToggle,{platform:"windows",enabled:false,onChange:()=>{}}));
  const linux=renderToStaticMarkup(React.createElement(HermesMonitoringToggle,{platform:"linux",enabled:false,onChange:()=>{}}));

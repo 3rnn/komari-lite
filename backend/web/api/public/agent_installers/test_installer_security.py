@@ -56,9 +56,29 @@ ai_helper=/opt/komari-fixture/hermes_collector.py
         out=run.stdout
         for line in ('User=fixture','ProtectHome=tmpfs','ProtectSystem=strict','NoNewPrivileges=true','CapabilityBoundingSet=','/state.db:','/auth.json:','--database','--spool'):
             self.assertIn(line,out)
+        self.assertIn('InaccessiblePaths=/root/.hermes',out)
         self.assertNotIn('ReadOnlyPaths=/root/.hermes\n',out)
         self.assertNotIn('BindReadOnlyPaths=/root/.hermes\n',out)
         self.assertNotIn('chmod',out)
+
+    def test_hermes_auth_replacement_uses_a_path_trigger_not_a_home_mount(self):
+        src=SH.read_text()
+        self.assertIn('write_hermes_auth_refresh_path',src)
+        self.assertIn('write_hermes_auth_refresh_service',src)
+        watcher=function(src,'write_hermes_auth_refresh_path')
+        self.assertIn('PathChanged=$hermes_home/auth.json',watcher)
+        refresh=function(src,'write_hermes_auth_refresh_service')
+        self.assertIn('systemctl try-restart',refresh)
+        self.assertIn('$ai_runtime.service',refresh)
+        self.assertNotIn('auth.json:',refresh)
+
+    def test_hermes_auth_refresh_path_state_is_restored_after_failure(self):
+        src=SH.read_text()
+        rollback=function(src,'rollback_install')
+        commit=function(src,'commit_install')
+        self.assertIn('previous_ai_path_running',commit)
+        self.assertIn('previous_ai_path_running',rollback)
+        self.assertIn('systemctl start "$ai_runtime-auth-refresh.path"',rollback)
 
     @unittest.skipUnless(shutil.which('systemd-analyze'), 'systemd-analyze unavailable')
     def test_generated_hermes_unit_verifies_with_systemd(self):
@@ -451,7 +471,8 @@ agent_endpoint=''
 
     def test_custom_source_requires_fixed_checksum_and_verifies_binary(self):
         src = SH.read_text()
-        fragment = src[src.index('# Construct the Agent download URL'):src.index('# Set executable permissions')]
+        validation = src[src.index('# Construct the Agent download URL'):src.index('# Detect init system and configure service')]
+        download = src[src.index('# Download and check the new binary before removing a working installation.'):src.index('# Helper missing/mismatch fails before any existing service is stopped/replaced.')]
         with tempfile.TemporaryDirectory(dir=pathlib.Path.home()) as tmp:
             root = pathlib.Path(tmp)
             binary = root / 'fixture'
@@ -471,6 +492,8 @@ file_name=komari-agent-linux-amd64
 install_sha256=$1
 target_dir=$2
 fixture=$3
+staging_dir=$(mktemp -d)
+staged_agent="$staging_dir/$file_name"
 curl() {
     local output=''
     while [[ $# -gt 0 ]]; do
@@ -482,7 +505,7 @@ curl() {
         cp "$fixture" "$output"
     fi
 }
-''' + fragment
+''' + validation + '\n' + download
             def run(checksum, source='https://mirror.example.test/release'):
                 return subprocess.run(['bash', '-c', harness, '--', checksum, str(root / 'installed'), str(binary), source],
                                       capture_output=True, text=True)

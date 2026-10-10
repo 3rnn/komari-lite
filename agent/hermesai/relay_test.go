@@ -73,6 +73,21 @@ func TestCoverageBooleanMatchesBackendContract(t *testing.T) {
 	}
 }
 
+func TestRelayPersistsSanitizedDeliveryFailureAndRecovery(t *testing.T) {
+	dir, _ := fixture(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { http.Error(w, "token=secret endpoint=private", http.StatusServiceUnavailable) }))
+	defer srv.Close()
+	relay := Relay{Spool: dir, Endpoint: srv.URL, Token: "node", Client: srv.Client()}
+	if err := relay.Once(context.Background(), true); err == nil { t.Fatal("expected delivery failure") }
+	b, err := os.ReadFile(filepath.Join(dir, "delivery.json")); if err != nil { t.Fatal(err) }
+	if strings.Contains(string(b), "secret") || strings.Contains(string(b), "private") { t.Fatal("delivery diagnostic leaked error body") }
+	if !strings.Contains(string(b), `"last_error_class":"http_5xx"`) || !strings.Contains(string(b), `"consecutive_failures":1`) { t.Fatalf("unexpected diagnostic: %s", b) }
+	srv.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(`{"accepted_sample_ids":[]}`)) })
+	if err := relay.Once(context.Background(), true); err != nil { t.Fatal(err) }
+	b, err = os.ReadFile(filepath.Join(dir, "delivery.json")); if err != nil { t.Fatal(err) }
+	if !strings.Contains(string(b), `"last_error_class":"none"`) || !strings.Contains(string(b), `"consecutive_failures":0`) { t.Fatalf("recovery diagnostic: %s", b) }
+}
+
 func TestDisabledDoesNotReadSpoolOrRequest(t *testing.T) {
 	relay := Relay{Spool: filepath.Join(t.TempDir(), "does-not-exist")}
 	if err := relay.Once(context.Background(), false); err != nil {
