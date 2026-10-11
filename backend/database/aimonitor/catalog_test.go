@@ -32,15 +32,22 @@ func TestCatalogRemainsInformationalUntilExplicitExactSelection(t *testing.T) {
 	if err := json.Unmarshal(ReferenceCatalog(), &catalog); err != nil {
 		t.Fatal(err)
 	}
-	if catalog.AutomaticActivation || len(catalog.Entries) != 28 {
+	if catalog.AutomaticActivation || len(catalog.Entries) != 5 {
 		t.Fatalf("catalog: %+v", catalog)
+	}
+	entry := catalog.Entries[0]
+	if entry.Provider != "openai" || entry.Model != "gpt-6.1-sol" || entry.ProcessingMode != "standard" || entry.ContextTier != "short" || entry.InputPerMillion == nil || *entry.InputPerMillion != "2.00" || entry.CacheReadPerMillion == nil || *entry.CacheReadPerMillion != "0.10" || entry.CacheWritePerMillion == nil || *entry.CacheWritePerMillion != "2.50" || entry.OutputPerMillion == nil || *entry.OutputPerMillion != "10.00" {
+		t.Fatalf("unexpected verified gpt-6.1-sol SKU: %+v", entry)
+	}
+	if catalog.Entries[1].Model != "gpt-6-sol" || catalog.Entries[3].Model != "gpt-5.6-terra" {
+		t.Fatalf("unexpected verified SKU order: %+v", catalog.Entries)
 	}
 	var count int64
 	s.DB.Model(&PricingRule{}).Count(&count)
 	if count != 0 {
 		t.Fatal("catalog automatically activated")
 	}
-	entry := catalog.Entries[0]
+	entry = catalog.Entries[0]
 	rule, err := s.AppendPricing(PricingRule{Provider: entry.Provider, Model: "local-exact-alias", ReferenceModel: entry.Model, ProcessingMode: entry.ProcessingMode, ReferenceTier: entry.ContextTier, BillingMode: "operator-selected", EffectiveAt: float64(now.Unix())}, now)
 	if err != nil || rule.InputPerMillion == nil || rule.Source != "official_docs_snapshot" {
 		t.Fatalf("selection: %+v %v", rule, err)

@@ -5,6 +5,11 @@ export type PriceEntry = { provider:string;model:string;processing_mode:string;c
 export type PriceRule = { provider:string;model:string;billing_mode:string;processing_mode:string;reference_model?:string;reference_tier?:string;input_per_million:number;output_per_million:number;cache_read_per_million:number|null;cache_write_per_million:number|null;source:string;source_url:string;version:string;effective_at:string };
 export type ReferenceCatalog = { source:string;source_url:string;version:string;verified_at?:string;source_sha256?:string;entries:PriceEntry[] };
 export type AIPricing = { rules:PriceRule[];reference_catalog?:ReferenceCatalog };
+/** Returns a catalog position only for a verified exact standard/short model SKU. */
+export function defaultOfficialReference(entries:PriceEntry[], model:string): string {
+ const index=entries.findIndex(entry=>entry.provider==="openai" && entry.model===model && entry.processing_mode==="standard" && entry.context_tier==="short");
+ return index < 0 ? "" : String(index+1);
+}
 export function referenceRule(entry:PriceEntry,catalog:Pick<ReferenceCatalog,"source"|"source_url"|"version">,model:string,billingMode:string,effectiveAt:string):PriceRule {
  return {provider:entry.provider,model,billing_mode:billingMode,processing_mode:entry.processing_mode,reference_model:entry.model,reference_tier:entry.context_tier,input_per_million:Number(entry.input_per_million),output_per_million:Number(entry.output_per_million),cache_read_per_million:entry.cache_read_per_million==null ? null:Number(entry.cache_read_per_million),cache_write_per_million:entry.cache_write_per_million==null ? null:Number(entry.cache_write_per_million),source:catalog.source,source_url:catalog.source_url,version:catalog.version,effective_at:effectiveAt};
 }
