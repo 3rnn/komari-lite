@@ -57,6 +57,7 @@ type Aggregate struct {
 	BillingMode string   `json:"billing_mode,omitempty"`
 	Task        string   `json:"task,omitempty"`
 	AverageTPS  *float64 `json:"average_tps"`
+	OutputTPS   *float64 `json:"output_tps"`
 	CostShare   *float64 `json:"cost_share"`
 }
 type Trend struct {
@@ -199,6 +200,7 @@ func (s *Store) Overview(q Query, now time.Time) (Overview, error) {
 	modelRows := map[string][]StoredSample{}
 	taskRows := map[string][]StoredSample{}
 	dayRows := map[string][]StoredSample{}
+	dayModelRows := map[string]map[string][]StoredSample{}
 	step := 60.0
 	if q.To-q.From > 86400 {
 		step = 3600
@@ -244,6 +246,10 @@ func (s *Store) Overview(q Query, now time.Time) (Overview, error) {
 		taskRows[row.Task] = append(taskRows[row.Task], row)
 		date := time.Unix(int64(row.EndedAt), 0).In(loc).Format("2006-01-02")
 		dayRows[date] = append(dayRows[date], row)
+		if dayModelRows[date] == nil {
+			dayModelRows[date] = map[string][]StoredSample{}
+		}
+		dayModelRows[date][key] = append(dayModelRows[date][key], row)
 		var totals Totals
 		totals.addSample(row)
 		add(row.EndedAt, row.Model, row.Provider, row.BillingMode, row.Task, totals)
@@ -281,7 +287,8 @@ func (s *Store) Overview(q Query, now time.Time) (Overview, error) {
 			end = q.To
 		}
 		row.AverageTPS = coveredAverage(dayRows[date], start, end)
-		for _, model := range dayModels[date] {
+		for key, model := range dayModels[date] {
+			model.OutputTPS = coveredOutputAverage(dayModelRows[date][key], start, end)
 			row.Models = append(row.Models, *model)
 		}
 		sortAggregates(row.Models)

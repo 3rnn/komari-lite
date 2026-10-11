@@ -63,6 +63,52 @@ func TestCoveredRangeSupportsSampledAggregateAverages(t *testing.T) {
 	}
 }
 
+func TestDailyModelCardKeepsCanonicalTokensAndTruthfulPriceAndOutputRate(t *testing.T) {
+	s := fixture(t)
+	now := time.Unix(1780000000, 0).UTC()
+	covered, priced := true, 0.01
+	rows := []StoredSample{
+		{Node: "node", Sample: Sample{SampleID: "550e8400-e29b-41d4-a716-446655440301", StartedAt: float64(now.Add(-120 * time.Second).Unix()), EndedAt: float64(now.Add(-60 * time.Second).Unix()), Model: "compact", Provider: "fixture", BillingMode: "metered", Task: "chat", Calls: 1, InputTokens: 10, CacheReadTokens: 5, CacheWriteTokens: 5, OutputTokens: 40, ReasoningTokens: 40, Coverage: &covered}, APIEquivalentCostUSD: &priced},
+		{Node: "node", Sample: Sample{SampleID: "550e8400-e29b-41d4-a716-446655440302", StartedAt: float64(now.Add(-60 * time.Second).Unix()), EndedAt: float64(now.Unix()), Model: "compact", Provider: "fixture", BillingMode: "metered", Task: "chat", Calls: 1, InputTokens: 10, CacheReadTokens: 5, CacheWriteTokens: 5, OutputTokens: 120, ReasoningTokens: 120, Coverage: &covered}},
+	}
+	if err := s.DB.Create(&rows).Error; err != nil {
+		t.Fatal(err)
+	}
+	view, err := s.Overview(Query{From: float64(now.Add(-120 * time.Second).Unix()), To: float64(now.Unix()), Timezone: "UTC"}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(view.Daily) != 1 || len(view.Daily[0].Models) != 1 {
+		t.Fatalf("daily model groups = %+v", view.Daily)
+	}
+	model := view.Daily[0].Models[0]
+	if model.TotalTokens() != 200 || model.ReasoningTokens != 160 {
+		t.Fatalf("reasoning must remain an output subset, model = %+v", model)
+	}
+	if model.APIEquivalentCostUSD == nil || *model.APIEquivalentCostUSD != priced || model.UnpricedCalls != 1 || model.PricedCalls != 1 {
+		t.Fatalf("price coverage must retain exact priced and unpriced calls, model = %+v", model)
+	}
+	if model.OutputTPS == nil || *model.OutputTPS != 160.0/120 {
+		t.Fatalf("output rate = %v, want %v", model.OutputTPS, 160.0/120)
+	}
+}
+
+func TestDailyModelCardLeavesOutputRateUnavailableWithoutCoverageProof(t *testing.T) {
+	s := fixture(t)
+	now := time.Unix(1780000000, 0).UTC()
+	row := StoredSample{Node: "node", Sample: Sample{SampleID: "550e8400-e29b-41d4-a716-446655440303", StartedAt: float64(now.Add(-60 * time.Second).Unix()), EndedAt: float64(now.Unix()), Model: "compact", Provider: "fixture", BillingMode: "metered", Task: "chat", Calls: 1, OutputTokens: 60}}
+	if err := s.DB.Create(&row).Error; err != nil {
+		t.Fatal(err)
+	}
+	view, err := s.Overview(Query{From: float64(now.Add(-60 * time.Second).Unix()), To: float64(now.Unix()), Timezone: "UTC"}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := view.Daily[0].Models[0].OutputTPS; got != nil {
+		t.Fatalf("output rate without coverage proof = %v, want nil", *got)
+	}
+}
+
 func TestOverviewRangeUsageUsesDatabaseAggregatesAndLabelsCoverage(t *testing.T) {
 	s := fixture(t)
 	now := time.Unix(1780000000, 0).UTC()

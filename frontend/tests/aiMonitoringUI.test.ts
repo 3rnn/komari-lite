@@ -24,10 +24,15 @@ test("AI timestamps show UTC and Beijing dates in 24-hour time", () => {
  const html=renderToStaticMarkup(React.createElement(AIMonitoringView,{timezone:"UTC",data:{accounts:[{provider:"openai-codex",status:"available",last_success_at:1791574080,windows:[{label:"Session",used_percent:9,resets_at:"2026-10-09T19:28:00Z"}]}]}}));
  assert.ok(html.includes("UTC 09 Oct 2026, 19:28 · Beijing 10 Oct 2026, 03:28"));
 });
-test("daily duplicate model rows disclose their verified grouping and unknown account", () => {
- const html=renderToStaticMarkup(React.createElement(AIMonitoringView,{timezone:"UTC",data:{daily:[{date:"2026-10-11",calls:100,total_tokens:13883709,models:[{model:"gpt-5.6-terra",provider:"openai-codex",billing_mode:"subscription_included",calls:88,total_tokens:12669678},{model:"gpt-5.6-terra",provider:"openai-codex",billing_mode:"unknown",calls:12,total_tokens:1214031}]}]}}));
- assert.ok(html.includes("OpenAI Codex · subscription included · Account unknown"));
- assert.ok(html.includes("OpenAI Codex · Billing mode unknown · Account unknown"));
+test("daily cards group visual model rows while retaining truthful partial prices and output rates", () => {
+ const html=renderToStaticMarkup(React.createElement(AIMonitoringView,{timezone:"UTC",data:{daily:[{date:"2026-10-11",calls:2,total_tokens:200,api_equivalent_cost_usd:.01,unpriced_calls:1,models:[{model:"gpt-5.6-terra",provider:"openai-codex",billing_mode:"subscription_included",calls:1,total_tokens:120,api_equivalent_cost_usd:.01,output_tps:2},{model:"gpt-5.6-terra",provider:"openai-codex",billing_mode:"unknown",calls:1,total_tokens:80,unpriced_calls:1,output_tps:1}]}]}}));
+ const text=html.replace(/<!--.*?-->/g,"");
+ assert.ok(text.includes("Sunday, 11 Oct 2026"));
+ assert.ok(text.includes("Partial · $0.01 · 200 tokens · 2 calls"));
+ assert.ok(text.includes("Partial · $0.01 · 200 · 3 output tok/s"));
+ assert.equal((text.match(/output tok\/s/g)??[]).length,1);
+ assert.doesNotMatch(text,/OpenAI Codex|subscription included|Billing mode unknown/);
+ assert.match(html,/width:100%/);
 });
 test("healthy zero-delta periods use an empty state and suppress zero-only model rows", () => {
  const html=renderToStaticMarkup(React.createElement(AIMonitoringView,{timezone:"UTC",data:{trends:[{timestamp:1,calls:0,total_tokens:0}],daily:[{date:"2026-10-09",calls:0,total_tokens:0,models:[{model:"zero-only",calls:0,total_tokens:0}]}]}}));

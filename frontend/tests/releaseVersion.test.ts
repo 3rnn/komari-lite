@@ -2,11 +2,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-const version = "1.0.37";
+const version = "1.0.38";
 const source = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 
-test("panel, Agent, UI, and package metadata match the development candidate", () => {
-	assert.match(source("../../backend/utils/version.go"), /CurrentVersion = "1\.0\.37"/);
+test("panel and UI package metadata match the development candidate without changing Agent artifacts", () => {
+	assert.match(source("../../backend/utils/version.go"), /CurrentVersion = "1\.0\.38"/);
 	assert.match(source("../../agent/utils/utils.go"), /const AgentVersion = "1\.0\.37"/);
 	assert.match(source("../src/pages/admin/index.tsx"), /const agentReleaseVersion = "1\.0\.37";/);
   const packageJSON = JSON.parse(source("../package.json"));
@@ -16,15 +16,17 @@ test("panel, Agent, UI, and package metadata match the development candidate", (
   assert.equal(lock.packages[""].version, version);
 });
 
-test("release documentation pins panel and Agent examples to the release tag", () => {
-  for (const path of ["../../README.md", "../../agent/readme.md"]) {
-    const document = source(path);
-    assert.match(document, /releases\/download\/v1\.0\.37\//, `${path} must use the current release URL`);
-    assert.doesNotMatch(document, /releases\/download\/v1\.0\.(?:16|26)\//, `${path} must not retain a stale release URL`);
-    assert.doesNotMatch(document, /--install-version 1\.0\.(?:16|26)/, `${path} must not retain a stale Agent version`);
-  }
+test("panel-only release documentation keeps Agent installation pinned to its existing release", () => {
+  const readme = source("../../README.md");
+  const agentReadme = source("../../agent/readme.md");
+  assert.match(readme, /Release `v1\.0\.38` publishes Linux panel binaries/);
+  assert.match(readme, /releases\/download\/v1\.0\.38\/komari-oneclick\.py/);
+  assert.match(readme, /releases\/download\/v1\.0\.37\/install\.sh/);
+  assert.match(readme, /--install-version 1\.0\.37/);
+  assert.match(agentReadme, /releases\/download\/v1\.0\.37\//);
   assert.match(source("../../scripts/build-release.sh"), /previous_tag="\$\{3:-v1\.0\.26\}"/);
-  assert.match(source("../../RELEASE_NOTES.md"), /# Komari Lite v1\.0\.37/);
+  assert.match(source("../../RELEASE_NOTES.md"), /# Komari Lite v1\.0\.38/);
+  assert.match(source("../../RELEASE_NOTES.md"), /Agent artifacts remain at `1\.0\.37`/);
 });
 
 test("Agent installers receive a pinned version and never use latest", () => {

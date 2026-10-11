@@ -396,12 +396,17 @@ func (s *Store) aggregateOverview(q Query, now time.Time, loc *time.Location, v 
 		for i := range v.Daily {
 			days[v.Daily[i].Date] = &v.Daily[i]
 		}
-		modelRows, taskRows, dayRows := map[string][]StoredSample{}, map[string][]StoredSample{}, map[string][]StoredSample{}
+		modelRows, taskRows, dayRows, dayModelRows := map[string][]StoredSample{}, map[string][]StoredSample{}, map[string][]StoredSample{}, map[string]map[string][]StoredSample{}
 		for _, row := range rows {
 			key := row.Model + "\x00" + row.Provider + "\x00" + row.BillingMode
 			modelRows[key] = append(modelRows[key], row)
 			taskRows[row.Task] = append(taskRows[row.Task], row)
-			dayRows[time.Unix(int64(row.EndedAt), 0).In(loc).Format("2006-01-02")] = append(dayRows[time.Unix(int64(row.EndedAt), 0).In(loc).Format("2006-01-02")], row)
+			date := time.Unix(int64(row.EndedAt), 0).In(loc).Format("2006-01-02")
+			dayRows[date] = append(dayRows[date], row)
+			if dayModelRows[date] == nil {
+				dayModelRows[date] = map[string][]StoredSample{}
+			}
+			dayModelRows[date][key] = append(dayModelRows[date][key], row)
 		}
 		for key, rows := range modelRows {
 			if row := models[key]; row != nil {
@@ -426,6 +431,10 @@ func (s *Store) aggregateOverview(q Query, now time.Time, loc *time.Location, v 
 					to = q.To
 				}
 				row.AverageTPS = coveredAverage(rows, from, to)
+				for i := range row.Models {
+					key := row.Models[i].Model + "\x00" + row.Models[i].Provider + "\x00" + row.Models[i].BillingMode
+					row.Models[i].OutputTPS = coveredOutputAverage(dayModelRows[date][key], from, to)
+				}
 			}
 		}
 	}

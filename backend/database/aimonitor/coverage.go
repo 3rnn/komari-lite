@@ -6,6 +6,14 @@ import "sort"
 // node. It cannot infer absent intervals, split cross-boundary counters or use
 // hourly rollups whose detailed coverage proof has been retired.
 func coveredAverage(rows []StoredSample, from, to float64) *float64 {
+	return coveredAverageBy(rows, from, to, func(row StoredSample) int64 { return row.TotalTokens() })
+}
+
+func coveredOutputAverage(rows []StoredSample, from, to float64) *float64 {
+	return coveredAverageBy(rows, from, to, func(row StoredSample) int64 { return row.OutputTokens })
+}
+
+func coveredAverageBy(rows []StoredSample, from, to float64, value func(StoredSample) int64) *float64 {
 	if len(rows) == 0 || to <= from {
 		return nil
 	}
@@ -15,10 +23,10 @@ func coveredAverage(rows []StoredSample, from, to float64) *float64 {
 		if row.StartedAt < from || row.EndedAt > to || row.Coverage == nil || !*row.Coverage || row.ResetCount > 0 {
 			return nil
 		}
-		if tokens > MaxSafeJSONInteger-row.TotalTokens() {
+		if value(row) < 0 || tokens > MaxSafeJSONInteger-value(row) {
 			return nil
 		}
-		tokens += row.TotalTokens()
+		tokens += value(row)
 		nodes[row.Node] = append(nodes[row.Node], row)
 	}
 	for _, samples := range nodes {
