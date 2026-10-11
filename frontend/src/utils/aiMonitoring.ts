@@ -1,8 +1,12 @@
 export function aiTimestamp(value: number | string | undefined, timezone: string) {
+ void timezone;
  if (value == null) return "N/A";
  const date = new Date(typeof value === "number" ? value * 1000 : value);
  if (!Number.isFinite(date.getTime())) return "N/A";
- try { return new Intl.DateTimeFormat("en-GB", {timeZone:timezone,dateStyle:"medium",timeStyle:"short"}).format(date); } catch { return "N/A"; }
+ try {
+  const format=(timeZone:string)=>new Intl.DateTimeFormat("en-GB",{timeZone,day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(date);
+  return `UTC ${format("UTC")} · Beijing ${format("Asia/Shanghai")}`;
+ } catch { return "N/A"; }
 }
 
 export type Usage = {

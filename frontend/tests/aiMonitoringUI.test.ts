@@ -18,6 +18,15 @@ test("quota cards make remaining and used meaning explicit without exposing acco
  assert.ok(html.includes("Session quota remaining"));
  assert.ok(!html.includes("opaque-private-account-hash"));
 });
+test("AI timestamps show UTC and Beijing dates in 24-hour time", () => {
+ const html=renderToStaticMarkup(React.createElement(AIMonitoringView,{timezone:"UTC",data:{accounts:[{provider:"openai-codex",status:"available",last_success_at:1791574080,windows:[{label:"Session",used_percent:9,resets_at:"2026-10-09T19:28:00Z"}]}]}}));
+ assert.ok(html.includes("UTC 09 Oct 2026, 19:28 · Beijing 10 Oct 2026, 03:28"));
+});
+test("daily duplicate model rows disclose their verified grouping and unknown account", () => {
+ const html=renderToStaticMarkup(React.createElement(AIMonitoringView,{timezone:"UTC",data:{daily:[{date:"2026-10-11",calls:100,total_tokens:13883709,models:[{model:"gpt-5.6-terra",provider:"openai-codex",billing_mode:"subscription_included",calls:88,total_tokens:12669678},{model:"gpt-5.6-terra",provider:"openai-codex",billing_mode:"unknown",calls:12,total_tokens:1214031}]}]}}));
+ assert.ok(html.includes("OpenAI Codex · subscription included · Account unknown"));
+ assert.ok(html.includes("OpenAI Codex · Billing mode unknown · Account unknown"));
+});
 test("healthy zero-delta periods use an empty state and suppress zero-only model rows", () => {
  const html=renderToStaticMarkup(React.createElement(AIMonitoringView,{timezone:"UTC",data:{trends:[{timestamp:1,calls:0,total_tokens:0}],daily:[{date:"2026-10-09",calls:0,total_tokens:0,models:[{model:"zero-only",calls:0,total_tokens:0}]}]}}));
  assert.ok(html.includes("Collection is healthy, but no new usage occurred in this range."));
