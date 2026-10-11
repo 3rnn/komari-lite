@@ -53,3 +53,11 @@ export function hermesInstallArgs(platform: string, enabled: boolean): string[] 
 }
 export function encodeAISelectValue(value: string): string { return value === "" ? "__ai_all__" : `value:${value}`; }
 export function decodeAISelectValue(value: string): string { return value === "__ai_all__" ? "" : value.startsWith("value:") ? value.slice("value:".length) : ""; }
+
+export const customManualPricingModel = "__custom_manual_pricing_model__";
+const builtInManualPricingModels = ["gpt-5.6-terra", "gpt-6-sol", "gpt-5.6-sol", "gpt-6-luna", "gpt-5.6-luna", "gpt-5.5", "gpt-5.4-mini", "gpt-5.4", "gpt-5.3-codex-spark"];
+export function manualPricingModelOptions(customModels: string[]) {
+  const custom = [...new Set(customModels)].filter(model => /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(model) && !builtInManualPricingModels.includes(model));
+  return [...builtInManualPricingModels, ...custom].map(value => ({ value, label: value })).concat({ value: customManualPricingModel, label: "Add Custom Model…" });
+}
+export function validManualPricingModel(value: string): boolean { return /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(value); }

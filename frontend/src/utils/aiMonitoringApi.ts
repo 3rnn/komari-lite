@@ -1,6 +1,6 @@
 import { adminNodeRequest } from "./adminNodeRequest.ts";
 import { isAdminLogoutPending } from "./adminRevocation.ts";
-export type AISettings = { timezone:string; retention_days:number; detailed_retention_hours:number };
+export type AISettings = { timezone:string; retention_days:number; detailed_retention_hours:number; custom_models?:string[] };
 export type PriceEntry = { provider:string;model:string;processing_mode:string;context_tier:string;input_per_million:number|string;output_per_million:number|string;cache_read_per_million:number|string|null;cache_write_per_million:number|string|null };
 export type PriceRule = { provider:string;model:string;billing_mode:string;processing_mode:string;reference_model?:string;reference_tier?:string;input_per_million:number;output_per_million:number;cache_read_per_million:number|null;cache_write_per_million:number|null;source:string;source_url:string;version:string;effective_at:string };
 export type ReferenceCatalog = { source:string;source_url:string;version:string;verified_at?:string;source_sha256?:string;entries:PriceEntry[] };

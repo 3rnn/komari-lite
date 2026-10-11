@@ -6,13 +6,17 @@ import (
 	"fmt"
 	"gorm.io/gorm"
 
+	"regexp"
 	"time"
 )
 
+var customModelIdentifier = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
+
 type Settings struct {
-	Timezone               string `json:"timezone"`
-	RetentionDays          int    `json:"retention_days"`
-	DetailedRetentionHours int    `json:"detailed_retention_hours"`
+	Timezone               string   `json:"timezone"`
+	RetentionDays          int      `json:"retention_days"`
+	DetailedRetentionHours int      `json:"detailed_retention_hours"`
+	CustomModels           []string `json:"custom_models"`
 }
 type SettingsRow struct {
 	ID      int    `gorm:"primaryKey"`
@@ -39,6 +43,19 @@ func (s *Store) SetSettings(v Settings) error {
 	}
 	if len(v.Timezone) > 64 || v.RetentionDays < 1 || v.RetentionDays > 30 || v.DetailedRetentionHours < 1 || v.DetailedRetentionHours > 24 || v.DetailedRetentionHours > v.RetentionDays*24 {
 		return fmt.Errorf("retention must be 1..30 days with 1..24 detailed hours")
+	}
+	if len(v.CustomModels) > 64 {
+		return fmt.Errorf("too many custom models")
+	}
+	seen := make(map[string]struct{}, len(v.CustomModels))
+	for _, model := range v.CustomModels {
+		if !customModelIdentifier.MatchString(model) {
+			return fmt.Errorf("invalid custom model identifier")
+		}
+		if _, duplicate := seen[model]; duplicate {
+			return fmt.Errorf("duplicate custom model identifier")
+		}
+		seen[model] = struct{}{}
 	}
 	raw, _ := json.Marshal(v)
 	return s.DB.Save(&SettingsRow{ID: 1, Payload: string(raw)}).Error

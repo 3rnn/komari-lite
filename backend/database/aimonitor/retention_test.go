@@ -71,6 +71,29 @@ func TestSettingsBoundsAndIndependentSchema(t *testing.T) {
 	}
 }
 
+func TestSettingsCustomModelsValidateAndPersist(t *testing.T) {
+	s := fixture(t)
+	settings := Settings{Timezone: "UTC", RetentionDays: 30, DetailedRetentionHours: 24, CustomModels: []string{"my-model.v1", "my-model.v2"}}
+	if err := s.SetSettings(settings); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.Settings()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.CustomModels) != 2 || got.CustomModels[0] != "my-model.v1" || got.CustomModels[1] != "my-model.v2" {
+		t.Fatalf("custom models did not persist: %#v", got.CustomModels)
+	}
+	settings.CustomModels = []string{"duplicate", "duplicate"}
+	if err := s.SetSettings(settings); err == nil {
+		t.Fatal("duplicate custom model accepted")
+	}
+	settings.CustomModels = []string{"unsafe model identifier"}
+	if err := s.SetSettings(settings); err == nil {
+		t.Fatal("unsafe custom model accepted")
+	}
+}
+
 func TestDedupRetentionIsIndependentOfConfiguredHistoryRetention(t *testing.T) {
 	s := fixture(t)
 	now := time.Unix(1780000000, 0)
