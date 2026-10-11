@@ -21,6 +21,13 @@ func fixture(t *testing.T) (string, []byte) {
 	return dir, payload
 }
 func jsonTime() string { b, _ := json.Marshal(float64(time.Now().Unix())); return string(b) }
+
+func TestRelayReportsAtSixtySecondCadenceByDefault(t *testing.T) {
+	if DefaultReportInterval != 60*time.Second {
+		t.Fatalf("default report interval = %s, want 60s", DefaultReportInterval)
+	}
+}
+
 func TestRelayRetriesIdenticalSamplesAndExplicitDurableACK(t *testing.T) {
 	dir, _ := fixture(t)
 	attempts := 0

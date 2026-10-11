@@ -22,6 +22,9 @@ import (
 )
 
 const DefaultSpool = "/var/lib/komari-hermes/spool"
+// DefaultReportInterval limits Agent-to-Panel telemetry traffic without changing
+// the collector's independent local sampling cadence.
+const DefaultReportInterval = 60 * time.Second
 const MaxPayload = 512 * 1024
 
 var uuidPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
@@ -369,7 +372,7 @@ func (r Relay) Once(ctx context.Context, enabled bool) (err error) {
 // Run is independent of heartbeat/reconnect work and intentionally never exits
 // because of collector/network failures. Operators see delivery state via backend.
 func (r Relay) Run(ctx context.Context, enabled func() bool) {
-	ticker := time.NewTicker(30 * time.Second)
+	ticker := time.NewTicker(DefaultReportInterval)
 	defer ticker.Stop()
 	for {
 		_ = r.Once(ctx, enabled())
