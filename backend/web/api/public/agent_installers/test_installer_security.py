@@ -54,9 +54,9 @@ ai_helper=/opt/komari-fixture/hermes_collector.py
 ''' + function(src,'systemd_quote')+'\n'+unit+'\nwrite_hermes_unit\n'
         run=subprocess.run(['bash','-c',script],capture_output=True,text=True,check=True)
         out=run.stdout
-        for line in ('User=fixture','ProtectHome=tmpfs','ProtectSystem=strict','NoNewPrivileges=true','CapabilityBoundingSet=','/state.db:','/auth.json:','--database','--spool'):
+        for line in ('User=fixture','ProtectHome=tmpfs','ProtectSystem=strict','TemporaryFileSystem="/root/.hermes:ro,mode=000"','NoNewPrivileges=true','CapabilityBoundingSet=','/source/state.db','/source/auth.json','--database','--spool'):
             self.assertIn(line,out)
-        self.assertIn('InaccessiblePaths=/root/.hermes',out)
+        self.assertNotIn('InaccessiblePaths=/root/.hermes',out)
         self.assertNotIn('ReadOnlyPaths=/root/.hermes\n',out)
         self.assertNotIn('BindReadOnlyPaths=/root/.hermes\n',out)
         self.assertNotIn('chmod',out)
@@ -94,7 +94,9 @@ ai_helper=/opt/komari-fixture/hermes_collector.py
         with tempfile.TemporaryDirectory() as temp:
             unit=pathlib.Path(temp)/'komari-hermes-fixture.service'
             unit.write_text(generated)
-            result=subprocess.run(['systemd-analyze','verify',str(unit)],capture_output=True,text=True)
+            setup=pathlib.Path(temp)/'komari-fixture-hermes-runtime-setup.service'
+            setup.write_text('[Service]\nType=oneshot\nExecStart=/usr/bin/true\n')
+            result=subprocess.run(['systemd-analyze','verify',str(unit),str(setup)],capture_output=True,text=True)
             self.assertEqual(result.returncode,0,result.stderr)
             self.assertNotIn('Unknown',result.stderr)
 

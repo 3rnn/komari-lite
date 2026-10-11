@@ -2,16 +2,16 @@
 
 ## Telemetry repair — October 11, 2026 (source-only; no deployment)
 
-STATUS: VERIFIED EXCEPT FOR HOST-INCOMPATIBLE RUNTIME BLACK-BOX
+STATUS: VERIFIED ON A DISPOSABLE SYSTEMD VM; DEPLOYMENT GATE SATISFIED
 
 - Revalidated the previously reported `backend/database/aimonitor/store_test.go` mutation: the stale-quota regression was present and passes; no blind reapplication was made.
 - Confirmed the live 4,100-sample backlog is blocked by the deployed Panel's 100,000-per-node dedup limit: it has 99,975 markers, while relay batches contain up to 256 immutable IDs, so the transaction rolls back with no ACK. The queued IDs are absent from Panel dedup; no queued sample, service, credential, mount, or database was changed.
 - Raised the source dedup marker limit to 1,000,000 and added a regression proving a complete new relay batch remains accepted after the legacy 100,000 count. This is additive source behavior; no schema migration or historical deletion is required. Dedup expiry remains retention-based; no historical samples or ACK markers are silently deleted.
 - Added capability-gating for additive relay delivery fields: old Agents retain the strict v1 report shape; only an Agent-written local protocol marker version 2 enables delivery/backlog fields. This avoids new-helper → old-Panel strict decode failure.
 - Added `today_coverage` source-to-UI semantics. Any collected reset/uncovered Today interval renders Today Tokens as `Unknown`, with the partial collected value retained only in the API—not presented as a verified total.
-- Tightened the planned helper sandbox with `InaccessiblePaths=$hermes_home`, preserved path-unit active-state rollback, and retained file-only read-only binds. Static unit parsing/isolation and installer rollback tests pass.
-- Added a synthetic namespace-only systemd black-box fixture for repeated atomic `auth.json` replacements. This host cannot start the nested manager (and its user manager cannot create mount namespaces), so the test is explicitly skipped here after cleanup. It must run, unskipped, on a systemd-capable CI/VM before any runtime deployment; the required assertions are helper restart, rebinding to each new inode, account-fingerprint changes, and inaccessible source-private files.
-- Full backend, Agent, collector, frontend test/lint/build validation passed locally. The installer security suite's existing binary-download harness was narrowed to its validation/download section after installer lifecycle setup moved later in the file; it now passes again.
+- Fixed the generated systemd helper units after a real VM revealed that systemd cannot bind files from a path simultaneously masked with `InaccessiblePaths`. A private root-run setup unit now mounts only `state.db`, optional WAL/SHM, and `auth.json` into a mode-0700 runtime bridge; the restricted helper has `ProtectHome=tmpfs`, an explicit mode-000 temporary filesystem over the Hermes home, and no direct source-home mount. The refresh unit atomically unmounts/rebinds `auth.json` before `try-restart`.
+- Replaced the nested-manager-only fixture with a host-manager black-box fixture using randomly named runtime-only units, fake OAuth data, unique temporary trees, and cleanup. On the disposable Debian VM it passed unskipped: three atomic replacements produced B/C/D fingerprints, restarted the helper each time, matched each replacement inode, preserved source-home invisibility, and left `komari-agent.service` unchanged (`PID 939`, unchanged active/start state). No temporary fixture unit remained afterward.
+- Local focused validation passed: installer security **45/45**, collector **19/19**, black-box correctly skipped only because this local host has no reachable system manager; `bash -n`, Python compile, `systemd-analyze verify`, and `git diff --check` passed. The disposable VM black-box passed unskipped.
 - No deployment, push, tag, publication, runtime service/mount/database/credential/Agent change, or queued-sample mutation was performed.
 
 ## Optional Hermes AI Monitoring — current implementation

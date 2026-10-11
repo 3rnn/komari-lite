@@ -1,8 +1,8 @@
-"""Isolated systemd regression for atomic Hermes OAuth replacement.
+"""Systemd black-box regression for atomic Hermes OAuth replacement.
 
-A nested systemd runs in disposable user, mount and PID namespaces. Its chroot
-contains only synthetic state/auth data and cannot reach host Hermes data or
-installed services.
+The fixture loads only randomly named units into the disposable test host's
+runtime unit directory. It uses fake state/auth files and a unique private
+runtime tree, never an installed Hermes home or Komari service.
 """
 import hashlib
 import json
@@ -14,9 +14,11 @@ import subprocess
 import tempfile
 import time
 import unittest
+import uuid
 
 SH = pathlib.Path(__file__).with_name("install.sh")
 SCRATCH = pathlib.Path("/root/.hermes/cache/scratch")
+UNIT_DIR = pathlib.Path("/run/systemd/system")
 
 
 def function(source, name):
@@ -29,137 +31,163 @@ def function(source, name):
     return source[match.start():match.end() + end.end()]
 
 
-@unittest.skipUnless(os.name == "posix" and os.geteuid() == 0 and all(shutil.which(x) for x in ("unshare", "nsenter")), "requires root plus Linux namespace tools")
+def systemctl(*args):
+    return subprocess.run(["systemctl", *args], capture_output=True, text=True)
+
+
+def systemd_available():
+    return bool(
+        os.name == "posix"
+        and os.geteuid() == 0
+        and shutil.which("systemctl")
+        and UNIT_DIR.is_dir()
+        and systemctl("show", "basic.target").returncode == 0
+    )
+
+
+@unittest.skipUnless(systemd_available(), "requires root and a running system manager")
 class HermesAuthRefreshBlackBox(unittest.TestCase):
-    def generated_units(self, units):
-        source = SH.read_text()
+    def generated_units(self, units, runtime, source, helper, private, spool):
+        installer = SH.read_text()
         script = (
-            "hermes_owner=root; hermes_group=root; hermes_home=/fixture/hermes\n"
-            "ai_runtime=fixture-hermes; ai_base=/var/lib/fixture-hermes\n"
-            "ai_private=$ai_base/private; ai_spool=$ai_base/spool\n"
-            "ai_helper=/opt/fixture/hermes_collector.py\n"
-            + function(source, "systemd_quote") + "\n" + function(source, "write_hermes_unit") + "\n"
-            + function(source, "write_hermes_auth_refresh_service") + "\n" + function(source, "write_hermes_auth_refresh_path")
-            + "\nwrite_hermes_unit > \"$1/fixture-hermes.service\"\n"
-            + "write_hermes_auth_refresh_service > \"$1/fixture-hermes-auth-refresh.service\"\n"
-            + "write_hermes_auth_refresh_path > \"$1/fixture-hermes-auth-refresh.path\"\n"
+            f"hermes_owner=root; hermes_group=root; hermes_home={source}\n"
+            f"ai_runtime={runtime}; ai_private={private}; ai_spool={spool}\n"
+            f"ai_helper={helper}\n"
+            + function(installer, "systemd_quote")
+            + "\n"
+            + function(installer, "write_hermes_unit")
+            + "\n"
+            + function(installer, "write_hermes_runtime_setup_service")
+            + "\n"
+            + function(installer, "write_hermes_auth_refresh_service")
+            + "\n"
+            + function(installer, "write_hermes_auth_refresh_path")
+            + f"\nwrite_hermes_unit > {units / (runtime + '.service')}\n"
+            + f"write_hermes_runtime_setup_service > {units / (runtime + '-runtime-setup.service')}\n"
+            + f"write_hermes_auth_refresh_service > {units / (runtime + '-auth-refresh.service')}\n"
+            + f"write_hermes_auth_refresh_path > {units / (runtime + '-auth-refresh.path')}\n"
         )
-        result = subprocess.run(["bash", "-c", script, "--", str(units)], capture_output=True, text=True)
+        result = subprocess.run(["bash", "-c", script], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_atomic_auth_replacements_restart_and_rebind_in_an_isolated_manager(self):
+    def test_atomic_auth_replacements_restart_and_rebind_in_isolated_sandbox(self):
+        runtime = "komari-auth-fixture-" + uuid.uuid4().hex
+        service = runtime + ".service"
+        refresh_service = runtime + "-auth-refresh.service"
+        refresh_path = runtime + "-auth-refresh.path"
+        private = pathlib.Path("/var/lib") / runtime / "private"
+        spool = pathlib.Path("/var/lib") / runtime / "spool"
+        unit_paths = [
+            UNIT_DIR / service,
+            UNIT_DIR / (runtime + "-runtime-setup.service"),
+            UNIT_DIR / refresh_service,
+            UNIT_DIR / refresh_path,
+        ]
         with tempfile.TemporaryDirectory(dir=SCRATCH, prefix="komari-auth-refresh-") as temp:
-            fixture = pathlib.Path(temp)
-            units, root = fixture / "units", fixture / "rootfs"
-            units.mkdir()
-            self.generated_units(units)
-            console, outer, launcher = fixture / "nested.log", fixture / "outer.log", fixture / "launch.sh"
-            launcher.write_text("""#!/usr/bin/env bash
-set -euo pipefail
-root=$1; units=$2; console=$3
-mkdir -p "$root"
-mount --make-rprivate /
-mount -t tmpfs tmpfs "$root"
-mkdir -p "$root"/{usr,proc,sys,dev,etc/systemd/system,run,var/lib/fixture-hermes/private,var/lib/fixture-hermes/spool,opt/fixture,fixture/hermes,tmp}
-mount --rbind /usr "$root/usr"; mount --make-rslave "$root/usr"
-mount --rbind /sys "$root/sys"; mount --make-rslave "$root/sys"
-ln -s usr/bin "$root/bin"; ln -s usr/lib "$root/lib"; ln -s usr/lib64 "$root/lib64"; ln -s usr/sbin "$root/sbin"
-printf 'fixture:x:1000:1000::/tmp:/usr/sbin/nologin\\n' > "$root/etc/passwd"
-printf 'fixture:x:1000:\\n' > "$root/etc/group"
-printf 'fixture\\n' > "$root/etc/hostname"
-printf '8de277067b3544d4b65c267d0edab928\\n' > "$root/etc/machine-id"
-for d in null zero random urandom full console; do : > "$root/dev/$d"; mount --bind "/dev/$d" "$root/dev/$d"; done
-mount -t proc proc "$root/proc"
-printf state > "$root/fixture/hermes/state.db"
-printf secret > "$root/fixture/hermes/private-note.txt"
-printf '{"account":"A"}' > "$root/fixture/hermes/auth.json"
-chmod 755 "$root/fixture" "$root/fixture/hermes"; chmod 640 "$root/fixture/hermes/auth.json" "$root/fixture/hermes/state.db"; chmod 600 "$root/fixture/hermes/private-note.txt"
-cat > "$root/opt/fixture/hermes_collector.py" <<'PY'
-import argparse,hashlib,json,os,pathlib,time
-p=argparse.ArgumentParser(); p.add_argument('--database'); p.add_argument('--auth-path'); p.add_argument('--state-dir'); p.add_argument('--spool'); a=p.parse_args(); spool=pathlib.Path(a.spool); spool.mkdir(parents=True,exist_ok=True)
-while True:
- account=json.load(open(a.auth_path))['account']
- report={'fingerprint':hashlib.sha256(('fixture:'+account).encode()).hexdigest(),'inode':os.stat(a.auth_path).st_ino,'private_unreadable':not os.path.exists('/fixture/hermes/private-note.txt'),'source_hidden':not os.path.exists('/fixture/hermes/auth.json')}
- tmp=spool/'.report'; tmp.write_text(json.dumps(report)); os.replace(tmp,spool/'report.json'); time.sleep(.02)
-PY
-chmod 755 "$root/opt/fixture/hermes_collector.py"
-cp "$units"/* "$root/etc/systemd/system/"
-exec chroot "$root" /usr/lib/systemd/systemd --system --log-target=console --log-level=warning --unit=basic.target > "$console" 2>&1
-""")
-            launcher.chmod(0o700)
-            with outer.open("wb") as output:
-                outer_process = subprocess.Popen(["unshare", "--user", "--map-root-user", "--mount", "--pid", "--fork", "--mount-proc", str(launcher), str(root), str(units), str(console)], stdout=output, stderr=subprocess.STDOUT)
-            manager = None
+            root = pathlib.Path(temp)
+            source, units = root / "synthetic-hermes", root / "units"
+            helper = private.parent / "collector.py"
+            source.mkdir(mode=0o755)
+            units.mkdir(mode=0o700)
+            private.mkdir(parents=True, mode=0o700)
+            spool.mkdir(parents=True, mode=0o700)
+            (source / "state.db").write_text("synthetic state")
+            (source / "private-note.txt").write_text("must not be visible")
+            self.replace_auth(source / "auth.json", "A")
+            os.chmod(source / "state.db", 0o640)
+            os.chmod(source / "private-note.txt", 0o600)
+            helper.write_text(self.helper_source(source))
+            helper.chmod(0o755)
+            self.generated_units(units, runtime, source, helper, private, spool)
+            for target in unit_paths:
+                target.write_bytes((units / target.name).read_bytes())
+            reloaded = systemctl("daemon-reload")
+            self.assertEqual(reloaded.returncode, 0, reloaded.stderr)
             try:
-                manager = self.wait_for_manager(root, outer, console)
-                started = self.ns(manager, ["/usr/bin/systemctl", "start", "fixture-hermes.service", "fixture-hermes-auth-refresh.path"])
-                self.assertEqual(started.returncode, 0, started.stdout + started.stderr + self.artifacts(outer, console))
-                report = self.wait_report(manager, "A", None, outer, console)
-                pid = self.show(manager, "MainPID")
+                started = systemctl("start", service, refresh_path)
+                self.assertEqual(started.returncode, 0, started.stderr)
+                report = self.wait_report(spool, "A", None, service)
+                previous_pid = self.show(service, "MainPID")
                 for account in ("B", "C", "D"):
-                    replace = self.ns(manager, ["/usr/bin/python3", "-c", "import json,os,sys;p='/fixture/hermes/auth.json';t=p+'.tmp';f=open(t,'w');json.dump({'account':sys.argv[1]},f);f.flush();os.fsync(f.fileno());f.close();os.replace(t,p);d=os.open('/fixture/hermes',os.O_RDONLY);os.fsync(d);os.close(d)", account])
-                    self.assertEqual(replace.returncode, 0, replace.stderr)
-                    report = self.wait_report(manager, account, report["inode"], outer, console)
-                    new_pid = self.show(manager, "MainPID")
-                    source_inode = int(self.ns(manager, ["/usr/bin/stat", "-c", "%i", "/fixture/hermes/auth.json"]).stdout.strip())
-                    self.assertNotEqual(new_pid, pid, self.artifacts(outer, console))
-                    self.assertEqual(report["inode"], source_inode)
+                    self.replace_auth(source / "auth.json", account)
+                    report = self.wait_report(spool, account, report["inode"], service)
+                    current_pid = self.show(service, "MainPID")
+                    self.assertNotEqual(current_pid, previous_pid)
+                    self.assertEqual(report["inode"], os.stat(source / "auth.json").st_ino)
                     self.assertTrue(report["private_unreadable"])
                     self.assertTrue(report["source_hidden"])
-                    self.assertEqual(report["fingerprint"], hashlib.sha256(("fixture:" + account).encode()).hexdigest())
-                    pid = new_pid
-                self.assertEqual(self.ns(manager, ["/usr/bin/systemctl", "is-active", "--quiet", "fixture-hermes-auth-refresh.path"]).returncode, 0)
+                    self.assertEqual(report["fingerprint"], self.fingerprint(account))
+                    previous_pid = current_pid
+                active = systemctl("is-active", "--quiet", refresh_path)
+                self.assertEqual(active.returncode, 0, active.stderr)
             finally:
-                if manager:
-                    self.ns(manager, ["/usr/bin/systemctl", "poweroff"])
-                try:
-                    outer_process.wait(timeout=10)
-                except subprocess.TimeoutExpired:
-                    outer_process.kill(); outer_process.wait(timeout=5)
-
-    def wait_for_manager(self, root, outer, console):
-        wanted = str(root.resolve())
-        for _ in range(300):
-            for candidate in pathlib.Path("/proc").iterdir():
-                if not candidate.name.isdigit():
-                    continue
-                try:
-                    if os.readlink(candidate / "root") != wanted:
-                        continue
-                except OSError:
-                    continue
-                probe = self.ns(candidate.name, ["/usr/bin/systemctl", "show", "basic.target"])
-                if probe.returncode == 0:
-                    return candidate.name
-            time.sleep(.05)
-        self.skipTest("nested systemd cannot become ready in this host namespace configuration; run this black-box test on a systemd-capable CI runner")
+                systemctl("stop", refresh_path, refresh_service, service)
+                for path in unit_paths:
+                    path.unlink(missing_ok=True)
+                reloaded = systemctl("daemon-reload")
+                self.assertEqual(reloaded.returncode, 0, reloaded.stderr)
+                shutil.rmtree(private.parent, ignore_errors=True)
 
     @staticmethod
-    def ns(pid, command):
-        return subprocess.run(["nsenter", "-t", str(pid), "-U", "-m", "-p", "-r", "--", *command], capture_output=True, text=True)
+    def helper_source(source):
+        private_note = repr(str(source / "private-note.txt"))
+        auth_file = repr(str(source / "auth.json"))
+        return f"""import argparse, hashlib, json, os, pathlib, time
+parser=argparse.ArgumentParser()
+parser.add_argument('--database')
+parser.add_argument('--auth-path')
+parser.add_argument('--state-dir')
+parser.add_argument('--spool')
+args=parser.parse_args()
+spool=pathlib.Path(args.spool)
+spool.mkdir(parents=True, exist_ok=True)
+while True:
+    account=json.load(open(args.auth_path))['account']
+    report={{'fingerprint': hashlib.sha256(('fixture:'+account).encode()).hexdigest(),
+            'inode': os.stat(args.auth_path).st_ino,
+            'private_unreadable': not os.path.exists({private_note}),
+            'source_hidden': not os.path.exists({auth_file})}}
+    temp=spool/'.report'
+    temp.write_text(json.dumps(report))
+    os.replace(temp, spool/'report.json')
+    time.sleep(.02)
+"""
 
-    def show(self, manager, key):
-        result = self.ns(manager, ["/usr/bin/systemctl", "show", "fixture-hermes.service", "-p", key, "--value"])
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+    @staticmethod
+    def replace_auth(path, account):
+        temporary = path.with_name(path.name + ".tmp")
+        with temporary.open("w") as out:
+            json.dump({"account": account}, out)
+            out.flush()
+            os.fsync(out.fileno())
+        os.replace(temporary, path)
+        directory = os.open(path.parent, os.O_RDONLY)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+
+    @staticmethod
+    def fingerprint(account):
+        return hashlib.sha256(("fixture:" + account).encode()).hexdigest()
+
+    def show(self, service, key):
+        result = systemctl("show", service, "-p", key, "--value")
+        self.assertEqual(result.returncode, 0, result.stderr)
         return result.stdout.strip()
 
-    def wait_report(self, manager, account, old_inode, outer, console):
-        fingerprint = hashlib.sha256(("fixture:" + account).encode()).hexdigest()
-        for _ in range(300):
-            result = self.ns(manager, ["/usr/bin/cat", "/var/lib/fixture-hermes/spool/report.json"])
+    def wait_report(self, spool, account, previous_inode, service):
+        deadline = time.monotonic() + 15
+        while time.monotonic() < deadline:
             try:
-                report = json.loads(result.stdout)
-            except json.JSONDecodeError:
+                report = json.loads((spool / "report.json").read_text())
+            except (FileNotFoundError, json.JSONDecodeError):
                 report = None
-            if report and report.get("fingerprint") == fingerprint and report.get("inode") != old_inode:
+            if report and report.get("fingerprint") == self.fingerprint(account) and report.get("inode") != previous_inode:
                 return report
             time.sleep(.05)
-        status = self.ns(manager, ["/usr/bin/systemctl", "status", "fixture-hermes.service", "--no-pager", "--full"])
-        self.fail("timed out waiting for replacement report\n" + status.stdout + status.stderr + self.artifacts(outer, console))
-
-    @staticmethod
-    def artifacts(outer, console):
-        return "\n".join(f"--- {p.name} ---\n{p.read_text(errors='replace') if p.exists() else 'missing'}" for p in (outer, console))
+        status = systemctl("status", service, "--no-pager", "--full")
+        self.fail(f"timed out waiting for {account}: {status.stdout}{status.stderr}")
 
 
 if __name__ == "__main__":
