@@ -136,14 +136,37 @@ func Migrate(db *gorm.DB) error {
 			return fmt.Errorf("AI schema is newer than supported version 2")
 		}
 		if row.Version == 2 {
-			return nil
+			return ensureAutomaticTerraPricing(db)
 		}
 	}
-	return db.Transaction(func(tx *gorm.DB) error {
+	err := db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.AutoMigrate(&Schema{}, &PricingRule{}, &StoredSample{}, &Dedup{}, &NodeState{}, &AccountQuota{}, &SettingsRow{}, &Rollup{}, &Dimension{}); err != nil {
 			return err
 		}
 		return tx.Save(&Schema{ID: 1, Version: 2}).Error
+	})
+	if err != nil {
+		return err
+	}
+	return ensureAutomaticTerraPricing(db)
+}
+func ensureAutomaticTerraPricing(db *gorm.DB) error {
+	input, cacheRead, cacheWrite, output := 2.0, .2, 2.5, 12.0
+	return db.Transaction(func(tx *gorm.DB) error {
+		for _, billingMode := range []string{"subscription_included", "unknown"} {
+			var count int64
+			if err := tx.Model(&PricingRule{}).Where("provider = ? AND model = ? AND billing_mode = ?", "openai-codex", "gpt-5.6-terra", billingMode).Count(&count).Error; err != nil {
+				return err
+			}
+			if count != 0 {
+				continue
+			}
+			rule := PricingRule{ReferenceModel: "gpt-5.6-terra", Provider: "openai-codex", Model: "gpt-5.6-terra", BillingMode: billingMode, InputPerMillion: &input, CacheReadPerMillion: &cacheRead, CacheWritePerMillion: &cacheWrite, OutputPerMillion: &output, Source: "official_docs_snapshot", SourceURL: "https://developers.openai.com/api/docs/pricing", Version: "openai-pricing-2026-10-11-gpt-5.6-terra", ProcessingMode: "standard", ReferenceTier: "short", EffectiveAt: 0, CreatedAt: time.Now().UTC()}
+			if err := tx.Create(&rule).Error; err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 }
 func (s *Store) AppendPricing(rule PricingRule, now time.Time) (PricingRule, error) {

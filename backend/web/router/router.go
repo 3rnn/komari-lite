@@ -90,8 +90,6 @@ func registerAgentRoutes(r *gin.Engine) {
 func registerAdminRoutes(r *gin.Engine) {
 	g := r.Group("/api/admin", api.RequireRole(api.RoleAdmin))
 	g.GET("/ai/overview", jsonRpc.Bind("admin:getAIOverview", jsonRpc.WithQuery("from", "to", "preset", "timezone", "node", "model", "task"), jsonRpc.WithRaw()))
-	g.GET("/ai/pricing", jsonRpc.Bind("admin:getAIPricing", jsonRpc.WithRaw()))
-	g.POST("/ai/pricing", jsonRpc.Bind("admin:appendAIPricing", jsonRpc.WithRaw()))
 	g.GET("/ai/settings", jsonRpc.Bind("admin:getAISettings", jsonRpc.WithRaw()))
 	g.POST("/ai/settings", jsonRpc.Bind("admin:setAISettings", jsonRpc.WithRaw()))
 	g.GET("/dashboard", jsonRpc.Bind("admin:getDashboard", jsonRpc.WithQuery("sections", "limit"), jsonRpc.WithRaw()))

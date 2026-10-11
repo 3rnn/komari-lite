@@ -2,20 +2,19 @@
   "source_url": "https://developers.openai.com/api/docs/pricing",
   "source": "official_docs_snapshot",
   "verified_at": "2026-10-11T00:00:00Z",
-  "version": "openai-pricing-2026-10-11-verified-skus",
-  "automatic_activation": false,
-  "note": "Editable defaults from official OpenAI API pricing references. These are API-equivalent estimates, not ChatGPT subscription charges. Standard/short entries are never silently applied to long-context or other processing tiers. Blank cache rates are intentionally Unpriced. Select an exact published SKU, processing mode and context tier explicitly; cumulative Hermes counters cannot establish a request context tier. No retroactive repricing.",
+  "version": "openai-pricing-2026-10-11-gpt-5.6-terra",
+  "automatic_activation": true,
+  "note": "Automatic API-equivalent estimate for the selected OpenAI Codex gpt-5.6-terra model only. It is not an actual ChatGPT subscription charge. Rates apply only to the observed standard/short-context profile; long-context and other processing tiers remain unpriced unless explicitly configured in a future verified release. Existing price snapshots remain immutable.",
   "entries": [
-    {"provider":"openai","model":"gpt-6.1-sol","processing_mode":"standard","context_tier":"short","input_per_million":"2.00","cache_read_per_million":"0.10","cache_write_per_million":"2.50","output_per_million":"10.00"},
-    {"provider":"openai","model":"gpt-6-sol","processing_mode":"standard","context_tier":"short","input_per_million":"2.00","cache_read_per_million":"0.20","cache_write_per_million":"2.50","output_per_million":"10.00"},
-    {"provider":"openai","model":"gpt-6-sol","processing_mode":"standard","context_tier":"long","input_per_million":"4.00","cache_read_per_million":"0.40","cache_write_per_million":"5.00","output_per_million":"15.00"},
-    {"provider":"openai","model":"gpt-5.6-terra","processing_mode":"standard","context_tier":"short","input_per_million":"2.00","cache_read_per_million":"0.20","cache_write_per_million":"2.50","output_per_million":"12.00"},
-    {"provider":"openai","model":"gpt-5.6-terra","processing_mode":"standard","context_tier":"long","input_per_million":"4.00","cache_read_per_million":"0.40","cache_write_per_million":"5.00","output_per_million":"18.00"},
-    {"provider":"openai","model":"gpt-5.6-sol","processing_mode":"standard","context_tier":"short","input_per_million":"4.00","cache_read_per_million":"0.40","cache_write_per_million":"5.00","output_per_million":"20.00"},
-    {"provider":"openai","model":"gpt-6-luna","processing_mode":"standard","context_tier":"short","input_per_million":"0.10","cache_read_per_million":"0.01","cache_write_per_million":"0.125","output_per_million":"0.50"},
-    {"provider":"openai","model":"gpt-5.6-luna","processing_mode":"standard","context_tier":"short","input_per_million":"0.20","cache_read_per_million":"0.02","cache_write_per_million":"0.25","output_per_million":"1.20"},
-    {"provider":"openai","model":"gpt-5.5","processing_mode":"standard","context_tier":"short","input_per_million":"5.00","cache_read_per_million":"0.50","output_per_million":"30.00"},
-    {"provider":"openai","model":"gpt-5.4-mini","processing_mode":"standard","context_tier":"short","input_per_million":"0.75","cache_read_per_million":"0.075","output_per_million":"4.50"},
-    {"provider":"openai","model":"gpt-5.4","processing_mode":"standard","context_tier":"short","input_per_million":"2.50","cache_read_per_million":"0.25","output_per_million":"15.00"}
+    {
+      "provider": "openai",
+      "model": "gpt-5.6-terra",
+      "processing_mode": "standard",
+      "context_tier": "short",
+      "input_per_million": "2.00",
+      "cache_read_per_million": "0.20",
+      "cache_write_per_million": "2.50",
+      "output_per_million": "12.00"
+    }
   ]
 }

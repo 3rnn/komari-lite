@@ -29,15 +29,15 @@ It intentionally excludes remote terminal/control/command execution, Cloudflare 
 
 ## Official releases and safe updates
 
-Release `v1.0.40` publishes Linux panel binaries for both `amd64` and `arm64`, `SHA256SUMS.txt`, a Glass transition bundle, the existing safe-controller assets, and `update-komari.sh`. It is a panel-only release; Agent artifacts remain at `v1.0.37`.
+Release `v1.0.41` publishes Linux panel binaries for both `amd64` and `arm64`, `SHA256SUMS.txt`, a Glass transition bundle, the existing safe-controller assets, and `update-komari.sh`. It is a panel-only release; Agent artifacts remain at `v1.0.37`.
 
 ### Fresh native installation
 
 For a new reviewed Debian/systemd host, use the version-pinned controller from the same Release:
 
 ```bash
-curl -fsSLo komari-oneclick.py https://github.com/3rnn/komari-lite/releases/download/v1.0.40/komari-oneclick.py
-sudo python3 komari-oneclick.py install --tag v1.0.40
+curl -fsSLo komari-oneclick.py https://github.com/3rnn/komari-lite/releases/download/v1.0.41/komari-oneclick.py
+sudo python3 komari-oneclick.py install --tag v1.0.41
 ```
 
 This creates a new installation only when `/opt/komari` and `komari.service` are absent. It never creates or prints an administrator password. Complete first-run setup through the local installer before exposing the service through a reverse proxy.
@@ -47,12 +47,12 @@ This creates a new installation only when `/opt/komari` and `komari.service` are
 Download the updater from the immutable release tag, inspect it, and first run a dry run:
 
 ```bash
-curl -fsSLo update-komari.sh https://raw.githubusercontent.com/3rnn/komari-lite/v1.0.40/update-komari.sh
-bash update-komari.sh --dry-run v1.0.40
-bash update-komari.sh v1.0.40
+curl -fsSLo update-komari.sh https://raw.githubusercontent.com/3rnn/komari-lite/v1.0.41/update-komari.sh
+bash update-komari.sh --dry-run v1.0.41
+bash update-komari.sh v1.0.41
 ```
 
-`v1.0.40` is the next stable application release and retains the updater compatibility introduced by `v1.0.25`. It supports both a flat `/opt/komari/komari` executable and the protected versioned `komari -> current/komari` layout used by older safe-upgrade deployments. For a versioned deployment it verifies the known installed v1.0.19 safe-upgrade controller fingerprints, downloads and verifies the selected panel binary and Glass transition bundle, runs the installed controller's complete read-only transaction preflight before any service stop, reports that controller's rejection output clearly, and delegates staging, SQLite snapshots, atomic switching, health checking, rollback, and recovery to that controller.
+`v1.0.41` is the next stable application release and retains the updater compatibility introduced by `v1.0.25`. It supports both a flat `/opt/komari/komari` executable and the protected versioned `komari -> current/komari` layout used by older safe-upgrade deployments. For a versioned deployment it verifies the known installed v1.0.19 safe-upgrade controller fingerprints, downloads and verifies the selected panel binary and Glass transition bundle, runs the installed controller's complete read-only transaction preflight before any service stop, reports that controller's rejection output clearly, and delegates staging, SQLite snapshots, atomic switching, health checking, rollback, and recovery to that controller.
 
 With no version argument, `bash update-komari.sh` resolves the latest stable application release once. Use an explicit tag for a reviewed change. The updater detects `amd64`/`arm64`, verifies the selected release assets against that release's `SHA256SUMS.txt`, preserves the existing systemd unit and arguments, and rejects unsafe symlink chains, writable deployment paths, incomplete safe-upgrade transactions, and database downgrades.
 

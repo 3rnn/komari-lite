@@ -15,8 +15,6 @@ import (
 
 func init() {
 	reg("getAIOverview", adminGetAIOverview, "Get private Hermes AI monitoring overview")
-	reg("getAIPricing", adminGetAIPricing, "Get append-only AI reference pricing and informational catalog")
-	reg("appendAIPricing", adminAppendAIPricing, "Append an explicitly selected AI reference pricing rule")
 	reg("getAISettings", adminGetAISettings, "Get Hermes AI monitoring retention and timezone")
 	reg("setAISettings", adminSetAISettings, "Set bounded Hermes AI monitoring retention and timezone")
 }
@@ -133,31 +131,6 @@ func adminGetAIOverview(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc
 			query.Timezone = settings.Timezone
 		}
 		return s.Overview(query, now)
-	})
-}
-func adminGetAIPricing(ctx context.Context, _ *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
-	return withAIAdmin(ctx, "pricing", func(s *aimonitor.Store) (any, error) {
-		rules := []aimonitor.PricingRule{}
-		if err := s.DB.Order("id DESC").Limit(2049).Find(&rules).Error; err != nil {
-			return nil, err
-		}
-		if len(rules) > 2048 {
-			return nil, aimonitor.ErrQueryLimit
-		}
-		return map[string]any{"rules": rules, "reference_catalog": aimonitor.ReferenceCatalog()}, nil
-	})
-}
-func adminAppendAIPricing(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
-	return withAIAdmin(ctx, "pricing", func(s *aimonitor.Store) (any, error) {
-		var rule aimonitor.PricingRule
-		if err := strictAIParams(req, &rule); err != nil {
-			return nil, err
-		}
-		// Server identifiers/timestamps are immutable, not caller-controlled updates.
-		if rule.ID != 0 || !rule.CreatedAt.IsZero() {
-			return nil, fmt.Errorf("pricing IDs and creation timestamps are server-managed")
-		}
-		return s.AppendPricing(rule, time.Now().UTC())
 	})
 }
 func adminGetAISettings(ctx context.Context, _ *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {

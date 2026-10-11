@@ -3,7 +3,6 @@ package aimonitor
 import (
 	"encoding/json"
 	"testing"
-	"time"
 )
 
 func TestPricingEffectiveTimeAcceptsAdminISO8601(t *testing.T) {
@@ -27,32 +26,32 @@ func TestPricingEffectiveTimeAcceptsAdminISO8601(t *testing.T) {
 }
 func TestCatalogRemainsInformationalUntilExplicitExactSelection(t *testing.T) {
 	s := fixture(t)
-	now := time.Unix(1780000000, 0)
 	var catalog Catalog
 	if err := json.Unmarshal(ReferenceCatalog(), &catalog); err != nil {
 		t.Fatal(err)
 	}
-	if catalog.AutomaticActivation || len(catalog.Entries) != 11 {
+	if !catalog.AutomaticActivation || len(catalog.Entries) != 1 {
 		t.Fatalf("catalog: %+v", catalog)
 	}
 	entry := catalog.Entries[0]
-	if entry.Provider != "openai" || entry.Model != "gpt-6.1-sol" || entry.ProcessingMode != "standard" || entry.ContextTier != "short" || entry.InputPerMillion == nil || *entry.InputPerMillion != "2.00" || entry.CacheReadPerMillion == nil || *entry.CacheReadPerMillion != "0.10" || entry.CacheWritePerMillion == nil || *entry.CacheWritePerMillion != "2.50" || entry.OutputPerMillion == nil || *entry.OutputPerMillion != "10.00" {
-		t.Fatalf("unexpected verified gpt-6.1-sol SKU: %+v", entry)
+	if entry.Provider != "openai" || entry.Model != "gpt-5.6-terra" || entry.ProcessingMode != "standard" || entry.ContextTier != "short" || entry.InputPerMillion == nil || *entry.InputPerMillion != "2.00" || entry.CacheReadPerMillion == nil || *entry.CacheReadPerMillion != "0.20" || entry.CacheWritePerMillion == nil || *entry.CacheWritePerMillion != "2.50" || entry.OutputPerMillion == nil || *entry.OutputPerMillion != "12.00" {
+		t.Fatalf("unexpected automatic gpt-5.6-terra SKU: %+v", entry)
 	}
-	if catalog.Entries[1].Model != "gpt-6-sol" || catalog.Entries[3].Model != "gpt-5.6-terra" || catalog.Entries[5].Model != "gpt-5.6-sol" || catalog.Entries[6].Model != "gpt-6-luna" || catalog.Entries[8].Model != "gpt-5.5" || catalog.Entries[8].CacheWritePerMillion != nil || catalog.Entries[9].CacheWritePerMillion != nil || catalog.Entries[10].CacheWritePerMillion != nil {
-		t.Fatalf("unexpected verified SKU order or unpriced field: %+v", catalog.Entries)
+	var rules []PricingRule
+	if err := s.DB.Order("billing_mode").Find(&rules).Error; err != nil || len(rules) != 2 {
+		t.Fatalf("automatic defaults: %+v %v", rules, err)
+	}
+	for _, rule := range rules {
+		if rule.Provider != "openai-codex" || rule.Model != "gpt-5.6-terra" || (rule.BillingMode != "subscription_included" && rule.BillingMode != "unknown") || rule.InputPerMillion == nil || *rule.InputPerMillion != 2 || rule.CacheReadPerMillion == nil || *rule.CacheReadPerMillion != .2 || rule.CacheWritePerMillion == nil || *rule.CacheWritePerMillion != 2.5 || rule.OutputPerMillion == nil || *rule.OutputPerMillion != 12 || rule.Source != "official_docs_snapshot" {
+			t.Fatalf("unexpected automatic rule: %+v", rule)
+		}
+	}
+	if err := Migrate(s.DB); err != nil {
+		t.Fatal(err)
 	}
 	var count int64
 	s.DB.Model(&PricingRule{}).Count(&count)
-	if count != 0 {
-		t.Fatal("catalog automatically activated")
-	}
-	entry = catalog.Entries[0]
-	rule, err := s.AppendPricing(PricingRule{Provider: entry.Provider, Model: "local-exact-alias", ReferenceModel: entry.Model, ProcessingMode: entry.ProcessingMode, ReferenceTier: entry.ContextTier, BillingMode: "operator-selected", EffectiveAt: float64(now.Unix())}, now)
-	if err != nil || rule.InputPerMillion == nil || rule.Source != "official_docs_snapshot" {
-		t.Fatalf("selection: %+v %v", rule, err)
-	}
-	if _, err := s.AppendPricing(PricingRule{Provider: entry.Provider, Model: "local-exact-alias", ReferenceModel: entry.Model, ProcessingMode: "inferred", ReferenceTier: entry.ContextTier, EffectiveAt: float64(now.Unix())}, now); err == nil {
-		t.Fatal("guessed mode accepted")
+	if count != 2 {
+		t.Fatalf("automatic defaults duplicated: %d", count)
 	}
 }

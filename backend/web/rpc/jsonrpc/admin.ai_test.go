@@ -2,7 +2,6 @@ package jsonrpc
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/komari-monitor/komari/database/aimonitor"
@@ -33,22 +32,6 @@ func TestAIAdminVerticalSliceSettingsPricingAndOverview(t *testing.T) {
 	if rpcErr != nil {
 		t.Fatal(rpcErr)
 	}
-	priceCtx := rpc.NewContextWithMeta(context.Background(), &rpc.ContextMeta{Principal: rpc.NewUserPrincipal(uuid.NewString())})
-	_, rpcErr = adminAppendAIPricing(priceCtx, rpc.NewRequest(1, "", map[string]any{"provider": "fixture-admin-ai", "model": "exact", "billing_mode": "api", "input_per_million": 1, "output_per_million": 2, "source": "operator override", "version": "v1", "processing_mode": "explicit", "effective_at": time.Now().UTC().Format(time.RFC3339)}))
-	if rpcErr != nil {
-		t.Fatal(rpcErr)
-	}
-	t.Cleanup(func() { db.Where("provider = ?", "fixture-admin-ai").Delete(&aimonitor.PricingRule{}) })
-	value, rpcErr = adminGetAIPricing(priceCtx, rpc.NewRequest(1, "", nil))
-	if rpcErr != nil {
-		t.Fatal(rpcErr)
-	}
-	raw, _ := json.Marshal(value)
-	var pricing map[string]json.RawMessage
-	json.Unmarshal(raw, &pricing)
-	if pricing["reference_catalog"] == nil || pricing["rules"] == nil {
-		t.Fatal("pricing wire shape incomplete")
-	}
 	node := uuid.NewString()
 	db.Create(&models.Client{UUID: node, Name: "AI fixture", Token: uuid.NewString()})
 	db.Create(&models.ClientDeploymentProfile{Client: node, Config: `{"enable_hermes_ai":true}`, DeliveryStatus: "saved"})
@@ -71,7 +54,7 @@ func TestAIAdminVerticalSliceSettingsPricingAndOverview(t *testing.T) {
 }
 func fmtTime(t time.Time) string { return fmt.Sprintf("%d", t.Unix()) }
 func TestAIAdminHandlersRejectDirectAndRoleOnlyBypass(t *testing.T) {
-	handlers := []rpc.Handler{adminGetAIOverview, adminGetAIPricing, adminAppendAIPricing, adminGetAISettings, adminSetAISettings}
+	handlers := []rpc.Handler{adminGetAIOverview, adminGetAISettings, adminSetAISettings}
 	for _, handler := range handlers {
 		for _, meta := range []*rpc.ContextMeta{nil, {Permission: rpc.RoleAdmin}, {Principal: rpc.NewAnonymousPrincipal(), TempShareValid: true}, {Principal: rpc.NewAgentPrincipal("node")}} {
 			ctx := rpc.NewContextWithMeta(context.Background(), meta)

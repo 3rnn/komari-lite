@@ -53,16 +53,3 @@ export function hermesInstallArgs(platform: string, enabled: boolean): string[] 
 }
 export function encodeAISelectValue(value: string): string { return value === "" ? "__ai_all__" : `value:${value}`; }
 export function decodeAISelectValue(value: string): string { return value === "__ai_all__" ? "" : value.startsWith("value:") ? value.slice("value:".length) : ""; }
-
-export const customManualPricingModel = "__custom_manual_pricing_model__";
-export const builtInManualPricingModels = ["gpt-6.1-sol", "gpt-6-sol", "gpt-5.6-terra", "gpt-5.6-sol", "gpt-6-luna", "gpt-5.6-luna", "gpt-5.5", "gpt-5.4-mini", "gpt-5.4", "gpt-5.3-codex-spark"];
-export function modelRegistryOptions(observed: string[], customModels: string[], includeAddCustom=false) {
- const clean=(values:string[])=>[...new Set(values)].filter(validManualPricingModel);
- const custom=clean(customModels).filter(model=>!builtInManualPricingModels.includes(model));
- // Observed values remain filterable even when legacy names are no longer built-in choices.
- const historical=clean(observed).filter(model=>!builtInManualPricingModels.includes(model)&&!custom.includes(model));
- const options=[...builtInManualPricingModels,...custom,...historical].map(value=>({value,label:value}));
- return includeAddCustom ? options.concat({value:customManualPricingModel,label:"Add Custom Model…"}):options;
-}
-export function manualPricingModelOptions(customModels: string[]) { return modelRegistryOptions([],customModels,true); }
-export function validManualPricingModel(value: string): boolean { return /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(value); }
