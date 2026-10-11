@@ -2,13 +2,13 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-const version = "1.0.31";
+const version = "1.0.32";
 const source = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 
-test("panel, Agent, UI, and package metadata match the release tag", () => {
-  assert.match(source("../../backend/utils/version.go"), /CurrentVersion = "1\.0\.31"/);
-  assert.match(source("../../agent/utils/utils.go"), /const AgentVersion = "1\.0\.31"/);
-  assert.match(source("../src/pages/admin/index.tsx"), /const agentReleaseVersion = "1\.0\.31";/);
+test("panel, Agent, UI, and package metadata match the development candidate", () => {
+	assert.match(source("../../backend/utils/version.go"), /CurrentVersion = "1\.0\.32"/);
+	assert.match(source("../../agent/utils/utils.go"), /const AgentVersion = "1\.0\.32"/);
+	assert.match(source("../src/pages/admin/index.tsx"), /const agentReleaseVersion = "1\.0\.32";/);
   const packageJSON = JSON.parse(source("../package.json"));
   const lock = JSON.parse(source("../package-lock.json"));
   assert.equal(packageJSON.version, version);
@@ -19,12 +19,12 @@ test("panel, Agent, UI, and package metadata match the release tag", () => {
 test("release documentation pins panel and Agent examples to the release tag", () => {
   for (const path of ["../../README.md", "../../agent/readme.md"]) {
     const document = source(path);
-    assert.match(document, /releases\/download\/v1\.0\.31\//, `${path} must use the current release URL`);
+    assert.match(document, /releases\/download\/v1\.0\.32\//, `${path} must use the current release URL`);
     assert.doesNotMatch(document, /releases\/download\/v1\.0\.(?:16|26)\//, `${path} must not retain a stale release URL`);
     assert.doesNotMatch(document, /--install-version 1\.0\.(?:16|26)/, `${path} must not retain a stale Agent version`);
   }
   assert.match(source("../../scripts/build-release.sh"), /previous_tag="\$\{3:-v1\.0\.26\}"/);
-  assert.match(source("../../RELEASE_NOTES.md"), /# Komari Lite v1\.0\.31/);
+  assert.match(source("../../RELEASE_NOTES.md"), /# Komari Lite v1\.0\.32/);
 });
 
 test("Agent installers receive a pinned version and never use latest", () => {
