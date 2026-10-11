@@ -32,15 +32,15 @@ func TestCatalogRemainsInformationalUntilExplicitExactSelection(t *testing.T) {
 	if err := json.Unmarshal(ReferenceCatalog(), &catalog); err != nil {
 		t.Fatal(err)
 	}
-	if catalog.AutomaticActivation || len(catalog.Entries) != 5 {
+	if catalog.AutomaticActivation || len(catalog.Entries) != 11 {
 		t.Fatalf("catalog: %+v", catalog)
 	}
 	entry := catalog.Entries[0]
 	if entry.Provider != "openai" || entry.Model != "gpt-6.1-sol" || entry.ProcessingMode != "standard" || entry.ContextTier != "short" || entry.InputPerMillion == nil || *entry.InputPerMillion != "2.00" || entry.CacheReadPerMillion == nil || *entry.CacheReadPerMillion != "0.10" || entry.CacheWritePerMillion == nil || *entry.CacheWritePerMillion != "2.50" || entry.OutputPerMillion == nil || *entry.OutputPerMillion != "10.00" {
 		t.Fatalf("unexpected verified gpt-6.1-sol SKU: %+v", entry)
 	}
-	if catalog.Entries[1].Model != "gpt-6-sol" || catalog.Entries[3].Model != "gpt-5.6-terra" {
-		t.Fatalf("unexpected verified SKU order: %+v", catalog.Entries)
+	if catalog.Entries[1].Model != "gpt-6-sol" || catalog.Entries[3].Model != "gpt-5.6-terra" || catalog.Entries[5].Model != "gpt-5.6-sol" || catalog.Entries[6].Model != "gpt-6-luna" || catalog.Entries[8].Model != "gpt-5.5" || catalog.Entries[8].CacheWritePerMillion != nil || catalog.Entries[9].CacheWritePerMillion != nil || catalog.Entries[10].CacheWritePerMillion != nil {
+		t.Fatalf("unexpected verified SKU order or unpriced field: %+v", catalog.Entries)
 	}
 	var count int64
 	s.DB.Model(&PricingRule{}).Count(&count)
