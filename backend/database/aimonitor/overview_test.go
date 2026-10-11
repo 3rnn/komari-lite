@@ -63,6 +63,89 @@ func TestCoveredRangeSupportsSampledAggregateAverages(t *testing.T) {
 	}
 }
 
+func TestOverviewRangeUsageUsesDatabaseAggregatesAndLabelsCoverage(t *testing.T) {
+	s := fixture(t)
+	now := time.Unix(1780000000, 0).UTC()
+	covered := true
+	rows := make([]StoredSample, 0, 12)
+	for i := 0; i < 12; i++ {
+		end := float64(now.Add(time.Duration(i-11) * 10 * time.Second).Unix())
+		rows = append(rows, StoredSample{Node: "node", Sample: Sample{SampleID: fmt.Sprintf("550e8400-e29b-41d4-a716-44665544%04d", i+10), StartedAt: end - 10, EndedAt: end, Model: "fixture", Provider: "fixture", Task: "chat", Calls: 2, InputTokens: 30, OutputTokens: 10, Coverage: &covered}})
+	}
+	if err := s.DB.Create(&rows).Error; err != nil {
+		t.Fatal(err)
+	}
+	view, err := s.Overview(Query{From: float64(now.Add(-2 * time.Minute).Unix()), To: float64(now.Unix()), Timezone: "UTC"}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.RangeUsage.Coverage != "covered" || view.RangeUsage.CollectedTokens != 480 || view.RangeUsage.CollectedCalls != 24 || view.RangeUsage.AverageTokensPerCall == nil || *view.RangeUsage.AverageTokensPerCall != 20 || view.RangeUsage.AverageCallsPerHour != 720 {
+		t.Fatalf("covered range usage = %+v", view.RangeUsage)
+	}
+
+	rows[0].ID = 0
+	rows[0].Coverage = nil
+	rows[0].SampleID = "550e8400-e29b-41d4-a716-446655449999"
+	if err := s.DB.Create(&rows[0]).Error; err != nil {
+		t.Fatal(err)
+	}
+	view, err = s.Overview(Query{From: float64(now.Add(-2 * time.Minute).Unix()), To: float64(now.Unix()), Timezone: "UTC"}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.RangeUsage.Coverage != "partial" || view.RangeUsage.CollectedTokens != 520 || view.RangeUsage.CollectedCalls != 26 {
+		t.Fatalf("partial range usage = %+v", view.RangeUsage)
+	}
+}
+
+func TestOverviewRangeUsageIsPartialForRollupsAndHasNoAverageWithoutCalls(t *testing.T) {
+	s := fixture(t)
+	now := time.Unix(1780000000, 0).UTC()
+	covered := true
+	row := StoredSample{Node: "node", Sample: Sample{SampleID: "550e8400-e29b-41d4-a716-446655440099", StartedAt: float64(now.Add(-24 * time.Hour).Unix()), EndedAt: float64(now.Add(-24*time.Hour + 10*time.Second).Unix()), Model: "fixture", Provider: "fixture", Task: "idle", Coverage: &covered}}
+	if err := s.DB.Create(&row).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Maintain(now); err != nil {
+		t.Fatal(err)
+	}
+	view, err := s.Overview(Query{Preset: "7D", Timezone: "UTC"}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.RangeUsage.Coverage != "partial" || view.RangeUsage.CollectedCalls != 0 || view.RangeUsage.AverageTokensPerCall != nil || view.RangeUsage.AverageCallsPerHour != 0 {
+		t.Fatalf("rollup/idle range usage = %+v", view.RangeUsage)
+	}
+}
+
+func TestOverviewRangeUsageSurvivesQuotaAccountTransition(t *testing.T) {
+	s := fixture(t)
+	now := time.Unix(1780000000, 0).UTC()
+	covered, percent := true, 20.0
+	r := validReport(now)
+	r.Samples[0].Coverage = &covered
+	r.Quota = &Quota{AccountKey: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", Provider: "openai", Plan: "Plus", Status: "available", ObservedAt: float64(now.Unix()), Windows: []QuotaWindow{{Label: "Session", UsedPercent: &percent}}}
+	if _, err := s.Ingest("node", r, now); err != nil {
+		t.Fatal(err)
+	}
+	then := now.Add(3 * time.Second)
+	r.Samples[0].SampleID = "550e8400-e29b-41d4-a716-446655440098"
+	r.Samples[0].StartedAt, r.Samples[0].EndedAt = float64(then.Add(-10*time.Second).Unix()), float64(then.Unix())
+	r.ObservedAt = float64(then.Unix())
+	r.Quota.AccountKey = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	r.Quota.ObservedAt = float64(then.Unix())
+	if _, err := s.Ingest("node", r, then); err != nil {
+		t.Fatal(err)
+	}
+	view, err := s.Overview(Query{From: float64(now.Add(-time.Hour).Unix()), To: float64(then.Unix()), Timezone: "UTC"}, then)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.RangeUsage.CollectedCalls != 4 || len(view.Accounts) != 1 || view.Accounts[0].AccountKey != r.Quota.AccountKey || view.Accounts[0].Status != "available" {
+		t.Fatalf("account transition lost range data or attribution: usage=%+v accounts=%+v", view.RangeUsage, view.Accounts)
+	}
+}
+
 func TestTodayTokensAreUnknownWhenCollectedCoverageHasAGap(t *testing.T) {
 	s := fixture(t)
 	now := time.Unix(1780000000, 0)
@@ -179,18 +262,18 @@ func TestOverviewAggregatesMoreThanMaxRawSamplesInDatabase(t *testing.T) {
 	if err != nil {
 		t.Fatalf("large overview returned %v", err)
 	}
-	if view.PricingCoverage.Calls != int64(len(rows)) || view.PricingCoverage.TotalTokens() != int64(len(rows))*10 {
+	if view.PricingCoverage.Calls != int64(len(rows)) || view.PricingCoverage.TotalTokens() != int64(len(rows))*10 || view.RangeUsage.CollectedCalls != int64(len(rows)) || view.RangeUsage.Coverage != "partial" {
 		t.Fatalf("large aggregate totals = %+v", view.PricingCoverage)
 	}
 	if len(view.Models) != 2 || len(view.Tasks) != 2 || len(view.Trends) == 0 || len(view.Daily) != 1 {
 		t.Fatalf("large aggregate groups = models:%d tasks:%d trends:%d daily:%d", len(view.Models), len(view.Tasks), len(view.Trends), len(view.Daily))
 	}
 	week, err := s.Overview(Query{Preset: "7D", Timezone: "UTC"}, now)
-	if err != nil || week.PricingCoverage.Calls != int64(len(rows)) || len(week.Trends) == 0 {
+	if err != nil || week.PricingCoverage.Calls != int64(len(rows)) || week.RangeUsage.CollectedCalls != int64(len(rows)) || week.RangeUsage.Coverage != "partial" || len(week.Trends) == 0 {
 		t.Fatalf("7-day aggregate = %#v, %v", week.PricingCoverage, err)
 	}
 	month, err := s.Overview(Query{Preset: "30D", Timezone: "Asia/Shanghai"}, now)
-	if err != nil || month.PricingCoverage.Calls != int64(len(rows)) || len(month.Trends) == 0 {
+	if err != nil || month.PricingCoverage.Calls != int64(len(rows)) || month.RangeUsage.CollectedCalls != int64(len(rows)) || month.RangeUsage.Coverage != "partial" || len(month.Trends) == 0 {
 		t.Fatalf("30-day aggregate = %#v, %v", month.PricingCoverage, err)
 	}
 	today, err := s.Overview(Query{Preset: "Today", Timezone: "UTC"}, now)

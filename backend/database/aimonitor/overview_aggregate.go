@@ -157,6 +157,59 @@ func (s *Store) aggregateTotals(q Query, from, to float64) (Totals, error) {
 	return combineTotals(rows)
 }
 
+type rangeCoverageRow struct {
+	Nodes      int64
+	Incomplete int64
+}
+
+// rangeUsage stays database-side even when detailed rows exceed MaxQueryRows.
+// Rollups retain exact totals but not interval coverage proofs, so their presence
+// makes the collected values partial rather than inventing complete coverage.
+func (s *Store) rangeUsage(q Query) (RangeUsage, error) {
+	totals, err := s.aggregateTotals(q, q.From, q.To)
+	if err != nil {
+		return RangeUsage{}, err
+	}
+	v := RangeUsage{CollectedTokens: totals.TotalTokens(), CollectedCalls: totals.Calls, Coverage: "partial"}
+	if totals.Calls > 0 {
+		average := float64(totals.TotalTokens()) / float64(totals.Calls)
+		v.AverageTokensPerCall = &average
+	}
+	if duration := q.To - q.From; duration > 0 {
+		v.AverageCallsPerHour = float64(totals.Calls) * 3600 / duration
+	}
+	filters, args := overviewFilters(Query{Node: q.Node})
+	var rollups int64
+	if err := s.DB.Raw("SELECT COUNT(*) FROM ai_hourly_rollups WHERE hour >= ? AND hour + 3600 <= ?"+filters, append([]any{q.From, q.To}, args...)...).Scan(&rollups).Error; err != nil {
+		return v, err
+	}
+	if rollups > 0 {
+		return v, nil
+	}
+	query := `WITH ordered AS (
+		SELECT node, started_at, ended_at, coverage, reset_count,
+		MAX(ended_at) OVER (PARTITION BY node ORDER BY started_at, ended_at ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS previous_ended
+		FROM ai_samples WHERE ended_at > ? AND ended_at <= ?` + filters + `
+	), node_proofs AS (
+		SELECT node, MIN(started_at) AS first_started, MAX(ended_at) AS last_ended,
+		SUM(CASE WHEN coverage IS NULL OR coverage = 0 OR reset_count > 0 THEN 1 ELSE 0 END) AS invalid,
+		SUM(CASE WHEN previous_ended IS NOT NULL AND started_at > previous_ended + 0.001 THEN 1 ELSE 0 END) AS gaps
+		FROM ordered GROUP BY node
+	)
+	SELECT COUNT(*) AS nodes,
+	COALESCE(SUM(CASE WHEN first_started > ? OR last_ended < ? OR invalid > 0 OR gaps > 0 THEN 1 ELSE 0 END), 0) AS incomplete FROM node_proofs`
+	args = append([]any{q.From, q.To}, args...)
+	args = append(args, q.From, q.To)
+	var proof rangeCoverageRow
+	if err := s.DB.Raw(query, args...).Scan(&proof).Error; err != nil {
+		return v, err
+	}
+	if proof.Nodes > 0 && proof.Incomplete == 0 {
+		v.Coverage = "covered"
+	}
+	return v, nil
+}
+
 func (s *Store) aggregateModels(q Query, from, to float64) ([]Aggregate, error) {
 	rows, err := s.aggregateSource(q, from, to, "model, provider, billing_mode", "model, provider, billing_mode")
 	if err != nil {

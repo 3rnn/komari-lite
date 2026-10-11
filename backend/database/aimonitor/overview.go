@@ -86,6 +86,13 @@ type Live struct {
 	UnpricedCalls             int64    `json:"unpriced_calls"`
 	Status                    string   `json:"status"`
 }
+type RangeUsage struct {
+	AverageTokensPerCall *float64 `json:"average_tokens_per_call"`
+	AverageCallsPerHour  float64  `json:"average_calls_per_hour"`
+	CollectedTokens      int64    `json:"collected_tokens"`
+	CollectedCalls       int64    `json:"collected_calls"`
+	Coverage             string   `json:"coverage"`
+}
 type Account struct {
 	Quota
 	NodeSources  []string `json:"node_sources"`
@@ -110,6 +117,7 @@ type Node struct {
 }
 type Overview struct {
 	Range           Query             `json:"range"`
+	RangeUsage      RangeUsage        `json:"range_usage"`
 	Definitions     map[string]string `json:"definitions"`
 	Live            Live              `json:"live"`
 	Accounts        []Account         `json:"accounts"`
@@ -152,7 +160,7 @@ func (s *Store) Overview(q Query, now time.Time) (Overview, error) {
 		"throughput":    "Sampled token throughput, not generation speed. TPS/RPS use the latest covered 10 seconds; RPM/TPM use a separately covered rolling 60 seconds ending at the latest common sample. Unknown coverage is N/A.",
 		"history":       "Collected deltas only. Detailed samples are assigned by ended_at; older hourly rollups are included only for fully selected UTC hour buckets. Historical daily timezone boundaries assign whole buckets; no interpolation.",
 		"cost_coverage": "Cost totals sum priced usage only; unpriced_calls is separate. Hermes estimated and recorded actual costs are separate known-value subtotals, not reference costs.",
-	}, Live: Live{Status: "unavailable", TodayCoverage: "unknown"}, Accounts: []Account{}, Trends: []Trend{}, Daily: []Day{}, Models: []Aggregate{}, Tasks: []Aggregate{}, Nodes: []Node{}}
+	}, Live: Live{Status: "unavailable", TodayCoverage: "unknown"}, RangeUsage: RangeUsage{Coverage: "partial"}, Accounts: []Account{}, Trends: []Trend{}, Daily: []Day{}, Models: []Aggregate{}, Tasks: []Aggregate{}, Nodes: []Node{}}
 	loc, err := time.LoadLocation(q.Timezone)
 	if err != nil {
 		return v, fmt.Errorf("unknown timezone")
@@ -166,6 +174,9 @@ func (s *Store) Overview(q Query, now time.Time) (Overview, error) {
 		return v, err
 	}
 	v.Range = q
+	if v.RangeUsage, err = s.rangeUsage(q); err != nil {
+		return v, err
+	}
 	rows, err := s.details(q)
 	if err != nil {
 		if err == ErrQueryLimit {

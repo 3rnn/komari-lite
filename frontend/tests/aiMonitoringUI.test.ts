@@ -2,14 +2,16 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { AIMonitoringView, HermesMonitoringToggle } from "../src/components/admin/AIMonitoring.tsx";
+import { AIAdvanced, AIMonitoringView, HermesMonitoringToggle } from "../src/components/admin/AIMonitoring.tsx";
 
 test("default dashboard has exactly four compact monitoring sections", () => {
  const html=renderToStaticMarkup(React.createElement(AIMonitoringView,{data:null,timezone:"Asia/Shanghai"}));
  for(const label of ["Account Quotas","Live Overview","Usage Trend","Daily Usage Summary"]) assert.ok(html.includes(label),label);
  assert.ok(!html.includes("Model statistics"));
- assert.ok(html.includes("Token / Second"));
- assert.ok(html.includes("API-Equivalent Cost"));
+ for(const label of ["Average tokens / call","Average calls / hour","Collected tokens","Collected calls"]) assert.ok(html.includes(label),label);
+ assert.ok(!html.includes("Token / Second"));
+ assert.ok(!html.includes("Requests / Minute"));
+ assert.ok(!html.includes("API-Equivalent Cost"));
 });
 test("quota cards make remaining and used meaning explicit without exposing account keys", () => {
  const html=renderToStaticMarkup(React.createElement(AIMonitoringView,{timezone:"UTC",data:{accounts:[{account_key:"opaque-private-account-hash",provider:"openai-codex",plan:"Plus",status:"available",last_success_at:0,windows:[{label:"Session",used_percent:9,resets_at:"2026-10-09T19:28:00Z"},{label:"Weekly",used_percent:70,resets_at:"2026-10-15T12:37:00Z"}]}]}}));
@@ -33,11 +35,17 @@ test("healthy zero-delta periods use an empty state and suppress zero-only model
  assert.ok(html.includes("No new usage in this range."));
  assert.ok(!html.includes("zero-only"));
 });
-test("Today Tokens render Unknown rather than a verified zero during a coverage gap", () => {
- const html=renderToStaticMarkup(React.createElement(AIMonitoringView,{timezone:"UTC",data:{live:{today_tokens:0,today_coverage:"unknown",status:"stale"}}}));
- assert.ok(html.includes("Today Tokens"));
- assert.ok(html.includes("Unknown"));
- assert.ok(html.includes("Collection coverage gap; collected zero is not a verified total."));
+test("range cards retain collected zeroes but mark incomplete coverage PARTIAL", () => {
+ const html=renderToStaticMarkup(React.createElement(AIMonitoringView,{timezone:"UTC",data:{range_usage:{average_calls_per_hour:0,collected_calls:0,collected_tokens:0,coverage:"partial"}}}));
+ assert.ok(html.includes("PARTIAL"));
+ assert.ok(html.includes("Collected tokens"));
+ assert.ok(html.includes("Collected calls"));
+ assert.ok(html.includes("0"));
+});
+test("Task Usage omits sampled tokens per second without a task-specific rate proof", () => {
+ const html=renderToStaticMarkup(React.createElement(AIAdvanced,{timezone:"UTC",data:{tasks:[{task:"chat",calls:1,total_tokens:10,average_tps:1}]},children:null}));
+ const taskUsage=html.slice(html.indexOf("Task usage"),html.indexOf("Detailed token accounting"));
+ assert.ok(!taskUsage.includes("Sampled tokens/s"));
 });
 test("Windows checkbox is explicitly disabled and Linux defaults unchecked", () => {
  const windows=renderToStaticMarkup(React.createElement(HermesMonitoringToggle,{platform:"windows",enabled:false,onChange:()=>{}}));
