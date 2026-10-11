@@ -81,7 +81,9 @@ function PricingSettings({pricing,settings,observedModels,onSave}:{pricing:AIPri
  const hasManualDraft=()=>!automaticReference && [provider,mode,tier,source,sourceUrl,version,...Object.values(rates)].some(value=>value.trim()!=="");
  const applyOfficialDefault=(value:string)=>{
   if(hasManualDraft()) return;
-  setReference(defaultOfficialReference(pricing?.reference_catalog?.entries || [],value));setAutomaticReference(true);
+  const next=defaultOfficialReference(pricing?.reference_catalog?.entries || [],value);
+  setReference(next);setAutomaticReference(true);
+  if(!next){setProvider("openai");setBillingMode(observedModels.find(row=>row.model===value && row.billing_mode?.trim())?.billing_mode || "api-equivalent");setMode("standard");setTier("short");setSource("");setSourceUrl("");setVersion("");setRates({input:"",output:"",read:"",write:""});}
  };
  const edit=(setter:(value:string)=>void)=>(value:string)=>{setAutomaticReference(false);setter(value);};
  useEffect(()=>{
