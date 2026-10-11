@@ -9,7 +9,7 @@ import (
 
 // AgentVersion is the lite Agent version (the update package and auto-update were removed).
 // Keep the dotted numeric format; the panel node list expects it.
-const AgentVersion = "1.0.34"
+const AgentVersion = "1.0.35"
 
 const DefaultResetTimezone = "Asia/Shanghai"
 
