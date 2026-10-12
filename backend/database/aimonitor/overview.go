@@ -297,7 +297,7 @@ func (s *Store) Overview(q Query, now time.Time) (Overview, error) {
 		}
 		row.AverageTPS = coveredAverage(dayRows[date], start, end)
 		for key, model := range dayModels[date] {
-			model.OutputTPS = coveredOutputAverage(dayModelRows[date][key], start, end)
+			model.OutputTPS = observedOutputAverage(dayModelRows[date][key], start, end)
 			row.Models = append(row.Models, *model)
 		}
 		sortAggregates(row.Models)

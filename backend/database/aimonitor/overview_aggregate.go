@@ -434,7 +434,7 @@ func (s *Store) aggregateOverview(q Query, now time.Time, loc *time.Location, v 
 				row.AverageTPS = coveredAverage(rows, from, to)
 				for i := range row.Models {
 					key := row.Models[i].Model + "\x00" + row.Models[i].Provider + "\x00" + row.Models[i].BillingMode
-					row.Models[i].OutputTPS = coveredOutputAverage(dayModelRows[date][key], from, to)
+					row.Models[i].OutputTPS = observedOutputAverage(dayModelRows[date][key], from, to)
 				}
 			}
 		}

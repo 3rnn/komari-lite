@@ -109,6 +109,26 @@ func TestDailyModelCardLeavesOutputRateUnavailableWithoutCoverageProof(t *testin
 	}
 }
 
+func TestDailyModelCardUsesObservedIntervalsForOutputRate(t *testing.T) {
+	s := fixture(t)
+	now := time.Unix(1780000000, 0).UTC()
+	covered := true
+	rows := []StoredSample{
+		{Node: "node", Sample: Sample{SampleID: "550e8400-e29b-41d4-a716-446655440304", StartedAt: float64(now.Add(-120 * time.Second).Unix()), EndedAt: float64(now.Add(-110 * time.Second).Unix()), Model: "compact", Provider: "fixture", BillingMode: "metered", Task: "chat", Calls: 1, OutputTokens: 100, Coverage: &covered}},
+		{Node: "node", Sample: Sample{SampleID: "550e8400-e29b-41d4-a716-446655440305", StartedAt: float64(now.Add(-10 * time.Second).Unix()), EndedAt: float64(now.Unix()), Model: "compact", Provider: "fixture", BillingMode: "metered", Task: "chat", Calls: 1, OutputTokens: 200, Coverage: &covered}},
+	}
+	if err := s.DB.Create(&rows).Error; err != nil {
+		t.Fatal(err)
+	}
+	view, err := s.Overview(Query{From: float64(now.Add(-120 * time.Second).Unix()), To: float64(now.Unix()), Timezone: "UTC"}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := view.Daily[0].Models[0].OutputTPS; got == nil || *got != 15 {
+		t.Fatalf("observed output rate = %v, want 15", got)
+	}
+}
+
 func TestOverviewRangeUsageUsesDatabaseAggregatesAndLabelsCoverage(t *testing.T) {
 	s := fixture(t)
 	now := time.Unix(1780000000, 0).UTC()
