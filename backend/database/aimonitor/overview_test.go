@@ -328,3 +328,30 @@ func TestOverviewAggregatesMoreThanMaxRawSamplesInDatabase(t *testing.T) {
 	}
 	t.Logf("aggregated %d samples in %s", len(rows), time.Since(started))
 }
+
+func TestOverviewModelRegistryKeepsPriorityCustomAndHistoricalIdentifiers(t *testing.T) {
+	s := fixture(t)
+	now := time.Unix(1780000000, 0)
+	r := validReport(now)
+	r.Samples[0].SampleID = "550e8400-e29b-41d4-a716-446655440401"
+	r.Samples[0].Model = "historic-custom"
+	if _, err := s.Ingest("node", r, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetSettings(Settings{Timezone: "UTC", RetentionDays: 30, DetailedRetentionHours: 24, CustomModels: []string{"operator-model"}}); err != nil {
+		t.Fatal(err)
+	}
+	v, err := s.Overview(Query{From: float64(now.Add(-time.Hour).Unix()), To: float64(now.Unix()), Timezone: "UTC"}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]bool{}
+	for _, model := range v.ModelRegistry {
+		got[model] = true
+	}
+	for _, want := range []string{"gpt-6.1-sol", "gpt-6-sol", "gpt-5.6-terra", "historic-custom", "operator-model"} {
+		if !got[want] {
+			t.Fatalf("registry missing %s: %#v", want, v.ModelRegistry)
+		}
+	}
+}

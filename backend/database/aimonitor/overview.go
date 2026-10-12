@@ -128,6 +128,7 @@ type Overview struct {
 	Tasks           []Aggregate       `json:"tasks"`
 	Nodes           []Node            `json:"nodes"`
 	PricingCoverage Totals            `json:"pricing_coverage"`
+	ModelRegistry   []string          `json:"model_registry"`
 }
 
 func filtered(db *gorm.DB, q Query) *gorm.DB {
@@ -141,6 +142,9 @@ func filtered(db *gorm.DB, q Query) *gorm.DB {
 		db = db.Where("task = ?", q.Task)
 	}
 	return db
+}
+func aggregateModelKey(model, task, provider, billingMode string) string {
+	return model + "\x00" + task + "\x00" + provider + "\x00" + billingMode
 }
 func (s *Store) details(q Query) ([]StoredSample, error) {
 	count, err := s.countDetails(q)
@@ -161,7 +165,7 @@ func (s *Store) Overview(q Query, now time.Time) (Overview, error) {
 		"throughput":    "Sampled token throughput, not generation speed. TPS/RPS use the latest covered 10 seconds; RPM/TPM use a separately covered rolling 60 seconds ending at the latest common sample. Unknown coverage is N/A.",
 		"history":       "Collected deltas only. Detailed samples are assigned by ended_at; older hourly rollups are included only for fully selected UTC hour buckets. Historical daily timezone boundaries assign whole buckets; no interpolation.",
 		"cost_coverage": "Cost totals sum priced usage only; unpriced_calls is separate. Hermes estimated and recorded actual costs are separate known-value subtotals, not reference costs.",
-	}, Live: Live{Status: "unavailable", TodayCoverage: "unknown"}, RangeUsage: RangeUsage{Coverage: "partial"}, Accounts: []Account{}, Trends: []Trend{}, Daily: []Day{}, Models: []Aggregate{}, Tasks: []Aggregate{}, Nodes: []Node{}}
+	}, Live: Live{Status: "unavailable", TodayCoverage: "unknown"}, RangeUsage: RangeUsage{Coverage: "partial"}, Accounts: []Account{}, Trends: []Trend{}, Daily: []Day{}, Models: []Aggregate{}, Tasks: []Aggregate{}, Nodes: []Node{}, ModelRegistry: []string{}}
 	loc, err := time.LoadLocation(q.Timezone)
 	if err != nil {
 		return v, fmt.Errorf("unknown timezone")
@@ -175,6 +179,9 @@ func (s *Store) Overview(q Query, now time.Time) (Overview, error) {
 		return v, err
 	}
 	v.Range = q
+	if v.ModelRegistry, err = s.ModelRegistry(); err != nil {
+		return v, err
+	}
 	if v.RangeUsage, err = s.rangeUsage(q); err != nil {
 		return v, err
 	}
@@ -215,9 +222,10 @@ func (s *Store) Overview(q Query, now time.Time) (Overview, error) {
 			return
 		}
 		v.PricingCoverage.add(t)
-		key := model + "\x00" + provider + "\x00" + mode
+		key := aggregateModelKey(model, task, provider, mode)
+		dayKey := model + "\x00" + provider + "\x00" + mode
 		if modelMap[key] == nil {
-			modelMap[key] = &Aggregate{Model: model, Provider: provider, BillingMode: mode}
+			modelMap[key] = &Aggregate{Model: model, Task: task, Provider: provider, BillingMode: mode}
 		}
 		modelMap[key].Totals.add(t)
 		if taskMap[task] == nil {
@@ -235,13 +243,14 @@ func (s *Store) Overview(q Query, now time.Time) (Overview, error) {
 			dayModels[date] = map[string]*Aggregate{}
 		}
 		dayMap[date].Totals.add(t)
-		if dayModels[date][key] == nil {
-			dayModels[date][key] = &Aggregate{Model: model, Provider: provider, BillingMode: mode}
+		if dayModels[date][dayKey] == nil {
+			dayModels[date][dayKey] = &Aggregate{Model: model, Provider: provider, BillingMode: mode}
 		}
-		dayModels[date][key].Totals.add(t)
+		dayModels[date][dayKey].Totals.add(t)
 	}
 	for _, row := range rows {
-		key := row.Model + "\x00" + row.Provider + "\x00" + row.BillingMode
+		key := aggregateModelKey(row.Model, row.Task, row.Provider, row.BillingMode)
+		dayKey := row.Model + "\x00" + row.Provider + "\x00" + row.BillingMode
 		modelRows[key] = append(modelRows[key], row)
 		taskRows[row.Task] = append(taskRows[row.Task], row)
 		date := time.Unix(int64(row.EndedAt), 0).In(loc).Format("2006-01-02")
@@ -249,7 +258,7 @@ func (s *Store) Overview(q Query, now time.Time) (Overview, error) {
 		if dayModelRows[date] == nil {
 			dayModelRows[date] = map[string][]StoredSample{}
 		}
-		dayModelRows[date][key] = append(dayModelRows[date][key], row)
+		dayModelRows[date][dayKey] = append(dayModelRows[date][dayKey], row)
 		var totals Totals
 		totals.addSample(row)
 		add(row.EndedAt, row.Model, row.Provider, row.BillingMode, row.Task, totals)

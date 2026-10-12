@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"sort"
 	"time"
 )
 
@@ -191,6 +192,57 @@ func (s *Store) AppendPricing(rule PricingRule, now time.Time) (PricingRule, err
 		return tx.Create(&rule).Error
 	})
 	return rule, err
+}
+func (s *Store) ListPricing() ([]PricingRule, error) {
+	rows := []PricingRule{}
+	if err := s.DB.Order("model, provider, billing_mode, effective_at DESC, id DESC").Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
+var priorityModelRegistry = []string{"gpt-6.1-sol", "gpt-6-sol", "gpt-5.6-terra"}
+
+// ModelRegistry is the single exact-identifier source for filters and pricing.
+// It includes supported priorities, configured custom identifiers, pricing rules,
+// and models retained in historical samples or rollups. Built-in legacy -900k
+// aliases are intentionally absent; observed historical identifiers are never
+// rewritten or hidden.
+func (s *Store) ModelRegistry() ([]string, error) {
+	settings, err := s.Settings()
+	if err != nil {
+		return nil, err
+	}
+	seen, ordered := map[string]bool{}, []string{}
+	add := func(model string) {
+		if model != "" && !seen[model] {
+			seen[model] = true
+			ordered = append(ordered, model)
+		}
+	}
+	for _, model := range priorityModelRegistry {
+		add(model)
+	}
+	for _, model := range settings.CustomModels {
+		add(model)
+	}
+	var observed []string
+	for _, query := range []string{
+		"SELECT DISTINCT model FROM ai_samples WHERE model <> ''",
+		"SELECT DISTINCT model FROM ai_hourly_rollups WHERE model <> ''",
+		"SELECT DISTINCT model FROM ai_pricing_rules WHERE model <> ''",
+	} {
+		var rows []string
+		if err := s.DB.Raw(query).Scan(&rows).Error; err != nil {
+			return nil, err
+		}
+		observed = append(observed, rows...)
+	}
+	sort.Strings(observed)
+	for _, model := range observed {
+		add(model)
+	}
+	return ordered, nil
 }
 func price(sample Sample, rule PricingRule) *float64 {
 	total := 0.0

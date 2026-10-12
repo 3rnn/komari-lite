@@ -17,6 +17,8 @@ func init() {
 	reg("getAIOverview", adminGetAIOverview, "Get private Hermes AI monitoring overview")
 	reg("getAISettings", adminGetAISettings, "Get Hermes AI monitoring retention and timezone")
 	reg("setAISettings", adminSetAISettings, "Set bounded Hermes AI monitoring retention and timezone")
+	reg("getAIPricing", adminGetAIPricing, "List Hermes AI pricing rules")
+	reg("appendAIPricing", adminAppendAIPricing, "Append a future-only Hermes AI pricing rule")
 }
 
 type aiAdminLimit struct {
@@ -146,5 +148,26 @@ func adminSetAISettings(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc
 			return nil, err
 		}
 		return s.Settings()
+	})
+}
+func adminGetAIPricing(ctx context.Context, _ *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
+	return withAIAdmin(ctx, "pricing", func(s *aimonitor.Store) (any, error) { return s.ListPricing() })
+}
+func adminAppendAIPricing(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
+	return withAIAdmin(ctx, "pricing", func(s *aimonitor.Store) (any, error) {
+		var rule aimonitor.PricingRule
+		if err := strictAIParams(req, &rule); err != nil {
+			return nil, err
+		}
+		registry, err := s.ModelRegistry()
+		if err != nil {
+			return nil, err
+		}
+		for _, model := range registry {
+			if rule.Model == model {
+				return s.AppendPricing(rule, time.Now().UTC())
+			}
+		}
+		return nil, fmt.Errorf("manual pricing model must use an exact shared registry identifier")
 	})
 }

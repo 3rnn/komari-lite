@@ -29,15 +29,15 @@ It intentionally excludes remote terminal/control/command execution, Cloudflare 
 
 ## Official releases and safe updates
 
-Release `v1.0.42` publishes Linux panel binaries for both `amd64` and `arm64`, `SHA256SUMS.txt`, a Glass transition bundle, the existing safe-controller assets, and `update-komari.sh`. It is a panel-only release; Agent artifacts remain at `v1.0.37`.
+Release `v1.0.43` publishes Linux panel binaries for both `amd64` and `arm64`, `SHA256SUMS.txt`, a Glass transition bundle, the existing safe-controller assets, and `update-komari.sh`. It is a panel-only release; Agent artifacts remain at `v1.0.37`.
 
 ### Fresh native installation
 
 For a new reviewed Debian/systemd host, use the version-pinned controller from the same Release:
 
 ```bash
-curl -fsSLo komari-oneclick.py https://github.com/3rnn/komari-lite/releases/download/v1.0.42/komari-oneclick.py
-sudo python3 komari-oneclick.py install --tag v1.0.42
+curl -fsSLo komari-oneclick.py https://github.com/3rnn/komari-lite/releases/download/v1.0.43/komari-oneclick.py
+sudo python3 komari-oneclick.py install --tag v1.0.43
 ```
 
 This creates a new installation only when `/opt/komari` and `komari.service` are absent. It never creates or prints an administrator password. Complete first-run setup through the local installer before exposing the service through a reverse proxy.

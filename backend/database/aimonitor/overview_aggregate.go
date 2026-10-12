@@ -211,15 +211,15 @@ func (s *Store) rangeUsage(q Query) (RangeUsage, error) {
 }
 
 func (s *Store) aggregateModels(q Query, from, to float64) ([]Aggregate, error) {
-	rows, err := s.aggregateSource(q, from, to, "model, provider, billing_mode", "model, provider, billing_mode")
+	rows, err := s.aggregateSource(q, from, to, "model, task, provider, billing_mode", "model, task, provider, billing_mode")
 	if err != nil {
 		return nil, err
 	}
 	out := map[string]*Aggregate{}
 	for _, row := range rows {
-		key := row.Model + "\x00" + row.Provider + "\x00" + row.BillingMode
+		key := aggregateModelKey(row.Model, row.Task, row.Provider, row.BillingMode)
 		if out[key] == nil {
-			out[key] = &Aggregate{Model: row.Model, Provider: row.Provider, BillingMode: row.BillingMode}
+			out[key] = &Aggregate{Model: row.Model, Task: row.Task, Provider: row.Provider, BillingMode: row.BillingMode}
 		}
 		total := row.totals()
 		if !safeAdd(out[key].Totals, total) {
@@ -386,7 +386,7 @@ func (s *Store) aggregateOverview(q Query, now time.Time, loc *time.Location, v 
 	if rows, detailErr := s.details(q); detailErr == nil {
 		models := map[string]*Aggregate{}
 		for i := range v.Models {
-			models[v.Models[i].Model+"\x00"+v.Models[i].Provider+"\x00"+v.Models[i].BillingMode] = &v.Models[i]
+			models[aggregateModelKey(v.Models[i].Model, v.Models[i].Task, v.Models[i].Provider, v.Models[i].BillingMode)] = &v.Models[i]
 		}
 		tasks := map[string]*Aggregate{}
 		for i := range v.Tasks {
@@ -398,7 +398,8 @@ func (s *Store) aggregateOverview(q Query, now time.Time, loc *time.Location, v 
 		}
 		modelRows, taskRows, dayRows, dayModelRows := map[string][]StoredSample{}, map[string][]StoredSample{}, map[string][]StoredSample{}, map[string]map[string][]StoredSample{}
 		for _, row := range rows {
-			key := row.Model + "\x00" + row.Provider + "\x00" + row.BillingMode
+			key := aggregateModelKey(row.Model, row.Task, row.Provider, row.BillingMode)
+			dayKey := row.Model + "\x00" + row.Provider + "\x00" + row.BillingMode
 			modelRows[key] = append(modelRows[key], row)
 			taskRows[row.Task] = append(taskRows[row.Task], row)
 			date := time.Unix(int64(row.EndedAt), 0).In(loc).Format("2006-01-02")
@@ -406,7 +407,7 @@ func (s *Store) aggregateOverview(q Query, now time.Time, loc *time.Location, v 
 			if dayModelRows[date] == nil {
 				dayModelRows[date] = map[string][]StoredSample{}
 			}
-			dayModelRows[date][key] = append(dayModelRows[date][key], row)
+			dayModelRows[date][dayKey] = append(dayModelRows[date][dayKey], row)
 		}
 		for key, rows := range modelRows {
 			if row := models[key]; row != nil {

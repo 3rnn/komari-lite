@@ -52,10 +52,12 @@ test("range cards retain collected zeroes but mark incomplete coverage PARTIAL",
  assert.ok(html.includes("Collected calls"));
  assert.ok(html.includes("0"));
 });
-test("Task Usage omits sampled tokens per second without a task-specific rate proof", () => {
- const html=renderToStaticMarkup(React.createElement(AIAdvanced,{timezone:"UTC",data:{tasks:[{task:"chat",calls:1,total_tokens:10,average_tps:1}]},children:null}));
- const taskUsage=html.slice(html.indexOf("Task usage"),html.indexOf("Detailed token accounting"));
- assert.ok(!taskUsage.includes("Sampled tokens/s"));
+test("Advanced is one compact detailed usage table with exact model identifiers", () => {
+ const html=renderToStaticMarkup(React.createElement(AIAdvanced,{timezone:"UTC",data:{models:[{model:"gpt-6.1-sol",task:"chat",calls:1,total_tokens:10,api_equivalent_cost_usd:.01}]},children:React.createElement("div",null,"filters")}));
+ assert.ok(html.includes("Detailed usage"));
+ assert.ok(html.includes("gpt-6.1-sol"));
+ assert.ok(!html.includes("Model: N/A"));
+ for(const removed of ["Full model statistics","Task usage","Detailed token accounting","Collector diagnostics","Automatic pricing"]) assert.ok(!html.includes(removed),removed);
 });
 test("Windows checkbox is explicitly disabled and Linux defaults unchecked", () => {
  const windows=renderToStaticMarkup(React.createElement(HermesMonitoringToggle,{platform:"windows",enabled:false,onChange:()=>{}}));
