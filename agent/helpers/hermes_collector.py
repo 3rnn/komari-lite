@@ -122,22 +122,42 @@ class Collector:
             raise ValueError('metric cardinality exceeds local limit')
         return rows
 
-    def quota_identity(self):
+    def quota_tokens(self):
         if self.auth_path is None:
-            return None
+            return []
         store = bounded_json(self.auth_path, 1024*1024)
+        pool = store.get('credential_pool',{}).get('openai-codex')
+        if isinstance(pool,list):
+            now=time.time()
+            candidates=[]
+            for entry in pool:
+                if not isinstance(entry,dict):
+                    continue
+                reset=entry.get('last_error_reset_at')
+                if entry.get('last_status')=='rate-limited' and isinstance(reset,(int,float)) and math.isfinite(reset) and reset>now:
+                    continue
+                candidates.append(entry)
+            return sorted(candidates,key=lambda entry:entry.get('priority',0) if isinstance(entry.get('priority'),int) and not isinstance(entry.get('priority'),bool) else 0)
         tokens = store.get('providers',{}).get('openai-codex',{}).get('tokens',{})
-        token = tokens.get('access_token')
-        if not isinstance(token,str) or len(token)>32768:
-            return None
-        segment = token.split('.')[1]
-        claims = json.loads(base64.urlsafe_b64decode(segment+'='*(-len(segment)%4)))
-        expiry = claims.get('exp')
-        account = tokens.get('account_id') or claims.get('https://api.openai.com/auth',{}).get('chatgpt_account_id')
-        identity = account or self.account_alias
-        if not isinstance(identity,str) or not identity or len(identity)>256:
-            return None
-        return token, account, expiry, hashlib.sha256(('komari:openai-codex:account:'+identity).encode()).hexdigest()
+        return [tokens] if isinstance(tokens,dict) else []
+
+    def quota_identity(self):
+        for tokens in self.quota_tokens():
+            try:
+                token = tokens.get('access_token')
+                if not isinstance(token,str) or len(token)>32768:
+                    continue
+                segment = token.split('.')[1]
+                claims = json.loads(base64.urlsafe_b64decode(segment+'='*(-len(segment)%4)))
+                expiry = claims.get('exp')
+                account = tokens.get('account_id') or claims.get('https://api.openai.com/auth',{}).get('chatgpt_account_id')
+                identity = account or self.account_alias
+                if not isinstance(identity,str) or not identity or len(identity)>256:
+                    continue
+                return token, account, expiry, hashlib.sha256(('komari:openai-codex:account:'+identity).encode()).hexdigest()
+            except (ValueError,KeyError,IndexError,TypeError,AttributeError,OverflowError):
+                continue
+        return None
 
     def read_quota(self, now):
         result = {'provider':'openai-codex','status':'unavailable','observed_at':float(now),'windows':[]}
