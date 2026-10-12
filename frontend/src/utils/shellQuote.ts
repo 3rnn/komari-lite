@@ -24,8 +24,22 @@ export function quotePowerShellArg(value: string) {
 
 /** Stage privately before sudo, so a partial failed download is never executed. */
 export function linuxInstallCommand(scriptUrl: string, args: string[]): string {
-  const program = 'script=$(mktemp) || exit 1; wget -qO "$script" "$1"; status=$?; if [ "$status" -eq 0 ]; then sudo bash "$script" "${@:2}"; status=$?; fi; rm -f "$script"; exit "$status"';
-  return `bash -o pipefail -c '${program}' -- ${quoteShellArgs([scriptUrl, ...args])}`;
+  let hash = 2166136261;
+  for (const char of `${scriptUrl}\0${args.join("\0")}`) {
+    hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
+  }
+  const directory = `/tmp/komari-bootstrap-${(hash >>> 0).toString(36)}`;
+  const stagedScript = `${directory}/install.sh`;
+  const installerArgs = quoteShellArgs(args);
+  const program = [
+    "set -e",
+    `rm -rf -- ${directory}`,
+    `mkdir -m 700 ${directory}`,
+    `trap 'rm -rf -- ${directory}' EXIT`,
+    `wget -qO ${quoteShellArg(stagedScript)} ${quoteShellArg(scriptUrl)}`,
+    `sudo bash ${quoteShellArg(stagedScript)}${installerArgs ? ` ${installerArgs}` : ""}`,
+  ].join("; ");
+  return `bash -o pipefail -c ${quoteShellArg(program)}`;
 }
 
 /** -EncodedCommand keeps the entire program outside cmd.exe's quoting grammar. */

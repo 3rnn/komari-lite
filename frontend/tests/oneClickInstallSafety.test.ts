@@ -27,6 +27,13 @@ test("Linux generated command propagates a failed download rather than reporting
   }
 });
 
+test("Linux generated command does not depend on shell positional expansion", () => {
+  const command = linuxInstallCommand("https://example.test/install.sh", ["-e", "https://panel.example.test", "-t", "fixture-token"]);
+  assert.doesNotMatch(command, /script=\$\(mktemp\)|status=\$\?|\$1|\$\{@:2\}/);
+  assert.match(command, /mkdir -m 700/);
+  assert.match(command, /trap/);
+});
+
 test("Linux staging runs a completed script with exact quoted arguments and cleans up", () => {
   const dir = mkdtempSync(join(tmpdir(), "komari-success-"));
   try {
