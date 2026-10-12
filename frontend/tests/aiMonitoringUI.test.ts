@@ -40,6 +40,11 @@ test("healthy zero-delta periods use an empty state and suppress zero-only model
  assert.ok(html.includes("No new usage in this range."));
  assert.ok(!html.includes("zero-only"));
 });
+test("usage trend states explicit compact axes for token-scale data", () => {
+ const html=renderToStaticMarkup(React.createElement(AIMonitoringView,{timezone:"UTC",data:{trends:[{timestamp:1791574080,calls:1530,total_tokens:1250000,api_equivalent_cost_usd:18.327304},{timestamp:1791577680,calls:1600,total_tokens:1300000,api_equivalent_cost_usd:18.5}]}}));
+ assert.ok(html.includes("Y axis: Tokens · X axis: UTC"));
+ assert.ok(html.includes("Tokens on the vertical axis and UTC on the horizontal axis"));
+});
 test("range cards retain collected zeroes but mark incomplete coverage PARTIAL", () => {
  const html=renderToStaticMarkup(React.createElement(AIMonitoringView,{timezone:"UTC",data:{range_usage:{average_calls_per_hour:0,collected_calls:0,collected_tokens:0,coverage:"partial"}}}));
  assert.ok(html.includes("PARTIAL"));

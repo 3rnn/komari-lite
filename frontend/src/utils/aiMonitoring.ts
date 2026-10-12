@@ -44,6 +44,20 @@ export function aiCustomRange(from: string, to: string) {
   if (start >= end || end - start > 2592000) throw new Error("Choose an increasing custom range of at most 30 days.");
   return { from: start, to: end };
 }
+export type AITrendMetric = "total_tokens" | "calls" | "api_equivalent_cost_usd";
+export function aiTrendUnit(metric: AITrendMetric): string { return metric === "total_tokens" ? "Tokens" : metric === "calls" ? "Requests" : "USD"; }
+export function aiTrendTick(value: number | null | undefined, metric: AITrendMetric): string {
+ if (typeof value !== "number" || !Number.isFinite(value)) return "N/A";
+ const absolute = Math.abs(value);
+ const [divisor,suffix] = absolute >= 1e9 ? [1e9,"B"] : absolute >= 1e6 ? [1e6,"M"] : absolute >= 1e3 ? [1e3,"K"] : [1,""];
+ const scaled=value/divisor, digits=metric === "api_equivalent_cost_usd" ? (Math.abs(scaled)<100?2:0) : Math.abs(scaled)>=100?0:Math.abs(scaled)>=10?1:2;
+ const compact=(metric === "api_equivalent_cost_usd" ? scaled.toFixed(digits) : Number(scaled.toFixed(digits)).toString())+suffix;
+ return metric === "api_equivalent_cost_usd" ? `$${compact}` : compact;
+}
+export function aiTrendTime(value: number, timezone: string, spanSeconds: number): string {
+ const options:Intl.DateTimeFormatOptions=spanSeconds<=36*3600?{hour:"2-digit",minute:"2-digit",hourCycle:"h23"}:spanSeconds<=14*86400?{day:"2-digit",month:"short"}:{day:"2-digit",month:"short",year:"2-digit"};
+ try{return new Intl.DateTimeFormat("en-GB",{...options,timeZone:timezone}).format(new Date(value*1000));}catch{return new Intl.DateTimeFormat("en-GB",{...options,timeZone:"UTC"}).format(new Date(value*1000));}
+}
 export function hermesProfileEnabled(profile: { enable_hermes_ai?: boolean }): boolean {
   return profile.enable_hermes_ai === true;
 }
