@@ -53,9 +53,10 @@ test("range cards retain collected zeroes but mark incomplete coverage PARTIAL",
  assert.ok(html.includes("0"));
 });
 test("Advanced is one compact detailed usage table with exact model identifiers", () => {
- const html=renderToStaticMarkup(React.createElement(AIAdvanced,{timezone:"UTC",data:{models:[{model:"gpt-6.1-sol",task:"chat",calls:1,total_tokens:10,api_equivalent_cost_usd:.01}]},children:React.createElement("div",null,"filters")}));
+ const html=renderToStaticMarkup(React.createElement(AIAdvanced,{timezone:"UTC",data:{models:[{model:"gpt-6.1-sol",task:"chat",calls:1,total_tokens:10,api_equivalent_cost_usd:.01},{model:"legacy-zero",task:"main",calls:0,total_tokens:0}]},children:React.createElement("div",null,"filters")}));
  assert.ok(html.includes("Detailed usage"));
  assert.ok(html.includes("gpt-6.1-sol"));
+ assert.ok(!html.includes("legacy-zero"));
  assert.ok(!html.includes("Model: N/A"));
  for(const removed of ["Full model statistics","Task usage","Detailed token accounting","Collector diagnostics","Automatic pricing"]) assert.ok(!html.includes(removed),removed);
 });
