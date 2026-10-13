@@ -462,14 +462,22 @@ func TestOverviewAggregateTrendsKeepCoveredBucketsNumericAboveRawLimit(t *testin
 	to := now.Add(-24 * time.Hour)
 	from := to.Add(-24 * time.Hour)
 	covered := true
-	rows := make([]StoredSample, 0, 24*60*60)
+	rows := make([]StoredSample, 0, 24*60*60+1)
 	for i := 0; i < 24*60*60; i++ {
-		started := from.Add(time.Duration(i) * time.Second)
+		// Deliberately cross minute boundaries: an interval that overlaps a
+		// bucket remains valid evidence rather than making that bucket partial.
+		started := float64(from.Unix()) + float64(i) - 0.5
 		rows = append(rows, StoredSample{Node: "node", Sample: Sample{
-			SampleID: fmt.Sprintf("covered-sample-%d", i), StartedAt: float64(started.Unix()), EndedAt: float64(started.Add(time.Second).Unix()),
+			SampleID: fmt.Sprintf("covered-sample-%d", i), StartedAt: started, EndedAt: started + 1,
 			Model: "fixture", Provider: "fixture", BillingMode: "metered", Task: "chat", Calls: 1, InputTokens: 1, Coverage: &covered,
 		}})
 	}
+	// The final interval ends exactly at the query boundary; an in-progress
+	// interval that ends after To is intentionally not admitted as proof.
+	rows = append(rows, StoredSample{Node: "node", Sample: Sample{
+		SampleID: "covered-final", StartedAt: float64(to.Unix()) - 1, EndedAt: float64(to.Unix()),
+		Model: "fixture", Provider: "fixture", BillingMode: "metered", Task: "chat", Calls: 1, InputTokens: 1, Coverage: &covered,
+	}})
 	if err := s.DB.CreateInBatches(rows, 1000).Error; err != nil {
 		t.Fatal(err)
 	}

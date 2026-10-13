@@ -423,15 +423,25 @@ type aggregateTrendCoverageRow struct {
 // have no interval proof and always remain partial.
 func (s *Store) aggregateTrendCoverage(q Query, step float64) (map[float64]string, error) {
 	filters, filterArgs := overviewFilters(q)
-	query := `WITH expected_nodes AS (
+	query := `WITH RECURSIVE expected_nodes AS (
 		SELECT DISTINCT node FROM ai_samples WHERE ended_at > ? AND ended_at <= ?` + filters + `
-	), ordered AS (
-		SELECT node, CAST((ended_at / ?) - 0.000001 AS INTEGER) * ? AS bucket, started_at, ended_at, coverage, reset_count,
-		MAX(ended_at) OVER (PARTITION BY node, CAST((ended_at / ?) - 0.000001 AS INTEGER) * ? ORDER BY started_at, ended_at ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS previous_ended
+	), raw AS (
+		SELECT node, started_at, ended_at, coverage, reset_count
 		FROM ai_samples WHERE ended_at > ? AND ended_at <= ?` + filters + `
+	), expanded(node, bucket, started_at, ended_at, coverage, reset_count, end_bucket) AS (
+		SELECT node, CAST(started_at / ? AS INTEGER) * ?, started_at, ended_at, coverage, reset_count,
+		CAST((ended_at / ?) - 0.000001 AS INTEGER) * ?
+		FROM raw
+		UNION ALL
+		SELECT node, bucket + ?, started_at, ended_at, coverage, reset_count, end_bucket
+		FROM expanded WHERE bucket + ? <= end_bucket
+	), ordered AS (
+		SELECT node, bucket, started_at, ended_at, coverage, reset_count,
+		MAX(ended_at) OVER (PARTITION BY node, bucket ORDER BY started_at, ended_at ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS previous_ended
+		FROM expanded
 	), node_proofs AS (
 		SELECT bucket, node, MIN(started_at) AS first_started, MAX(ended_at) AS last_ended,
-		SUM(CASE WHEN started_at < bucket OR ended_at > bucket + ? OR coverage IS NULL OR coverage = 0 OR reset_count > 0 THEN 1 ELSE 0 END) AS invalid,
+		SUM(CASE WHEN coverage IS NULL OR coverage = 0 OR reset_count > 0 THEN 1 ELSE 0 END) AS invalid,
 		SUM(CASE WHEN previous_ended IS NOT NULL AND started_at > previous_ended + 0.001 THEN 1 ELSE 0 END) AS gaps
 		FROM ordered GROUP BY bucket, node
 	), bucket_proofs AS (
@@ -442,9 +452,10 @@ func (s *Store) aggregateTrendCoverage(q Query, step float64) (map[float64]strin
 	SELECT bucket, nodes, incomplete, (SELECT COUNT(*) FROM expected_nodes) AS expected_nodes FROM bucket_proofs`
 	args := []any{q.From, q.To}
 	args = append(args, filterArgs...)
-	args = append(args, step, step, step, step, q.From, q.To)
+	args = append(args, q.From, q.To)
 	args = append(args, filterArgs...)
-	args = append(args, step, q.From, q.From, step, q.To, q.To, step)
+	args = append(args, step, step, step, step, step, step)
+	args = append(args, q.From, q.From, step, q.To, q.To, step)
 	var rows []aggregateTrendCoverageRow
 	if err := s.DB.Raw(query, args...).Scan(&rows).Error; err != nil {
 		return nil, err
