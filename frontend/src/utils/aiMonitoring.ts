@@ -83,3 +83,10 @@ export function hermesInstallArgs(platform: string, enabled: boolean): string[] 
 }
 export function encodeAISelectValue(value: string): string { return value === "" ? "__ai_all__" : `value:${value}`; }
 export function decodeAISelectValue(value: string): string { return value === "__ai_all__" ? "" : value.startsWith("value:") ? value.slice("value:".length) : ""; }
+export type AINodeOption = { uuid:string; name:string };
+/** Preserve the last complete node menu while a filtered overview returns only one node. */
+export function mergeAINodeOptions<T extends AINodeOption>(previous: T[], current: T[]): T[] {
+ const byUUID=new Map(previous.map(node=>[node.uuid,node]));
+ for(const node of current) byUUID.set(node.uuid,node);
+ return [...previous.map(node=>byUUID.get(node.uuid)!),...current.filter(node=>!previous.some(existing=>existing.uuid===node.uuid))];
+}
