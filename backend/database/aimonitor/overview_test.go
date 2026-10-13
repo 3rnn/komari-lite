@@ -1,6 +1,7 @@
 package aimonitor
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -222,6 +223,35 @@ func TestOverviewTrendShowsLeadingAndTrailingCollectionGaps(t *testing.T) {
 		if view.Trends[i].Coverage != coverage {
 			t.Fatalf("trend bucket %d coverage = %q, want %q: %#v", i, view.Trends[i].Coverage, coverage, view.Trends)
 		}
+	}
+}
+
+func TestTrendJSONUsesNullForUnverifiedBucketsAndNumericZeroForCoveredBuckets(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		trend Trend
+		want  any
+	}{
+		{name: "missing", trend: Trend{Timestamp: 1, Coverage: "missing"}, want: nil},
+		{name: "partial", trend: Trend{Timestamp: 1, Coverage: "partial", Totals: Totals{Calls: 9, TotalTokenCount: 99}}, want: nil},
+		{name: "covered_zero", trend: Trend{Timestamp: 1, Coverage: "covered"}, want: float64(0)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			body, err := json.Marshal(tc.trend)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var payload map[string]any
+			if err := json.Unmarshal(body, &payload); err != nil {
+				t.Fatal(err)
+			}
+			if got := payload["calls"]; got != tc.want {
+				t.Fatalf("calls JSON = %#v, want %#v; body=%s", got, tc.want, body)
+			}
+			if got := payload["total_tokens"]; got != tc.want {
+				t.Fatalf("total_tokens JSON = %#v, want %#v; body=%s", got, tc.want, body)
+			}
+		})
 	}
 }
 

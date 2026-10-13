@@ -65,6 +65,40 @@ type Trend struct {
 	Coverage  string  `json:"coverage"`
 	Totals
 }
+
+// MarshalJSON makes an unverified bucket unambiguously a gap at the API
+// boundary. Internally Totals stays numeric so aggregation and reconciliation
+// remain exact; only a covered bucket may expose a numeric zero.
+func (t Trend) MarshalJSON() ([]byte, error) {
+	numeric := func(int64) *int64 { return nil }
+	if t.Coverage == "covered" {
+		numeric = func(value int64) *int64 { return &value }
+	}
+	return json.Marshal(struct {
+		Timestamp              float64  `json:"timestamp"`
+		Coverage               string   `json:"coverage"`
+		Calls                  *int64   `json:"calls"`
+		InputTokens            *int64   `json:"input_tokens"`
+		OutputTokens           *int64   `json:"output_tokens"`
+		CacheReadTokens        *int64   `json:"cache_read_tokens"`
+		CacheWriteTokens       *int64   `json:"cache_write_tokens"`
+		ReasoningTokens        *int64   `json:"reasoning_tokens"`
+		TotalTokenCount        *int64   `json:"total_tokens"`
+		APIEquivalentCostUSD   *float64 `json:"api_equivalent_cost_usd"`
+		UnpricedCalls          *int64   `json:"unpriced_calls"`
+		PricedCalls            *int64   `json:"priced_calls"`
+		HermesEstimatedCostUSD *float64 `json:"hermes_estimated_cost_usd"`
+		RecordedActualCostUSD  *float64 `json:"recorded_actual_cost_usd"`
+	}{
+		Timestamp: t.Timestamp, Coverage: t.Coverage,
+		Calls: numeric(t.Calls), InputTokens: numeric(t.InputTokens), OutputTokens: numeric(t.OutputTokens),
+		CacheReadTokens: numeric(t.CacheReadTokens), CacheWriteTokens: numeric(t.CacheWriteTokens), ReasoningTokens: numeric(t.ReasoningTokens),
+		TotalTokenCount: numeric(t.TotalTokenCount), APIEquivalentCostUSD: t.APIEquivalentCostUSD,
+		UnpricedCalls: numeric(t.UnpricedCalls), PricedCalls: numeric(t.PricedCalls),
+		HermesEstimatedCostUSD: t.HermesEstimatedCostUSD, RecordedActualCostUSD: t.RecordedActualCostUSD,
+	})
+}
+
 type Day struct {
 	Date string `json:"date"`
 	Totals
