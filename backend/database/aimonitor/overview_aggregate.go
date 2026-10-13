@@ -266,20 +266,48 @@ func (s *Store) aggregateTasks(q Query, from, to float64) ([]Aggregate, error) {
 }
 
 func (s *Store) aggregateTrends(q Query, from, to, step float64) ([]Trend, error) {
-	rows, err := s.aggregateSource(q, from, to, "CAST({at} / ? AS INTEGER) * ? AS bucket", "bucket", step, step)
-	if err != nil {
-		return nil, err
+	filters, filterArgs := overviewFilters(q)
+	sources := []struct {
+		table string
+		at    string
+		raw   bool
+		where string
+		args  []any
+	}{
+		{"ai_samples", "ended_at", true, "ended_at > ? AND ended_at <= ?", []any{from, to}},
+		{"ai_hourly_rollups", "hour", false, "hour >= ? AND hour + 3600 <= ?", []any{from, to}},
 	}
 	out := map[float64]*Trend{}
-	for _, row := range rows {
-		if out[row.Bucket] == nil {
-			out[row.Bucket] = &Trend{Timestamp: row.Bucket}
+	for _, source := range sources {
+		// Raw deltas belong to the interval ending at ended_at. Subtracting a
+		// tiny amount puts an exact boundary sample in the preceding interval
+		// instead of creating a false zero-duration bucket after it.
+		bucket := "CAST(" + source.at + " / ? AS INTEGER) * ?"
+		if source.raw {
+			bucket = "CAST((" + source.at + " / ?) - 0.000001 AS INTEGER) * ?"
 		}
-		total := row.totals()
-		if !safeAdd(out[row.Bucket].Totals, total) {
-			return nil, fmt.Errorf("AI totals exceed safe JSON integer range")
+		query := "SELECT " + bucket + " AS bucket, " + aggregateColumns(source.raw) + " FROM " + source.table + " WHERE " + source.where + filters + " GROUP BY bucket LIMIT ?"
+		args := []any{step, step}
+		args = append(args, source.args...)
+		args = append(args, filterArgs...)
+		args = append(args, 1441)
+		var rows []sqlAggregate
+		if err := s.DB.Raw(query, args...).Scan(&rows).Error; err != nil {
+			return nil, err
 		}
-		out[row.Bucket].Totals.add(total)
+		if len(rows) > 1440 {
+			return nil, ErrQueryLimit
+		}
+		for _, row := range rows {
+			if out[row.Bucket] == nil {
+				out[row.Bucket] = &Trend{Timestamp: row.Bucket}
+			}
+			total := row.totals()
+			if !safeAdd(out[row.Bucket].Totals, total) {
+				return nil, fmt.Errorf("AI totals exceed safe JSON integer range")
+			}
+			out[row.Bucket].Totals.add(total)
+		}
 	}
 	result := make([]Trend, 0, len(out))
 	for _, row := range out {
@@ -287,6 +315,100 @@ func (s *Store) aggregateTrends(q Query, from, to, step float64) ([]Trend, error
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].Timestamp < result[j].Timestamp })
 	return result, nil
+}
+
+func trendCoverage(rows []StoredSample, expected map[string]bool, from, to float64) string {
+	if to <= from || len(expected) == 0 {
+		return "missing"
+	}
+	byNode := make(map[string][]StoredSample, len(expected))
+	hasEvidence := false
+	for _, row := range rows {
+		if row.EndedAt <= from || row.StartedAt >= to {
+			continue
+		}
+		hasEvidence = true
+		if row.StartedAt < from || row.EndedAt > to || row.Coverage == nil || !*row.Coverage || row.ResetCount > 0 {
+			return "partial"
+		}
+		byNode[row.Node] = append(byNode[row.Node], row)
+	}
+	for node := range expected {
+		samples := byNode[node]
+		if len(samples) == 0 {
+			if hasEvidence {
+				return "partial"
+			}
+			return "missing"
+		}
+		sort.Slice(samples, func(i, j int) bool {
+			if samples[i].StartedAt == samples[j].StartedAt {
+				return samples[i].EndedAt < samples[j].EndedAt
+			}
+			return samples[i].StartedAt < samples[j].StartedAt
+		})
+		covered := from
+		for _, sample := range samples {
+			if sample.StartedAt > covered+0.001 {
+				return "partial"
+			}
+			if sample.EndedAt > covered {
+				covered = sample.EndedAt
+			}
+		}
+		if covered < to-0.001 {
+			return "partial"
+		}
+	}
+	return "covered"
+}
+
+func completeTrendCoverage(q Query, step float64, trends []Trend, rows []StoredSample, proof bool) []Trend {
+	if q.To <= q.From || step <= 0 {
+		return trends
+	}
+	byTimestamp := make(map[float64]Trend, len(trends))
+	for _, trend := range trends {
+		byTimestamp[trend.Timestamp] = trend
+	}
+	// The complete requested interval, not just the span between observed rows,
+	// defines the trend. This makes leading and trailing collection gaps visible.
+	first := float64(int64(q.From/step)) * step
+	last := float64(int64(q.To/step-0.000001)) * step
+	expected := map[string]bool{}
+	rowsByBucket := map[float64][]StoredSample{}
+	for _, row := range rows {
+		expected[row.Node] = true
+		if proof {
+			firstBucket := float64(int64(row.StartedAt/step)) * step
+			lastBucket := float64(int64(row.EndedAt/step-0.000001)) * step
+			for at := firstBucket; at <= lastBucket+0.001; at += step {
+				if at >= first && at <= last {
+					rowsByBucket[at] = append(rowsByBucket[at], row)
+				}
+			}
+		}
+	}
+	result := make([]Trend, 0, int((last-first)/step)+1)
+	for at := first; at <= last+0.001; at += step {
+		trend, exists := byTimestamp[at]
+		if !exists {
+			trend = Trend{Timestamp: at, Coverage: "missing"}
+		} else if proof {
+			from, to := at, at+step
+			if from < q.From {
+				from = q.From
+			}
+			if to > q.To {
+				to = q.To
+			}
+			trend.Coverage = trendCoverage(rowsByBucket[at], expected, from, to)
+		} else {
+			trend.Coverage = "partial"
+		}
+		result = append(result, trend)
+	}
+	return result
 }
 
 func dayRanges(q Query, loc *time.Location) [][3]any {
@@ -377,9 +499,7 @@ func (s *Store) aggregateOverview(q Query, now time.Time, loc *time.Location, v 
 	if v.Trends, err = s.aggregateTrends(q, q.From, q.To, step); err != nil {
 		return v, err
 	}
-	for i := range v.Trends {
-		v.Trends[i].Coverage = v.RangeUsage.Coverage
-	}
+	v.Trends = completeTrendCoverage(q, step, v.Trends, nil, false)
 	if v.Daily, err = s.aggregateDaily(q, loc); err != nil {
 		return v, err
 	}

@@ -233,7 +233,7 @@ func (s *Store) Overview(q Query, now time.Time) (Overview, error) {
 			taskMap[task] = &Aggregate{Task: task}
 		}
 		taskMap[task].Totals.add(t)
-		timestamp := float64(int64(at/step)) * step
+		timestamp := float64(int64(at/step-0.000001)) * step
 		if trendMap[timestamp] == nil {
 			trendMap[timestamp] = &Trend{Timestamp: timestamp}
 		}
@@ -308,6 +308,7 @@ func (s *Store) Overview(q Query, now time.Time) (Overview, error) {
 	sortAggregates(v.Models)
 	sortAggregates(v.Tasks)
 	sort.Slice(v.Trends, func(i, j int) bool { return v.Trends[i].Timestamp < v.Trends[j].Timestamp })
+	v.Trends = completeTrendCoverage(q, step, v.Trends, rows, true)
 	sort.Slice(v.Daily, func(i, j int) bool { return v.Daily[i].Date < v.Daily[j].Date })
 	if v.PricingCoverage.TotalTokenCount > 9_007_199_254_740_991 {
 		return v, fmt.Errorf("AI totals exceed safe JSON integer range")

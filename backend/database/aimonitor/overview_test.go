@@ -170,6 +170,61 @@ func TestOverviewRangeUsageUsesDatabaseAggregatesAndLabelsCoverage(t *testing.T)
 	}
 }
 
+func TestOverviewTrendSeparatesVerifiedBucketsFromCollectionGaps(t *testing.T) {
+	s := fixture(t)
+	now := time.Unix(1780000020, 0).UTC() // exact UTC minute boundary
+	covered := true
+	rows := []StoredSample{
+		{Node: "node", Sample: Sample{SampleID: "550e8400-e29b-41d4-a716-446655440701", StartedAt: float64(now.Add(-3 * time.Minute).Unix()), EndedAt: float64(now.Add(-2 * time.Minute).Unix()), Model: "fixture", Provider: "fixture", Task: "chat", Calls: 1, InputTokens: 10, Coverage: &covered}},
+		{Node: "node", Sample: Sample{SampleID: "550e8400-e29b-41d4-a716-446655440702", StartedAt: float64(now.Add(-time.Minute).Unix()), EndedAt: float64(now.Unix()), Model: "fixture", Provider: "fixture", Task: "chat", Calls: 2, InputTokens: 20, Coverage: &covered}},
+	}
+	if err := s.DB.Create(&rows).Error; err != nil {
+		t.Fatal(err)
+	}
+	view, err := s.Overview(Query{From: float64(now.Add(-3 * time.Minute).Unix()), To: float64(now.Unix()), Timezone: "UTC"}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.RangeUsage.Coverage != "partial" || view.RangeUsage.CollectedCalls != 3 || view.RangeUsage.CollectedTokens != 30 {
+		t.Fatalf("partial range must retain collected totals: %+v", view.RangeUsage)
+	}
+	if len(view.Trends) != 3 {
+		t.Fatalf("trend bucket count = %d, want 3 with an explicit gap: %#v", len(view.Trends), view.Trends)
+	}
+	want := []string{"covered", "missing", "covered"}
+	for i, coverage := range want {
+		if view.Trends[i].Coverage != coverage {
+			t.Fatalf("trend bucket %d coverage = %q, want %q: %#v", i, view.Trends[i].Coverage, coverage, view.Trends)
+		}
+	}
+	if view.Trends[1].TotalTokens() != 0 || view.Trends[1].Calls != 0 {
+		t.Fatalf("missing bucket must carry no fabricated usage: %+v", view.Trends[1])
+	}
+}
+
+func TestOverviewTrendShowsLeadingAndTrailingCollectionGaps(t *testing.T) {
+	s := fixture(t)
+	now := time.Unix(1780000020, 0).UTC()
+	covered := true
+	row := StoredSample{Node: "node", Sample: Sample{SampleID: "550e8400-e29b-41d4-a716-446655440703", StartedAt: float64(now.Add(-3 * time.Minute).Unix()), EndedAt: float64(now.Add(-2 * time.Minute).Unix()), Model: "fixture", Provider: "fixture", Task: "chat", Calls: 1, InputTokens: 10, Coverage: &covered}}
+	if err := s.DB.Create(&row).Error; err != nil {
+		t.Fatal(err)
+	}
+	view, err := s.Overview(Query{From: float64(now.Add(-4 * time.Minute).Unix()), To: float64(now.Unix()), Timezone: "UTC"}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(view.Trends) != 4 {
+		t.Fatalf("trend bucket count = %d, want full range including edge gaps: %#v", len(view.Trends), view.Trends)
+	}
+	want := []string{"missing", "covered", "missing", "missing"}
+	for i, coverage := range want {
+		if view.Trends[i].Coverage != coverage {
+			t.Fatalf("trend bucket %d coverage = %q, want %q: %#v", i, view.Trends[i].Coverage, coverage, view.Trends)
+		}
+	}
+}
+
 func TestOverviewRangeUsageIsPartialForRollupsAndHasNoAverageWithoutCalls(t *testing.T) {
 	s := fixture(t)
 	now := time.Unix(1780000000, 0).UTC()

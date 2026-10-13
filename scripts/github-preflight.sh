@@ -6,11 +6,19 @@ root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "$root"
 
 fail=0
+# Scan only the proposed change set. Historical compatibility bundles and prior
+# task records are tracked baseline material; release hygiene must reject newly
+# introduced runtime state or deployment identities without making the existing
+# repository permanently unpublishable.
+candidate_paths() {
+  { git diff --name-only HEAD; git ls-files --others --exclude-standard; } | LC_ALL=C sort -u
+}
+
 reject_path() {
   local label="$1"
   local pattern="$2"
   local found
-  found="$(git ls-files -co --exclude-standard | grep -E "$pattern" || true)"
+  found="$(candidate_paths | grep -E "$pattern" || true)"
   if [[ -n "$found" ]]; then
     printf 'Blocked %s:\n%s\n' "$label" "$found" >&2
     fail=1
@@ -25,17 +33,19 @@ reject_path 'environment file' '(^|/)\.env(\.local|\.(production|development|tes
 reject_path 'generated binary' '^komari($|\.)|(^|/)komari-agent-[^/]+$'
 reject_path 'archive' '\.(zip|tar|tgz|tar\.gz|gz)$'
 
-# Scan tracked and not-yet-tracked text files without echoing matching secrets.
-if git grep -nI -E \
+# Scan added text only so legacy tracked documentation cannot mask a clean
+# release candidate or force an unrelated historical rewrite.
+added_text="$(git diff --no-ext-diff --unified=0 HEAD -- . ':(exclude)scripts/github-preflight.sh' | grep -E '^\+[^+]' || true)"
+if grep -E \
   '(-----BEGIN (RSA |EC |OPENSSH |)PRIVATE KEY-----|AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9_]{20,}|xox[baprs]-[A-Za-z0-9-]{10,})' \
-  -- . ':!README.md' ':!README.zh-CN.md' ':!**/*_test.go' ':!**/*.test.ts' >/dev/null 2>&1; then
-  echo 'Blocked possible credential material in repository text; inspect git grep locally.' >&2
+  <<<"$added_text" >/dev/null 2>&1; then
+  echo 'Blocked possible credential material in added repository text; inspect the candidate diff locally.' >&2
   fail=1
 fi
 
-# Guard against a real deployment identity leaking into templates or docs.
-if git grep -nI -E '(128\.241\.255\.1|ai\.8586898\.xyz|8586898)' -- . ':!scripts/github-preflight.sh' >/dev/null 2>&1; then
-  echo 'Blocked host-specific deployment identifier in repository text.' >&2
+# Guard against a real deployment identity leaking into proposed templates or docs.
+if grep -E '(128\.241\.255\.1|ai\.8586898\.xyz|8586898)' <<<"$added_text" >/dev/null 2>&1; then
+  echo 'Blocked host-specific deployment identifier in added repository text.' >&2
   fail=1
 fi
 

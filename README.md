@@ -29,15 +29,15 @@ It intentionally excludes remote terminal/control/command execution, Cloudflare 
 
 ## Official releases and safe updates
 
-Release `v1.0.49` publishes Linux panel and version-matched Agent binaries, `SHA256SUMS.txt`, a Glass transition bundle, the existing safe-controller assets, and `update-komari.sh`.
+Release `v1.0.50` publishes Linux panel and version-matched Agent binaries, `SHA256SUMS.txt`, a Glass transition bundle, the existing safe-controller assets, and `update-komari.sh`.
 
 ### Fresh native installation
 
 For a new reviewed Debian/systemd host, use the version-pinned controller from the same Release:
 
 ```bash
-curl -fsSLo komari-oneclick.py https://github.com/3rnn/komari-lite/releases/download/v1.0.49/komari-oneclick.py
-sudo python3 komari-oneclick.py install --tag v1.0.49
+curl -fsSLo komari-oneclick.py https://github.com/3rnn/komari-lite/releases/download/v1.0.50/komari-oneclick.py
+sudo python3 komari-oneclick.py install --tag v1.0.50
 ```
 
 This creates a new installation only when `/opt/komari` and `komari.service` are absent. It never creates or prints an administrator password. Complete first-run setup through the local installer before exposing the service through a reverse proxy.
@@ -47,12 +47,12 @@ This creates a new installation only when `/opt/komari` and `komari.service` are
 Download the updater from the immutable release tag, inspect it, and first run a dry run:
 
 ```bash
-curl -fsSLo update-komari.sh https://raw.githubusercontent.com/3rnn/komari-lite/v1.0.42/update-komari.sh
-bash update-komari.sh --dry-run v1.0.42
-bash update-komari.sh v1.0.42
+curl -fsSLo update-komari.sh https://raw.githubusercontent.com/3rnn/komari-lite/v1.0.50/update-komari.sh
+bash update-komari.sh --dry-run v1.0.50
+bash update-komari.sh v1.0.50
 ```
 
-`v1.0.42` is the next stable application release and retains the updater compatibility introduced by `v1.0.25`. It supports both a flat `/opt/komari/komari` executable and the protected versioned `komari -> current/komari` layout used by older safe-upgrade deployments. For a versioned deployment it verifies the known installed v1.0.19 safe-upgrade controller fingerprints, downloads and verifies the selected panel binary and Glass transition bundle, runs the installed controller's complete read-only transaction preflight before any service stop, reports that controller's rejection output clearly, and delegates staging, SQLite snapshots, atomic switching, health checking, rollback, and recovery to that controller.
+`v1.0.50` is the next stable application release and retains the updater compatibility introduced by `v1.0.25`. It supports both a flat `/opt/komari/komari` executable and the protected versioned `komari -> current/komari` layout used by older safe-upgrade deployments. For a versioned deployment it verifies the known installed v1.0.19 safe-upgrade controller fingerprints, downloads and verifies the selected panel binary and Glass transition bundle, runs the installed controller's complete read-only transaction preflight before any service stop, reports that controller's rejection output clearly, and delegates staging, SQLite snapshots, atomic switching, health checking, rollback, and recovery to that controller.
 
 With no version argument, `bash update-komari.sh` resolves the latest stable application release once. Use an explicit tag for a reviewed change. The updater detects `amd64`/`arm64`, verifies the selected release assets against that release's `SHA256SUMS.txt`, preserves the existing systemd unit and arguments, and rejects unsafe symlink chains, writable deployment paths, incomplete safe-upgrade transactions, and database downgrades.
 
@@ -69,11 +69,11 @@ cd /opt/komari && ./komari version --json
 The admin UI generates a pinned command for each node. A manual Linux `amd64` example is:
 
 ```bash
-curl -fsSLo install.sh https://github.com/3rnn/komari-lite/releases/download/v1.0.49/install.sh
-sudo bash install.sh --install-source https://github.com/3rnn/komari-lite/releases/download/v1.0.49 --install-version 1.0.49 -e https://YOUR-KOMARI-HOST -t YOUR-NODE-TOKEN
+curl -fsSLo install.sh https://github.com/3rnn/komari-lite/releases/download/v1.0.50/install.sh
+sudo bash install.sh --install-source https://github.com/3rnn/komari-lite/releases/download/v1.0.50 --install-version 1.0.50 -e https://YOUR-KOMARI-HOST -t YOUR-NODE-TOKEN
 ```
 
-Do not use a moving `latest` Agent URL. This release installs the verified `v1.0.49` Agent artifacts.
+Do not use a moving `latest` Agent URL. This release installs the verified `v1.0.50` Agent artifacts.
 
 
 The Go panel embeds the compiled administrator UI, so build in this order:
@@ -107,10 +107,10 @@ The Agent has no remote-control, terminal, command-execution, MCP, or self-updat
 ```bash
 cd komari-lite
 chmod +x scripts/build-agent-release.sh
-./scripts/build-agent-release.sh 1.0.49
+./scripts/build-agent-release.sh 1.0.50
 ```
 
-Output is written to `release/agent-1.0.49/`:
+Output is written to `release/agent-1.0.50/`:
 
 - 14 `komari-agent-<os>-<arch>` artifacts;
 - `manifest.json` with the release version and SHA-256 for every artifact;
@@ -119,7 +119,7 @@ Output is written to `release/agent-1.0.49/`:
 The release directory is intentionally ignored by Git. Verify it before deployment:
 
 ```bash
-cd release/agent-1.0.49
+cd release/agent-1.0.50
 sha256sum -c SHA256SUMS.txt
 ```
 
@@ -188,7 +188,7 @@ Install/start Caddy according to its official documentation. The panel stays pri
 
 ### Agent downloads
 
-This release fetches the pinned `v1.0.49` installer and platform-specific Agent binaries from `https://github.com/3rnn/komari-lite/releases/download/v1.0.49/`. Never use a moving `latest` URL. Nodes must be able to reach GitHub. The optional panel-hosted `/agent/download` catalog is no longer used by generated installation commands. Publishing a panel Release does **not** update existing Agents.
+This release fetches the pinned `v1.0.50` installer and platform-specific Agent binaries from `https://github.com/3rnn/komari-lite/releases/download/v1.0.50/`. Never use a moving `latest` URL. Nodes must be able to reach GitHub. The optional panel-hosted `/agent/download` catalog is no longer used by generated installation commands. Publishing a panel Release does **not** update existing Agents.
 
 ## 4. Updating the panel binary
 

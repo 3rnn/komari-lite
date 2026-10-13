@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { hermesInstallArgs, hermesProfileEnabled, aiCompactNumber, aiNumber, aiRange, aiUSD, canonicalTokens, taskLabel, sortUsage, aiCustomRange, aiISOSeconds, aiTrendTick, aiTrendTime, aiTrendUnit } from "../src/utils/aiMonitoring.ts";
+import { hermesInstallArgs, hermesProfileEnabled, aiCompactNumber, aiNumber, aiRange, aiUSD, canonicalTokens, taskLabel, sortUsage, aiCustomRange, aiISOSeconds, aiTrendTick, aiTrendTime, aiTrendUnit, aiTrendPointValue } from "../src/utils/aiMonitoring.ts";
 
 test("Hermes opt-in is false for legacy profiles and Windows never generates an enabled command", () => {
   assert.equal(hermesProfileEnabled({}), false);
@@ -38,4 +38,11 @@ test("trend axes use compact units and readable time ticks", () => {
  assert.equal(aiTrendTime(1791574080,"UTC",24*3600),"19:28");
  assert.equal(aiTrendTime(1791574080,"UTC",7*86400),"09 Oct");
  assert.equal(aiTrendTime(1791574080,"UTC",30*86400),"09 Oct 26");
+});
+test("trend point values preserve covered zeroes and leave gaps null", () => {
+ assert.equal(aiTrendPointValue({coverage:"covered",total_tokens:0},"total_tokens","partial"),0);
+ assert.equal(aiTrendPointValue({coverage:"covered",calls:3},"calls","partial"),3);
+ assert.equal(aiTrendPointValue({coverage:"missing",total_tokens:99},"total_tokens","partial"),null);
+ assert.equal(aiTrendPointValue({coverage:"partial",calls:2},"calls","partial"),null);
+ assert.equal(aiTrendPointValue({total_tokens:99},"total_tokens","partial"),null);
 });

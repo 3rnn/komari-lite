@@ -56,6 +56,11 @@ export function aiCustomRange(from: string, to: string) {
   return { from: start, to: end };
 }
 export type AITrendMetric = "total_tokens" | "calls";
+export type AITrendCoverage = "covered" | "partial" | "missing";
+export function aiTrendPointValue(row: Partial<Pick<Usage,"total_tokens"|"calls">> & {coverage?:AITrendCoverage}, metric: AITrendMetric, rangeCoverage?: AITrendCoverage): number | null {
+ const coverage=row.coverage ?? rangeCoverage;
+ return coverage === "covered" ? (row[metric] ?? 0) : null;
+}
 export function aiTrendUnit(metric: AITrendMetric): string { return metric === "total_tokens" ? "Tokens" : "Requests"; }
 export function aiTrendTick(value: number | null | undefined, metric: AITrendMetric): string {
  void metric;
