@@ -1,3 +1,8 @@
+export function aiPollDelay(failures:number):number {return Math.min(120000,10000*2**Math.min(4,Math.max(0,failures)));}
+export function parseAIRate(value:string):number|null {
+ if(!value.trim())return null;
+ const parsed=Number(value);return Number.isFinite(parsed)&&parsed>=0?parsed:null;
+}
 export function aiTimestamp(value: number | string | undefined, timezone: string) {
  void timezone;
  if (value == null) return "N/A";

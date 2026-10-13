@@ -54,7 +54,7 @@ func TestAIAdminVerticalSliceSettingsPricingAndOverview(t *testing.T) {
 }
 func fmtTime(t time.Time) string { return fmt.Sprintf("%d", t.Unix()) }
 func TestAIAdminHandlersRejectDirectAndRoleOnlyBypass(t *testing.T) {
-	handlers := []rpc.Handler{adminGetAIOverview, adminGetAISettings, adminSetAISettings}
+	handlers := []rpc.Handler{adminGetAIInventory, adminGetAIOverview, adminGetAISettings, adminSetAISettings}
 	for _, handler := range handlers {
 		for _, meta := range []*rpc.ContextMeta{nil, {Permission: rpc.RoleAdmin}, {Principal: rpc.NewAnonymousPrincipal(), TempShareValid: true}, {Principal: rpc.NewAgentPrincipal("node")}} {
 			ctx := rpc.NewContextWithMeta(context.Background(), meta)

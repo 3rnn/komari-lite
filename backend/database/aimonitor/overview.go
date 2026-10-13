@@ -100,7 +100,8 @@ func (t Trend) MarshalJSON() ([]byte, error) {
 }
 
 type Day struct {
-	Date string `json:"date"`
+	Coverage string `json:"coverage"`
+	Date     string `json:"date"`
 	Totals
 	AverageTPS *float64    `json:"average_tps"`
 	Models     []Aggregate `json:"models"`
@@ -123,6 +124,7 @@ type Live struct {
 	Status                    string   `json:"status"`
 }
 type RangeUsage struct {
+	CoverageReason       string   `json:"coverage_reason"`
 	AverageTokensPerCall *float64 `json:"average_tokens_per_call"`
 	AverageCallsPerHour  float64  `json:"average_calls_per_hour"`
 	CollectedTokens      int64    `json:"collected_tokens"`
@@ -343,6 +345,7 @@ func (s *Store) Overview(q Query, now time.Time) (Overview, error) {
 	sortAggregates(v.Tasks)
 	sort.Slice(v.Trends, func(i, j int) bool { return v.Trends[i].Timestamp < v.Trends[j].Timestamp })
 	v.Trends = completeTrendCoverage(q, step, v.Trends, rows, true)
+	applyDailyCoverage(v.Daily, v.Trends, q, step, loc)
 	sort.Slice(v.Daily, func(i, j int) bool { return v.Daily[i].Date < v.Daily[j].Date })
 	if v.PricingCoverage.TotalTokenCount > 9_007_199_254_740_991 {
 		return v, fmt.Errorf("AI totals exceed safe JSON integer range")

@@ -170,7 +170,7 @@ func (s *Store) rangeUsage(q Query) (RangeUsage, error) {
 	if err != nil {
 		return RangeUsage{}, err
 	}
-	v := RangeUsage{CollectedTokens: totals.TotalTokens(), CollectedCalls: totals.Calls, Coverage: "partial"}
+	v := RangeUsage{CollectedTokens: totals.TotalTokens(), CollectedCalls: totals.Calls, Coverage: "partial", CoverageReason: "no_interval_evidence"}
 	if totals.Calls > 0 {
 		average := float64(totals.TotalTokens()) / float64(totals.Calls)
 		v.AverageTokensPerCall = &average
@@ -184,6 +184,7 @@ func (s *Store) rangeUsage(q Query) (RangeUsage, error) {
 		return v, err
 	}
 	if rollups > 0 {
+		v.CoverageReason = "rollup_interval_evidence_unavailable"
 		return v, nil
 	}
 	query := `WITH ordered AS (
@@ -204,7 +205,11 @@ func (s *Store) rangeUsage(q Query) (RangeUsage, error) {
 	if err := s.DB.Raw(query, args...).Scan(&proof).Error; err != nil {
 		return v, err
 	}
+	if proof.Nodes > 0 {
+		v.CoverageReason = "incomplete_intervals"
+	}
 	if proof.Nodes > 0 && proof.Incomplete == 0 {
+		v.CoverageReason = "verified_intervals"
 		v.Coverage = "covered"
 	}
 	return v, nil
@@ -606,6 +611,8 @@ func (s *Store) aggregateOverview(q Query, now time.Time, loc *time.Location, v 
 	if v.Daily, err = s.aggregateDaily(q, loc); err != nil {
 		return v, err
 	}
+
+	applyDailyCoverage(v.Daily, v.Trends, q, step, loc)
 
 	// The legacy raw path remains the proof source for per-group coverage rates.
 	// Work-limit overflow deliberately yields N/A instead of fabricating a rate.

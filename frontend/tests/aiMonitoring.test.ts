@@ -1,3 +1,7 @@
+test("polling backs off within a bounded interval",()=>{assert.equal(aiPollDelay(0),10000);assert.equal(aiPollDelay(1),20000);assert.equal(aiPollDelay(9),120000);});
+import { aiPollDelay } from "../src/utils/aiMonitoring.ts";
+test("blank manual rates are not zero",()=>{assert.equal(parseAIRate(""),null);assert.equal(parseAIRate("  "),null);assert.equal(parseAIRate("0"),0);assert.equal(parseAIRate("-1"),null);});
+import { parseAIRate } from "../src/utils/aiMonitoring.ts";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { hermesInstallArgs, hermesProfileEnabled, aiCompactNumber, aiNumber, aiRange, aiUSD, canonicalTokens, taskLabel, sortUsage, aiCustomRange, aiISOSeconds, aiTrendTick, aiTrendTime, aiTrendUnit, aiTrendPointValue } from "../src/utils/aiMonitoring.ts";

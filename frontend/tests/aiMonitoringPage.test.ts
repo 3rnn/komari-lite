@@ -10,12 +10,89 @@ import { decodeAISelectValue, encodeAISelectValue, mergeAINodeOptions } from "..
 import { revokeAdminSession } from "../src/utils/adminRevocation.ts";
 const renderAct=async(callback:()=>Promise<void>)=>{await act(callback);};
 (globalThis as any).window={setTimeout,clearTimeout};(globalThis as any).React=React;(globalThis as any).IS_REACT_ACT_ENVIRONMENT=true;
-const response=(url:string)=>url.includes("overview")?{nodes:[{uuid:"one",name:"One"}],models:[{model:"gpt-5.6-terra",calls:1,total_tokens:1,task:"chat"}],model_registry:["gpt-6.1-sol","gpt-6-sol","gpt-5.6-terra"],tasks:[{task:"chat"}],daily:[],trends:[],live:{}}:url.includes("pricing")?[]:{timezone:"UTC",retention_days:30,detailed_retention_hours:24,custom_models:[]};
+const response=(url:string)=>url.includes("inventory")?{models:["gpt-6.1-sol","gpt-6-sol","gpt-5.6-terra"],tasks:["chat"],selectors:[]}:url.includes("overview")?{nodes:[{uuid:"one",name:"One"}],models:[{model:"gpt-5.6-terra",calls:1,total_tokens:1,task:"chat"}],model_registry:["gpt-6.1-sol","gpt-6-sol","gpt-5.6-terra"],tasks:[{task:"chat"}],daily:[],trends:[],live:{}}:url.includes("pricing")?[]:{timezone:"UTC",retention_days:30,detailed_retention_hours:24,custom_models:[]};
 test("AI monitoring remains immediately after latency inside Monitoring",()=>{const config=JSON.parse(readFileSync("src/config/menuConfig.json","utf8"));const group=config.menu.find((m:any)=>m.path==="/admin/monitoring");assert.deepEqual(group.children.map((m:any)=>m.path),["/admin/ping","/admin/ai-monitoring"]);});
-test("Advanced stays compact and pricing remains separately accessible",async t=>{t.mock.method(globalThis,"fetch",async(url:string)=>new Response(JSON.stringify(response(url)),{status:200}));let renderer:any;await renderAct(async()=>{renderer=create(React.createElement(Theme,{},React.createElement(AIMonitoringPage)));});t.after(async()=>{await renderAct(async()=>renderer.unmount());});const text=JSON.stringify(renderer.toJSON());assert.ok(text.includes("Detailed usage"));assert.ok(text.includes("Pricing & Retention"));assert.ok(text.includes("Manual pricing"));assert.ok(text.includes("gpt-5.6-terra"));assert.ok(!text.includes("Automatic pricing"));assert.ok(!text.includes("Full model statistics"));});
+test("Advanced stays compact and pricing remains separately accessible",async t=>{t.mock.method(globalThis,"fetch",async(url:string)=>new Response(JSON.stringify(response(url)),{status:200}));let renderer:any;await renderAct(async()=>{renderer=create(React.createElement(Theme,{},React.createElement(AIMonitoringPage)));});t.after(async()=>{await renderAct(async()=>renderer.unmount());});await renderAct(async()=>renderer.root.findAllByType("button").find((b:any)=>b.props.children==="Settings").props.onClick());const text=JSON.stringify(renderer.toJSON());assert.ok(text.includes("By model"));assert.ok(text.includes("Pricing & Retention"));assert.ok(text.includes("Manual pricing"));assert.ok(text.includes("gpt-5.6-terra"));assert.ok(!text.includes("Automatic pricing"));assert.ok(!text.includes("Full model statistics"));});
 test("filter select preserves exact all-like identifiers",()=>{assert.equal(decodeAISelectValue(encodeAISelectValue("__all")),"__all");assert.equal(decodeAISelectValue(encodeAISelectValue("")),"");});
 test("page uses server-authoritative preset ranges and clears private data on revocation",async t=>{const urls:string[]=[];t.mock.method(globalThis,"fetch",async(url:string)=>{urls.push(url);return new Response(JSON.stringify(response(url)),{status:200});});let renderer:any;await renderAct(async()=>{renderer=create(React.createElement(Theme,{},React.createElement(AIMonitoringPage)));});const overview=urls.find(u=>u.includes("overview"))||"";assert.ok(overview.includes("preset=24H"));assert.ok(!overview.includes("from="));await renderAct(async()=>{revokeAdminSession();});assert.ok(JSON.stringify(renderer.toJSON()).includes("Session revoked"));await renderAct(async()=>renderer.unmount());});
-test("model selectors share the registry and preserve observed identifiers",async t=>{t.mock.method(globalThis,"fetch",async(url:string)=>new Response(JSON.stringify(url.includes("overview")?{models:url.includes("model=one")?[{model:"one",calls:1,total_tokens:1}]:[{model:"one",calls:1,total_tokens:1}],model_registry:["gpt-6.1-sol","gpt-6-sol","gpt-5.6-terra","one","two"],nodes:[],tasks:[],daily:[],trends:[],live:{}}:url.includes("pricing")?[]:{timezone:"UTC",retention_days:30,detailed_retention_hours:24,custom_models:[]}),{status:200}));let renderer:any;await renderAct(async()=>{renderer=create(React.createElement(Theme,{},React.createElement(AIMonitoringPage)));});t.after(async()=>{await renderAct(async()=>renderer.unmount());});await renderAct(async()=>{renderer.root.findAllByType(AISelect).find((c:any)=>c.props.label==="Model").props.onChange("one");});for(const select of renderer.root.findAllByType(AISelect).filter((c:any)=>c.props.label==="Model")){assert.ok(select.props.options.some((o:any)=>o.value==="two"));}});
+test("model selectors share the registry and preserve observed identifiers",async t=>{t.mock.method(globalThis,"fetch",async(url:string)=>new Response(JSON.stringify(url.includes("inventory")?{models:["one","two"],tasks:[],selectors:[]}:url.includes("overview")?{models:url.includes("model=one")?[{model:"one",calls:1,total_tokens:1}]:[{model:"one",calls:1,total_tokens:1}],model_registry:["gpt-6.1-sol","gpt-6-sol","gpt-5.6-terra","one","two"],nodes:[],tasks:[],daily:[],trends:[],live:{}}:url.includes("pricing")?[]:{timezone:"UTC",retention_days:30,detailed_retention_hours:24,custom_models:[]}),{status:200}));let renderer:any;await renderAct(async()=>{renderer=create(React.createElement(Theme,{},React.createElement(AIMonitoringPage)));});t.after(async()=>{await renderAct(async()=>renderer.unmount());});await renderAct(async()=>{renderer.root.findAllByType(AISelect).find((c:any)=>c.props.label==="Model").props.onChange("one");});for(const select of renderer.root.findAllByType(AISelect).filter((c:any)=>c.props.label==="Model")){assert.ok(select.props.options.some((o:any)=>o.value==="two"));}});
+test("Refresh preserves selected timezone and does not reload configuration",async t=>{
+ const urls:string[]=[];
+ t.mock.method(globalThis,"fetch",async(url:string)=>{urls.push(url);return new Response(JSON.stringify(response(url)),{status:200});});
+ let renderer:any;await renderAct(async()=>{renderer=create(React.createElement(Theme,{},React.createElement(AIMonitoringPage)));});
+ t.after(async()=>{await renderAct(async()=>renderer.unmount());});
+ const timezone=()=>renderer.root.findAllByType(AISelect).find((c:any)=>c.props.label==="Timezone");
+ await renderAct(async()=>timezone().props.onChange("Asia/Shanghai"));
+ const before=urls.filter(url=>url.includes("settings")||url.includes("pricing")).length;
+ await renderAct(async()=>renderer.root.findAllByType("button").find((b:any)=>b.props.children==="Refresh").props.onClick());
+ assert.equal(timezone().props.value,"Asia/Shanghai");
+ assert.equal(urls.filter(url=>url.includes("settings")||url.includes("pricing")).length,before);
+});
+test("same-query failures retain stale results; changed queries never render the previous scope",async t=>{
+ let fail=false;let pending:(()=>void)|undefined;
+ t.mock.method(globalThis,"fetch",async(url:string)=>{
+ if(url.includes("overview")&&url.includes("node=two"))await new Promise<void>(resolve=>{pending=resolve;});
+ if(url.includes("overview")&&fail)return new Response("fail",{status:500});
+ return new Response(JSON.stringify(url.includes("/client/list")?[{uuid:"one",name:"One"},{uuid:"two",name:"Two"}]:url.includes("overview")?{...response(url),range_usage:{collected_tokens:987654,collected_calls:1,coverage:"covered"}}:response(url)),{status:200});
+ });
+ let renderer:any;await renderAct(async()=>{renderer=create(React.createElement(Theme,{},React.createElement(AIMonitoringPage)));});
+ t.after(async()=>{await renderAct(async()=>renderer.unmount());});
+ fail=true;
+ await renderAct(async()=>renderer.root.findAllByType("button").find((b:any)=>b.props.children==="Refresh").props.onClick());
+ assert.ok(JSON.stringify(renderer.toJSON()).includes("987.7K"));
+ assert.ok(JSON.stringify(renderer.toJSON()).includes("Stale"));
+ await renderAct(async()=>renderer.root.findAllByType(AISelect).find((c:any)=>c.props.label==="Node").props.onChange("two"));
+ assert.ok(!JSON.stringify(renderer.toJSON()).includes("987.7K"));
+ fail=false;await renderAct(async()=>pending?.());
+});
+test("inventory remains independent, reconciles deleted hosts and exposes explicit pricing selectors",async t=>{
+ let hosts=[{uuid:"one",name:"One"},{uuid:"two",name:"Two"}];
+ t.mock.method(globalThis,"fetch",async(url:string)=>new Response(JSON.stringify(url.includes("/client/list")?hosts:url.includes("inventory")?{models:["one","two"],tasks:["chat","cron"],selectors:[{provider:"openai",model:"one",billing_mode:"api"}]}:response(url)),{status:200}));
+ let renderer:any;await renderAct(async()=>{renderer=create(React.createElement(Theme,{},React.createElement(AIMonitoringPage)));});
+ t.after(async()=>{await renderAct(async()=>renderer.unmount());});
+ const select=(label:string)=>renderer.root.findAllByType(AISelect).find((c:any)=>c.props.label===label);
+ assert.ok(select("Task").props.options.some((o:any)=>o.value==="cron"));
+ await renderAct(async()=>renderer.root.findAllByType("button").find((b:any)=>b.props.children==="Settings").props.onClick());
+ assert.ok(select("Provider"));assert.ok(select("Billing mode"));
+ await renderAct(async()=>select("Node").props.onChange("two"));
+ hosts=hosts.slice(0,1);
+ await renderAct(async()=>renderer.root.findAllByType("button").find((b:any)=>b.props.children==="Refresh").props.onClick());
+ assert.equal(select("Node").props.value,"");assert.equal(select("Node").props.options.length,2);
+});
+test("compact toolbar toggles filters, retains summary, resets selection and opens Settings",async t=>{
+ t.mock.method(globalThis,"fetch",async(url:string)=>new Response(JSON.stringify(response(url)),{status:200}));
+ let renderer:any;await renderAct(async()=>{renderer=create(React.createElement(Theme,{},React.createElement(AIMonitoringPage)));});
+ t.after(async()=>{await renderAct(async()=>renderer.unmount());});
+ const button=(name:string)=>renderer.root.findAllByType("button").find((b:any)=>b.props.children===name);
+ assert.ok(button("Filters"));assert.ok(button("Settings"));
+ await renderAct(async()=>button("Filters").props.onClick());
+ await renderAct(async()=>renderer.root.findAllByType(AISelect).find((c:any)=>c.props.label==="Task").props.onChange("chat"));
+ await renderAct(async()=>button("Filters").props.onClick());
+ assert.ok(JSON.stringify(renderer.toJSON()).includes("Task: chat"));
+ await renderAct(async()=>button("Reset").props.onClick());
+ assert.ok(!JSON.stringify(renderer.toJSON()).includes("Task: chat"));
+ await renderAct(async()=>button("Settings").props.onClick());
+ assert.ok(JSON.stringify(renderer.toJSON()).includes("Collection & Retention"));
+});
+test("disabled nodes and inventory failure are explicit without inventing usage",async t=>{
+ t.mock.method(globalThis,"fetch",async(url:string)=>url.includes("/client/list")?new Response("fail",{status:500}):new Response(JSON.stringify(url.includes("overview")?{...response(url),nodes:[{uuid:"one",name:"One",enabled:false,status:"disabled"}]}:response(url)),{status:200}));
+ let renderer:any;await renderAct(async()=>{renderer=create(React.createElement(Theme,{},React.createElement(AIMonitoringPage)));});t.after(async()=>{await renderAct(async()=>renderer.unmount());});
+ assert.ok(JSON.stringify(renderer.toJSON()).includes("Node inventory unavailable"));
+ await renderAct(async()=>renderer.root.findAllByType(AISelect).find((c:any)=>c.props.label==="Node").props.onChange("one"));
+ assert.ok(JSON.stringify(renderer.toJSON()).includes("Monitoring disabled for this node"));
+ assert.ok(renderer.root.findAllByType("a").some((a:any)=>a.props.href==="/admin/servers"));
+});
+test("manual pricing refuses blank required rates without posting",async t=>{
+ const writes:string[]=[];
+ t.mock.method(globalThis,"fetch",async(url:string,init:any)=>{if(init?.method==="POST")writes.push(url);return new Response(JSON.stringify(url.includes("inventory")?{models:["one"],tasks:[],selectors:[{provider:"openai",model:"one",billing_mode:"reference"}]}:response(url)),{status:200});});
+ let renderer:any;await renderAct(async()=>{renderer=create(React.createElement(Theme,{},React.createElement(AIMonitoringPage)));});t.after(async()=>{await renderAct(async()=>renderer.unmount());});
+ const button=(name:string)=>renderer.root.findAllByType("button").find((b:any)=>b.props.children===name);
+ await renderAct(async()=>button("Settings").props.onClick());
+ await renderAct(async()=>renderer.root.findAllByType(AISelect).find((c:any)=>c.props.label==="Provider").props.onChange("openai"));
+ await renderAct(async()=>renderer.root.findAllByType(AISelect).find((c:any)=>c.props.label==="Billing mode").props.onChange("reference"));
+ await renderAct(async()=>button("Add future rule").props.onClick());
+ assert.ok(JSON.stringify(renderer.toJSON()).includes("Input and output prices are required"));assert.deepEqual(writes,[]);
+});
 test("Node filter keeps the full node menu after a filtered overview response",()=>{const all=[{uuid:"one",name:"One"},{uuid:"two",name:"Two"}];assert.deepEqual(mergeAINodeOptions(all,[{uuid:"one",name:"One"}]),all);});
 
 test("rendered Node menu includes non-reporting hosts and survives filtering, loading, errors and refresh", async t => {

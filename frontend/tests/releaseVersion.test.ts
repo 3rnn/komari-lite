@@ -2,11 +2,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-const version = "1.0.56";
+const version = "1.0.57";
 const source = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 
 test("development panel metadata advances while Agent installers stay pinned to the published release", () => {
-	assert.match(source("../../backend/utils/version.go"), /CurrentVersion = "1\.0\.56"/);
+	assert.match(source("../../backend/utils/version.go"), /CurrentVersion = "1\.0\.57"/);
 	assert.match(source("../../agent/utils/utils.go"), /const AgentVersion = "1\.0\.55"/);
 	assert.match(source("../src/pages/admin/index.tsx"), /const agentReleaseVersion = "1\.0\.55";/);
   const packageJSON = JSON.parse(source("../package.json"));

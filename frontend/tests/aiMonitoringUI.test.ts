@@ -4,6 +4,20 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AIAdvanced, AIMonitoringView, HermesMonitoringToggle } from "../src/components/admin/AIMonitoring.tsx";
 
+test("compact usage deduplicates quotas and never calls covered zero a complete range",()=>{
+ const account={account_key:"same",provider:"openai-codex",status:"available",last_success_at:1,windows:[{label:"Weekly",used_percent:20}]};
+ const html=renderToStaticMarkup(React.createElement(AIMonitoringView,{timezone:"UTC",data:{accounts:[account,{...account,last_success_at:2}],range_usage:{coverage:"partial"},trends:[{timestamp:1,total_tokens:0,coverage:"covered"},{timestamp:2,total_tokens:0,coverage:"missing"}],daily:[{date:"2026-10-12",calls:2,total_tokens:12,models:[]}]}}));
+ assert.equal((html.match(/Weekly quota remaining/g)||[]).length,1);
+ assert.ok(html.includes("Active account unconfirmed"));
+ assert.ok(html.includes("covered intervals only"));
+ assert.equal((html.match(/Collection incomplete/g)||[]).length,1);
+ assert.ok(html.includes("By day"));assert.ok(html.includes("By model"));
+});
+test("collection evidence distinguishes retained proofs, current node health and unknown routing",()=>{
+ const html=renderToStaticMarkup(React.createElement(AIMonitoringView,{timezone:"UTC",data:{range_usage:{coverage:"partial",coverage_reason:"rollup_interval_evidence_unavailable"},nodes:[{uuid:"a",name:"Alpha",enabled:true,status:"available",last_report_at:1791574080,last_success_at:1791574080}],daily:[{date:"2026-10-12",calls:1,total_tokens:1,coverage:"covered"}]}}));
+ assert.ok(html.includes("Hourly rollups do not retain interval proofs"));assert.ok(html.includes("Current collection health"));assert.ok(html.includes("Alpha"));assert.ok(html.includes("Daily coverage: covered"));
+});
+test("authoritative pricing aggregate replaces average with explicit partial estimate",()=>{const html=renderToStaticMarkup(React.createElement(AIMonitoringView,{timezone:"UTC",data:{pricing_coverage:{calls:3,unpriced_calls:1,api_equivalent_cost_usd:0},range_usage:{collected_calls:3,collected_tokens:30,average_tokens_per_call:10,coverage:"partial"}}}));assert.ok(html.includes("Partial / Unpriced · $0"));assert.ok(html.includes("API-equivalent estimate"));});
 test("default dashboard has exactly four compact monitoring sections", () => {
  const html=renderToStaticMarkup(React.createElement(AIMonitoringView,{data:null,timezone:"Asia/Shanghai"}));
  for(const label of ["Account Quotas","Usage Overview","Usage Trend","Daily Usage Summary"]) assert.ok(html.includes(label),label);
@@ -40,17 +54,17 @@ test("trend distinguishes verified zero activity from missing coverage", () => {
  assert.ok(verified.includes("Verified collection shows no new usage in this range."));
  assert.ok(!verified.includes("zero-only"));
  const partial=renderToStaticMarkup(React.createElement(AIMonitoringView,{timezone:"UTC",data:{range_usage:{coverage:"partial"},trends:[{timestamp:1,calls:0,total_tokens:0,coverage:"partial"}]}}));
- assert.ok(partial.includes("PARTIAL / Collection Gap"));
+ assert.ok(partial.includes("Collection incomplete"));
 });
 test("usage trend states explicit compact axes for token-scale data", () => {
  const html=renderToStaticMarkup(React.createElement(AIMonitoringView,{timezone:"UTC",data:{range_usage:{coverage:"covered"},trends:[{timestamp:1791574080,calls:1530,total_tokens:1250000,coverage:"covered"},{timestamp:1791577680,calls:1600,total_tokens:1300000,coverage:"covered"}]}}));
- assert.ok(html.includes("Y axis: Tokens · X axis: UTC"));
+ assert.ok(html.includes("Tokens · UTC"));
  assert.ok(html.includes("Tokens on the vertical axis and UTC on the horizontal axis"));
  assert.ok(!html.includes(">Cost<"));
 });
 test("range cards retain collected zeroes but mark incomplete coverage PARTIAL", () => {
  const html=renderToStaticMarkup(React.createElement(AIMonitoringView,{timezone:"UTC",data:{range_usage:{collected_calls:0,collected_tokens:0,coverage:"partial"}}}));
- assert.ok(html.includes("PARTIAL / Collection Gap"));
+ assert.ok(html.includes("Collection incomplete"));
  assert.ok(html.includes("Collected tokens"));
  assert.ok(html.includes("Collected calls"));
  assert.ok(html.includes("0"));

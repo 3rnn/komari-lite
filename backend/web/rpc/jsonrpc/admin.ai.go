@@ -14,6 +14,7 @@ import (
 )
 
 func init() {
+	reg("getAIInventory", adminGetAIInventory, "Get independent private AI filter inventory")
 	reg("getAIOverview", adminGetAIOverview, "Get private Hermes AI monitoring overview")
 	reg("getAISettings", adminGetAISettings, "Get Hermes AI monitoring retention and timezone")
 	reg("setAISettings", adminSetAISettings, "Set bounded Hermes AI monitoring retention and timezone")
@@ -134,6 +135,9 @@ func adminGetAIOverview(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc
 		}
 		return s.Overview(query, now)
 	})
+}
+func adminGetAIInventory(ctx context.Context, _ *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
+	return withAIAdmin(ctx, "inventory", func(s *aimonitor.Store) (any, error) { return s.Inventory() })
 }
 func adminGetAISettings(ctx context.Context, _ *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
 	return withAIAdmin(ctx, "settings", func(s *aimonitor.Store) (any, error) { return s.Settings() })
