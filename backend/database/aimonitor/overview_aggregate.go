@@ -411,6 +411,94 @@ func completeTrendCoverage(q Query, step float64, trends []Trend, rows []StoredS
 	return result
 }
 
+type aggregateTrendCoverageRow struct {
+	Bucket        float64
+	Nodes         int64
+	Incomplete    int64
+	ExpectedNodes int64
+}
+
+// aggregateTrendCoverage proves each raw trend bucket in SQL so the overview
+// can retain numeric values after details exceed MaxQueryRows. Hourly rollups
+// have no interval proof and always remain partial.
+func (s *Store) aggregateTrendCoverage(q Query, step float64) (map[float64]string, error) {
+	filters, filterArgs := overviewFilters(q)
+	query := `WITH expected_nodes AS (
+		SELECT DISTINCT node FROM ai_samples WHERE ended_at > ? AND ended_at <= ?` + filters + `
+	), ordered AS (
+		SELECT node, CAST((ended_at / ?) - 0.000001 AS INTEGER) * ? AS bucket, started_at, ended_at, coverage, reset_count,
+		MAX(ended_at) OVER (PARTITION BY node, CAST((ended_at / ?) - 0.000001 AS INTEGER) * ? ORDER BY started_at, ended_at ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS previous_ended
+		FROM ai_samples WHERE ended_at > ? AND ended_at <= ?` + filters + `
+	), node_proofs AS (
+		SELECT bucket, node, MIN(started_at) AS first_started, MAX(ended_at) AS last_ended,
+		SUM(CASE WHEN started_at < bucket OR ended_at > bucket + ? OR coverage IS NULL OR coverage = 0 OR reset_count > 0 THEN 1 ELSE 0 END) AS invalid,
+		SUM(CASE WHEN previous_ended IS NOT NULL AND started_at > previous_ended + 0.001 THEN 1 ELSE 0 END) AS gaps
+		FROM ordered GROUP BY bucket, node
+	), bucket_proofs AS (
+		SELECT bucket, COUNT(*) AS nodes,
+		COALESCE(SUM(CASE WHEN first_started > CASE WHEN bucket < ? THEN ? ELSE bucket END + 0.001 OR last_ended < CASE WHEN bucket + ? > ? THEN ? ELSE bucket + ? END - 0.001 OR invalid > 0 OR gaps > 0 THEN 1 ELSE 0 END), 0) AS incomplete
+		FROM node_proofs GROUP BY bucket
+	)
+	SELECT bucket, nodes, incomplete, (SELECT COUNT(*) FROM expected_nodes) AS expected_nodes FROM bucket_proofs`
+	args := []any{q.From, q.To}
+	args = append(args, filterArgs...)
+	args = append(args, step, step, step, step, q.From, q.To)
+	args = append(args, filterArgs...)
+	args = append(args, step, q.From, q.From, step, q.To, q.To, step)
+	var rows []aggregateTrendCoverageRow
+	if err := s.DB.Raw(query, args...).Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	coverage := make(map[float64]string, len(rows))
+	for _, row := range rows {
+		coverage[row.Bucket] = "partial"
+		if row.ExpectedNodes > 0 && row.Nodes == row.ExpectedNodes && row.Incomplete == 0 {
+			coverage[row.Bucket] = "covered"
+		}
+	}
+	rollupQuery := "SELECT CAST(hour / ? AS INTEGER) * ? AS bucket FROM ai_hourly_rollups WHERE hour >= ? AND hour + 3600 <= ?" + filters + " GROUP BY bucket LIMIT ?"
+	args = []any{step, step, q.From, q.To}
+	args = append(args, filterArgs...)
+	args = append(args, 1441)
+	var rollups []aggregateTrendCoverageRow
+	if err := s.DB.Raw(rollupQuery, args...).Scan(&rollups).Error; err != nil {
+		return nil, err
+	}
+	if len(rollups) > 1440 {
+		return nil, ErrQueryLimit
+	}
+	for _, row := range rollups {
+		coverage[row.Bucket] = "partial"
+	}
+	return coverage, nil
+}
+
+func completeAggregateTrendCoverage(q Query, step float64, trends []Trend, coverage map[float64]string) []Trend {
+	if q.To <= q.From || step <= 0 {
+		return trends
+	}
+	byTimestamp := make(map[float64]Trend, len(trends))
+	for _, trend := range trends {
+		byTimestamp[trend.Timestamp] = trend
+	}
+	first := float64(int64(q.From/step)) * step
+	last := float64(int64(q.To/step-0.000001)) * step
+	result := make([]Trend, 0, int((last-first)/step)+1)
+	for at := first; at <= last+0.001; at += step {
+		trend, exists := byTimestamp[at]
+		if !exists {
+			trend = Trend{Timestamp: at, Coverage: "missing"}
+		} else {
+			trend.Coverage = coverage[at]
+			if trend.Coverage == "" {
+				trend.Coverage = "partial"
+			}
+		}
+		result = append(result, trend)
+	}
+	return result
+}
+
 func dayRanges(q Query, loc *time.Location) [][3]any {
 	start := time.Unix(int64(q.From), 0).In(loc)
 	cursor := time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, loc)
@@ -499,7 +587,11 @@ func (s *Store) aggregateOverview(q Query, now time.Time, loc *time.Location, v 
 	if v.Trends, err = s.aggregateTrends(q, q.From, q.To, step); err != nil {
 		return v, err
 	}
-	v.Trends = completeTrendCoverage(q, step, v.Trends, nil, false)
+	coverage, err := s.aggregateTrendCoverage(q, step)
+	if err != nil {
+		return v, err
+	}
+	v.Trends = completeAggregateTrendCoverage(q, step, v.Trends, coverage)
 	if v.Daily, err = s.aggregateDaily(q, loc); err != nil {
 		return v, err
 	}

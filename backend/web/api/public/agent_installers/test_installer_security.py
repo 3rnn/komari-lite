@@ -61,13 +61,19 @@ ai_helper=/opt/komari-fixture/hermes_collector.py
         self.assertNotIn('BindReadOnlyPaths=/root/.hermes\n',out)
         self.assertNotIn('chmod',out)
 
-    def test_hermes_auth_replacement_uses_a_path_trigger_not_a_home_mount(self):
+    def test_hermes_source_replacements_use_a_path_triggered_conditional_rebind(self):
         src=SH.read_text()
         self.assertIn('write_hermes_auth_refresh_path',src)
         self.assertIn('write_hermes_auth_refresh_service',src)
         watcher=function(src,'write_hermes_auth_refresh_path')
-        self.assertIn('PathChanged=$hermes_home/auth.json',watcher)
         refresh=function(src,'write_hermes_auth_refresh_service')
+        self.assertIn('PathChanged=$hermes_home',watcher)
+        for name in ('state.db', 'state.db-wal', 'state.db-shm', 'auth.json'):
+            self.assertIn(name,refresh)
+        self.assertIn("stat -c '%d:%i'",refresh)
+        self.assertIn('mountpoint -q',refresh)
+        self.assertIn('changed=1',refresh)
+        self.assertIn('[[ ${dollar}changed == 1 ]] || exit 0',refresh)
         self.assertIn('systemctl try-restart',refresh)
         self.assertIn('$ai_runtime.service',refresh)
         self.assertNotIn('auth.json:',refresh)
@@ -660,6 +666,7 @@ curl() {
             (root / "release").mkdir()
             (root / "release/artifact").write_text("fixture")
             subprocess.run(["git", "init", "-q", str(root)], check=True, capture_output=True)
+            subprocess.run(["git", "-C", str(root), "-c", "user.name=fixture", "-c", "user.email=fixture@example.invalid", "commit", "--allow-empty", "-qm", "baseline"], check=True, capture_output=True)
             subprocess.run(["git", "add", "release/artifact"], cwd=root, check=True, capture_output=True)
             proc = subprocess.run(["bash", "scripts/github-preflight.sh"], cwd=root, capture_output=True, text=True)
             self.assertNotEqual(proc.returncode, 0)

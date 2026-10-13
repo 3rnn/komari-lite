@@ -53,6 +53,8 @@ class HermesAuthRefreshBlackBox(unittest.TestCase):
             f"hermes_owner=root; hermes_group=root; hermes_home={source}\n"
             f"ai_runtime={runtime}; ai_private={private}; ai_spool={spool}\n"
             f"ai_helper={helper}\n"
+            + function(installer, "shell_quote")
+            + "\n"
             + function(installer, "systemd_quote")
             + "\n"
             + function(installer, "write_hermes_unit")

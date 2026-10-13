@@ -153,7 +153,7 @@ INSERT INTO session_model_usage VALUES ('SECRET_SESSION','test-model','openai','
         self.assertNotIn(primary,json.dumps(h.state))
         self.assertNotIn(backup,json.dumps(h.state))
 
-    def test_pool_skips_primary_marked_rate_limited_by_failure_reason(self):
+    def test_pool_keeps_active_primary_when_failure_reason_is_stale(self):
         h=self.collector(); self.enable()
         import base64
         def token(account):
@@ -163,11 +163,11 @@ INSERT INTO session_model_usage VALUES ('SECRET_SESSION','test-model','openai','
         h.auth_path=self.root/'auth.json'
         h.auth_path.write_text(json.dumps({'credential_pool':{'openai-codex':[{'access_token':team,'priority':0,'last_status':'ok','failure_reason':'rate_limit'},{'access_token':plus,'priority':1,'last_status':'ready'}]}}))
         def get(request):
-            self.assertEqual(request.get_header('Authorization'),'Bearer '+plus)
-            return {'plan_type':'plus','rate_limit':{'primary_window':{'limit_window_seconds':18000,'used_percent':20}}}
+            self.assertEqual(request.get_header('Authorization'),'Bearer '+team)
+            return {'plan_type':'team','rate_limit':{'primary_window':{'limit_window_seconds':18000,'used_percent':20}}}
         h.quota_get=get
         quota=h.tick(100)['quota']
-        self.assertEqual(quota['plan'],'plus')
+        self.assertEqual(quota['plan'],'team')
         self.assertNotIn(team,json.dumps(h.state))
 
     def test_empty_quota_response_is_unavailable_not_available(self):

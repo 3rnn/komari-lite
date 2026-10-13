@@ -616,19 +616,18 @@ WantedBy=multi-user.target
 EOF
 }
 
-# Keep source-file isolation. A path unit restarts the restricted helper after
-# an atomic auth.json replacement so its file bind mount never pins a deleted inode.
+# Keep source-file isolation. File replacement can leave a bind mount attached to
+# a deleted inode, so refresh only mismatched source files and restart once.
 write_hermes_auth_refresh_service() {
+    local refresh_command dollar='$' quote='"'
+    refresh_command="set -eu; changed=0; source_base=$(shell_quote "$hermes_home"); target_base=$(shell_quote "/run/$ai_runtime/source"); for name in state.db state.db-wal state.db-shm auth.json; do source=${quote}${dollar}source_base/${dollar}name${quote}; target=${quote}${dollar}target_base/${dollar}name${quote}; if [ -e ${quote}${dollar}source${quote} ]; then source_id=${dollar}(stat -c '%d:%i' ${quote}${dollar}source${quote}); if ! /usr/bin/mountpoint -q ${quote}${dollar}target${quote} || [ ${quote}${dollar}source_id${quote} != ${quote}${dollar}(stat -c '%d:%i' ${quote}${dollar}target${quote})${quote} ]; then /usr/bin/mountpoint -q ${quote}${dollar}target${quote} && /usr/bin/umount ${quote}${dollar}target${quote}; /usr/bin/mount --bind ${quote}${dollar}source${quote} ${quote}${dollar}target${quote}; /usr/bin/mount -o remount,bind,ro ${quote}${dollar}target${quote}; changed=1; fi; elif /usr/bin/mountpoint -q ${quote}${dollar}target${quote}; then /usr/bin/umount ${quote}${dollar}target${quote}; changed=1; fi; done; [[ ${dollar}changed == 1 ]] || exit 0; exec /usr/bin/systemctl try-restart $ai_runtime.service"
     cat <<EOF
 [Unit]
 # komari-hermes installer
-Description=Refresh restricted Komari Hermes observer after OAuth replacement
+Description=Refresh restricted Komari Hermes observer after source file replacement
 [Service]
 Type=oneshot
-ExecStart=-/usr/bin/umount /run/$ai_runtime/source/auth.json
-ExecStart=-/usr/bin/mount --bind $(systemd_quote "$hermes_home/auth.json") /run/$ai_runtime/source/auth.json
-ExecStart=-/usr/bin/mount -o remount,bind,ro /run/$ai_runtime/source/auth.json
-ExecStart=/usr/bin/systemctl try-restart $ai_runtime.service
+ExecStart=/bin/bash -ec $(systemd_quote "$refresh_command")
 EOF
 }
 write_hermes_runtime_setup_service() {
@@ -664,9 +663,9 @@ write_hermes_auth_refresh_path() {
     cat <<EOF
 [Unit]
 # komari-hermes installer
-Description=Watch Hermes OAuth file for restricted observer refresh
+Description=Watch Hermes source files for restricted observer refresh
 [Path]
-PathChanged=$hermes_home/auth.json
+PathChanged=$hermes_home
 Unit=$ai_runtime-auth-refresh.service
 [Install]
 WantedBy=multi-user.target

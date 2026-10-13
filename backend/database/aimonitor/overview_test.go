@@ -425,6 +425,22 @@ func TestOverviewAggregatesMoreThanMaxRawSamplesInDatabase(t *testing.T) {
 	if len(view.Models) != 2 || len(view.Tasks) != 2 || len(view.Trends) == 0 || len(view.Daily) != 1 {
 		t.Fatalf("large aggregate groups = models:%d tasks:%d trends:%d daily:%d", len(view.Models), len(view.Tasks), len(view.Trends), len(view.Daily))
 	}
+	for _, trend := range view.Trends {
+		if trend.Coverage == "covered" {
+			t.Fatalf("aggregate trend with incomplete samples became covered: %+v", trend)
+		}
+		encoded, err := json.Marshal(trend)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var wire map[string]any
+		if err := json.Unmarshal(encoded, &wire); err != nil {
+			t.Fatal(err)
+		}
+		if wire["calls"] != nil {
+			t.Fatalf("incomplete aggregate bucket serialized calls as %v, want null: %s", wire["calls"], encoded)
+		}
+	}
 	week, err := s.Overview(Query{Preset: "7D", Timezone: "UTC"}, now)
 	if err != nil || week.PricingCoverage.Calls != int64(len(rows)) || week.RangeUsage.CollectedCalls != int64(len(rows)) || week.RangeUsage.Coverage != "partial" || len(week.Trends) == 0 {
 		t.Fatalf("7-day aggregate = %#v, %v", week.PricingCoverage, err)
@@ -438,6 +454,48 @@ func TestOverviewAggregatesMoreThanMaxRawSamplesInDatabase(t *testing.T) {
 		t.Fatalf("today aggregate = %#v, %v", today.PricingCoverage, err)
 	}
 	t.Logf("aggregated %d samples in %s", len(rows), time.Since(started))
+}
+
+func TestOverviewAggregateTrendsKeepCoveredBucketsNumericAboveRawLimit(t *testing.T) {
+	s := fixture(t)
+	now := time.Unix(1780000000, 0).UTC().Truncate(time.Minute)
+	to := now.Add(-24 * time.Hour)
+	from := to.Add(-24 * time.Hour)
+	covered := true
+	rows := make([]StoredSample, 0, 24*60*60)
+	for i := 0; i < 24*60*60; i++ {
+		started := from.Add(time.Duration(i) * time.Second)
+		rows = append(rows, StoredSample{Node: "node", Sample: Sample{
+			SampleID: fmt.Sprintf("covered-sample-%d", i), StartedAt: float64(started.Unix()), EndedAt: float64(started.Add(time.Second).Unix()),
+			Model: "fixture", Provider: "fixture", BillingMode: "metered", Task: "chat", Calls: 1, InputTokens: 1, Coverage: &covered,
+		}})
+	}
+	if err := s.DB.CreateInBatches(rows, 1000).Error; err != nil {
+		t.Fatal(err)
+	}
+	view, err := s.Overview(Query{From: float64(from.Unix()), To: float64(to.Unix()), Timezone: "UTC"}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(view.Trends) == 0 {
+		t.Fatal("aggregate overview returned no trend buckets")
+	}
+	for _, trend := range view.Trends {
+		if trend.Coverage != "covered" {
+			t.Fatalf("covered aggregate bucket %v has coverage %q", trend.Timestamp, trend.Coverage)
+		}
+		encoded, err := json.Marshal(trend)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var wire map[string]any
+		if err := json.Unmarshal(encoded, &wire); err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := wire["calls"].(float64); !ok {
+			t.Fatalf("covered aggregate bucket serialized calls as %T, want number: %s", wire["calls"], encoded)
+		}
+	}
 }
 
 func TestOverviewModelRegistryKeepsPriorityCustomAndHistoricalIdentifiers(t *testing.T) {
