@@ -17,3 +17,52 @@ test("filter select preserves exact all-like identifiers",()=>{assert.equal(deco
 test("page uses server-authoritative preset ranges and clears private data on revocation",async t=>{const urls:string[]=[];t.mock.method(globalThis,"fetch",async(url:string)=>{urls.push(url);return new Response(JSON.stringify(response(url)),{status:200});});let renderer:any;await renderAct(async()=>{renderer=create(React.createElement(Theme,{},React.createElement(AIMonitoringPage)));});const overview=urls.find(u=>u.includes("overview"))||"";assert.ok(overview.includes("preset=24H"));assert.ok(!overview.includes("from="));await renderAct(async()=>{revokeAdminSession();});assert.ok(JSON.stringify(renderer.toJSON()).includes("Session revoked"));await renderAct(async()=>renderer.unmount());});
 test("model selectors share the registry and preserve observed identifiers",async t=>{t.mock.method(globalThis,"fetch",async(url:string)=>new Response(JSON.stringify(url.includes("overview")?{models:url.includes("model=one")?[{model:"one",calls:1,total_tokens:1}]:[{model:"one",calls:1,total_tokens:1}],model_registry:["gpt-6.1-sol","gpt-6-sol","gpt-5.6-terra","one","two"],nodes:[],tasks:[],daily:[],trends:[],live:{}}:url.includes("pricing")?[]:{timezone:"UTC",retention_days:30,detailed_retention_hours:24,custom_models:[]}),{status:200}));let renderer:any;await renderAct(async()=>{renderer=create(React.createElement(Theme,{},React.createElement(AIMonitoringPage)));});t.after(async()=>{await renderAct(async()=>renderer.unmount());});await renderAct(async()=>{renderer.root.findAllByType(AISelect).find((c:any)=>c.props.label==="Model").props.onChange("one");});for(const select of renderer.root.findAllByType(AISelect).filter((c:any)=>c.props.label==="Model")){assert.ok(select.props.options.some((o:any)=>o.value==="two"));}});
 test("Node filter keeps the full node menu after a filtered overview response",()=>{const all=[{uuid:"one",name:"One"},{uuid:"two",name:"Two"}];assert.deepEqual(mergeAINodeOptions(all,[{uuid:"one",name:"One"}]),all);});
+
+test("rendered Node menu includes non-reporting hosts and survives filtering, loading, errors and refresh", async t => {
+ const urls:string[]=[];
+ let fail=false;
+ let pending: (()=>void)|undefined;
+ let pause=false;
+ t.mock.method(globalThis,"fetch",async (url:string)=>{
+  urls.push(url);
+  if(url.includes("overview")&&pause) await new Promise<void>(resolve=>{pending=resolve;});
+  if(url.includes("overview")&&fail) return new Response("Unavailable",{status:500});
+  const payload=url.includes("/client/list")?[{uuid:"one",name:"One"},{uuid:"two",name:"No AI reports"}]:url.includes("overview")?{...response(url),nodes:url.includes("node=two")?[]:[{uuid:"one",name:"One"}]}:response(url);
+  return new Response(JSON.stringify(payload),{status:200});
+ });
+ let renderer:any;
+ await renderAct(async()=>{renderer=create(React.createElement(Theme,{},React.createElement(AIMonitoringPage)));});
+ t.after(async()=>{await renderAct(async()=>renderer.unmount());});
+ const menu=()=>renderer.root.findAllByType(AISelect).find((c:any)=>c.props.label==="Node");
+ const check=()=>{assert.ok(menu(),"Node selector must remain rendered");assert.deepEqual(menu().props.options,[{value:"",label:"All"},{value:"one",label:"One"},{value:"two",label:"No AI reports"}]);};
+ check();
+ pause=true;
+ await renderAct(async()=>{menu().props.onChange("two");});
+ check();assert.equal(menu().props.value,"two");
+ pause=false;
+ await renderAct(async()=>{pending?.();});
+ check();assert.ok(urls.some(url=>url.includes("node=two")));
+ fail=true;
+ await renderAct(async()=>{renderer.root.findAllByType("button").find((b:any)=>b.props.children==="7D").props.onClick();});
+ check();
+ fail=false;
+ await renderAct(async()=>{renderer.root.findAllByType("button").find((b:any)=>b.props.children==="Refresh").props.onClick();});
+ check();
+ await renderAct(async()=>{menu().props.onChange("");});
+ check();assert.equal(menu().props.value,"");
+ await renderAct(async()=>{revokeAdminSession();});
+ assert.equal(menu(),undefined);assert.ok(!JSON.stringify(renderer.toJSON()).includes("No AI reports"));
+});
+
+test("rendered Node selector remains present with zero or one available host",async t=>{
+ let hosts:any[]=[];
+ t.mock.method(globalThis,"fetch",async(url:string)=>new Response(JSON.stringify(url.includes("/client/list")?hosts:url.includes("overview")?{...response(url),nodes:hosts}:response(url)),{status:200}));
+ let renderer:any;
+ await renderAct(async()=>{renderer=create(React.createElement(Theme,{},React.createElement(AIMonitoringPage)));});
+ t.after(async()=>{await renderAct(async()=>renderer.unmount());});
+ const menu=()=>renderer.root.findAllByType(AISelect).find((c:any)=>c.props.label==="Node");
+ assert.ok(menu());assert.deepEqual(menu().props.options,[{value:"",label:"All"}]);
+ hosts=[{uuid:"one",name:"One"}];
+ await renderAct(async()=>{renderer.root.findAllByType("button").find((b:any)=>b.props.children==="Refresh").props.onClick();});
+ assert.ok(menu());assert.deepEqual(menu().props.options,[{value:"",label:"All"},{value:"one",label:"One"}]);
+});
