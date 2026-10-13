@@ -153,6 +153,23 @@ INSERT INTO session_model_usage VALUES ('SECRET_SESSION','test-model','openai','
         self.assertNotIn(primary,json.dumps(h.state))
         self.assertNotIn(backup,json.dumps(h.state))
 
+    def test_pool_skips_primary_marked_rate_limited_by_failure_reason(self):
+        h=self.collector(); self.enable()
+        import base64
+        def token(account):
+            claims={'exp':5000,'https://api.openai.com/auth':{'chatgpt_account_id':account}}
+            return 'x.'+base64.urlsafe_b64encode(json.dumps(claims).encode()).decode().rstrip('=')+'.x'
+        team, plus = token('team-fixture'), token('plus-fixture')
+        h.auth_path=self.root/'auth.json'
+        h.auth_path.write_text(json.dumps({'credential_pool':{'openai-codex':[{'access_token':team,'priority':0,'last_status':'ok','failure_reason':'rate_limit'},{'access_token':plus,'priority':1,'last_status':'ready'}]}}))
+        def get(request):
+            self.assertEqual(request.get_header('Authorization'),'Bearer '+plus)
+            return {'plan_type':'plus','rate_limit':{'primary_window':{'limit_window_seconds':18000,'used_percent':20}}}
+        h.quota_get=get
+        quota=h.tick(100)['quota']
+        self.assertEqual(quota['plan'],'plus')
+        self.assertNotIn(team,json.dumps(h.state))
+
     def test_empty_quota_response_is_unavailable_not_available(self):
         h=self.collector()
         import base64

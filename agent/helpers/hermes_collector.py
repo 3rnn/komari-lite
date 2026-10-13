@@ -134,7 +134,8 @@ class Collector:
                 if not isinstance(entry,dict):
                     continue
                 reset=entry.get('last_error_reset_at')
-                if entry.get('last_status')=='rate-limited' and isinstance(reset,(int,float)) and math.isfinite(reset) and reset>now:
+                rate_limited = entry.get('last_status') == 'rate-limited' or entry.get('failure_reason') in ('rate_limit','rate-limited')
+                if rate_limited and (not isinstance(reset,(int,float)) or isinstance(reset,bool) or not math.isfinite(reset) or reset>now):
                     continue
                 candidates.append(entry)
             return sorted(candidates,key=lambda entry:entry.get('priority',0) if isinstance(entry.get('priority'),int) and not isinstance(entry.get('priority'),bool) else 0)
