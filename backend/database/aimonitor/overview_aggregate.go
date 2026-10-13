@@ -8,6 +8,11 @@ import (
 	"time"
 )
 
+// A rolling 24-hour window can intersect 1,441 epoch-aligned minute
+// buckets: two partial edges and 1,439 complete minutes. Keep the response
+// bounded without rejecting an ordinary request between minute boundaries.
+const maxTrendBuckets = 1441
+
 type sqlTotals struct {
 	Calls                  int64
 	InputTokens            int64
@@ -116,10 +121,9 @@ func (s *Store) aggregateSource(q Query, from, to float64, selectPrefix, groupBy
 		}
 		query += " LIMIT ?"
 		limit := MaxResponseGroups
-		// The documented overview trend resolution has at most 1,440 minute buckets
-		// for 24 hours and 720 hourly buckets for 30 days.
+		// Include partial edge buckets in rolling windows.
 		if groupBy == "bucket" {
-			limit = 1440
+			limit = maxTrendBuckets
 		}
 		args := append([]any{}, prefixArgs...)
 		args = append(args, source.args...)
@@ -295,12 +299,12 @@ func (s *Store) aggregateTrends(q Query, from, to, step float64) ([]Trend, error
 		args := []any{step, step}
 		args = append(args, source.args...)
 		args = append(args, filterArgs...)
-		args = append(args, 1441)
+		args = append(args, maxTrendBuckets+1)
 		var rows []sqlAggregate
 		if err := s.DB.Raw(query, args...).Scan(&rows).Error; err != nil {
 			return nil, err
 		}
-		if len(rows) > 1440 {
+		if len(rows) > maxTrendBuckets {
 			return nil, ErrQueryLimit
 		}
 		for _, row := range rows {
@@ -475,12 +479,12 @@ func (s *Store) aggregateTrendCoverage(q Query, step float64) (map[float64]strin
 	rollupQuery := "SELECT CAST(hour / ? AS INTEGER) * ? AS bucket FROM ai_hourly_rollups WHERE hour >= ? AND hour + 3600 <= ?" + filters + " GROUP BY bucket LIMIT ?"
 	args = []any{step, step, q.From, q.To}
 	args = append(args, filterArgs...)
-	args = append(args, 1441)
+	args = append(args, maxTrendBuckets+1)
 	var rollups []aggregateTrendCoverageRow
 	if err := s.DB.Raw(rollupQuery, args...).Scan(&rollups).Error; err != nil {
 		return nil, err
 	}
-	if len(rollups) > 1440 {
+	if len(rollups) > maxTrendBuckets {
 		return nil, ErrQueryLimit
 	}
 	for _, row := range rollups {
