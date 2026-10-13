@@ -62,6 +62,7 @@ type Aggregate struct {
 }
 type Trend struct {
 	Timestamp float64 `json:"timestamp"`
+	Coverage  string  `json:"coverage"`
 	Totals
 }
 type Day struct {
@@ -283,6 +284,7 @@ func (s *Store) Overview(q Query, now time.Time) (Overview, error) {
 		v.Tasks = append(v.Tasks, *a)
 	}
 	for _, row := range trendMap {
+		row.Coverage = v.RangeUsage.Coverage
 		v.Trends = append(v.Trends, *row)
 	}
 	for date, row := range dayMap {

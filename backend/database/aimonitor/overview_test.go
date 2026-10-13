@@ -148,6 +148,9 @@ func TestOverviewRangeUsageUsesDatabaseAggregatesAndLabelsCoverage(t *testing.T)
 	if view.RangeUsage.Coverage != "covered" || view.RangeUsage.CollectedTokens != 480 || view.RangeUsage.CollectedCalls != 24 || view.RangeUsage.AverageTokensPerCall == nil || *view.RangeUsage.AverageTokensPerCall != 20 || view.RangeUsage.AverageCallsPerHour != 720 {
 		t.Fatalf("covered range usage = %+v", view.RangeUsage)
 	}
+	if len(view.Trends) == 0 || view.Trends[0].Coverage != "covered" {
+		t.Fatalf("covered trend must be marked covered: %+v", view.Trends)
+	}
 
 	rows[0].ID = 0
 	rows[0].Coverage = nil
@@ -161,6 +164,9 @@ func TestOverviewRangeUsageUsesDatabaseAggregatesAndLabelsCoverage(t *testing.T)
 	}
 	if view.RangeUsage.Coverage != "partial" || view.RangeUsage.CollectedTokens != 520 || view.RangeUsage.CollectedCalls != 26 {
 		t.Fatalf("partial range usage = %+v", view.RangeUsage)
+	}
+	if len(view.Trends) == 0 || view.Trends[0].Coverage != "partial" {
+		t.Fatalf("partial trend must not be presented as verified: %+v", view.Trends)
 	}
 }
 

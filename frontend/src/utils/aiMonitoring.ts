@@ -18,6 +18,17 @@ export type Usage = {
 export function aiNumber(value: number | null | undefined, digits = 2): string {
   return typeof value === "number" && Number.isFinite(value) ? value.toLocaleString("en-US", { maximumFractionDigits: digits }) : "N/A";
 }
+export function aiCompactNumber(value: number | null | undefined): string {
+ if (typeof value !== "number" || !Number.isFinite(value)) return "N/A";
+ const absolute=Math.abs(value);
+ const [divisor,suffix]=absolute>=1e9?[1e9,"B"]:absolute>=1e6?[1e6,"M"]:absolute>=1e3?[1e3,"K"]:[1,""];
+ const scaled=value/divisor;
+ const digits=suffix===""?0:suffix==="K"?(Math.abs(scaled)>=100?1:2):(Math.abs(scaled)>=100?0:2);
+ return `${Number(scaled.toFixed(digits))}${suffix}`;
+}
+export function aiUSD(value: number | null | undefined): string {
+ return typeof value === "number" && Number.isFinite(value) ? `$${aiNumber(value,2)}` : "Unpriced";
+}
 export function canonicalTokens(row: Usage): number {
   return (row.input_tokens ?? 0) + (row.cache_read_tokens ?? 0) + (row.cache_write_tokens ?? 0) + (row.output_tokens ?? 0);
 }
@@ -44,15 +55,15 @@ export function aiCustomRange(from: string, to: string) {
   if (start >= end || end - start > 2592000) throw new Error("Choose an increasing custom range of at most 30 days.");
   return { from: start, to: end };
 }
-export type AITrendMetric = "total_tokens" | "calls" | "api_equivalent_cost_usd";
-export function aiTrendUnit(metric: AITrendMetric): string { return metric === "total_tokens" ? "Tokens" : metric === "calls" ? "Requests" : "USD"; }
+export type AITrendMetric = "total_tokens" | "calls";
+export function aiTrendUnit(metric: AITrendMetric): string { return metric === "total_tokens" ? "Tokens" : "Requests"; }
 export function aiTrendTick(value: number | null | undefined, metric: AITrendMetric): string {
+ void metric;
  if (typeof value !== "number" || !Number.isFinite(value)) return "N/A";
  const absolute = Math.abs(value);
  const [divisor,suffix] = absolute >= 1e9 ? [1e9,"B"] : absolute >= 1e6 ? [1e6,"M"] : absolute >= 1e3 ? [1e3,"K"] : [1,""];
- const scaled=value/divisor, digits=metric === "api_equivalent_cost_usd" ? (Math.abs(scaled)<100?2:0) : Math.abs(scaled)>=100?0:Math.abs(scaled)>=10?1:2;
- const compact=(metric === "api_equivalent_cost_usd" ? scaled.toFixed(digits) : Number(scaled.toFixed(digits)).toString())+suffix;
- return metric === "api_equivalent_cost_usd" ? `$${compact}` : compact;
+ const scaled=value/divisor, digits=Math.abs(scaled)>=100?0:Math.abs(scaled)>=10?1:2;
+ return Number(scaled.toFixed(digits)).toString()+suffix;
 }
 export function aiTrendTime(value: number, timezone: string, spanSeconds: number): string {
  const options:Intl.DateTimeFormatOptions=spanSeconds<=36*3600?{hour:"2-digit",minute:"2-digit",hourCycle:"h23"}:spanSeconds<=14*86400?{day:"2-digit",month:"short"}:{day:"2-digit",month:"short",year:"2-digit"};

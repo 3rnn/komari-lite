@@ -377,6 +377,9 @@ func (s *Store) aggregateOverview(q Query, now time.Time, loc *time.Location, v 
 	if v.Trends, err = s.aggregateTrends(q, q.From, q.To, step); err != nil {
 		return v, err
 	}
+	for i := range v.Trends {
+		v.Trends[i].Coverage = v.RangeUsage.Coverage
+	}
 	if v.Daily, err = s.aggregateDaily(q, loc); err != nil {
 		return v, err
 	}

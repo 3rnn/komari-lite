@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { hermesInstallArgs, hermesProfileEnabled, aiNumber, aiRange, canonicalTokens, taskLabel, sortUsage, aiCustomRange, aiISOSeconds, aiTrendTick, aiTrendTime, aiTrendUnit } from "../src/utils/aiMonitoring.ts";
+import { hermesInstallArgs, hermesProfileEnabled, aiCompactNumber, aiNumber, aiRange, aiUSD, canonicalTokens, taskLabel, sortUsage, aiCustomRange, aiISOSeconds, aiTrendTick, aiTrendTime, aiTrendUnit } from "../src/utils/aiMonitoring.ts";
 
 test("Hermes opt-in is false for legacy profiles and Windows never generates an enabled command", () => {
   assert.equal(hermesProfileEnabled({}), false);
@@ -27,11 +27,14 @@ test("custom timestamps require explicit offsets and an increasing bounded range
  assert.throws(()=>aiCustomRange("2026-09-01T00:00:00Z","2026-10-09T00:00:00Z"),/30 days/);
 });
 test("trend axes use compact units and readable time ticks", () => {
+ assert.equal(aiCompactNumber(21_360_000),"21.36M");
+ assert.equal(aiCompactNumber(155),"155");
+ assert.equal(aiCompactNumber(137_800),"137.8K");
+ assert.equal(aiUSD(18.327304),"$18.33");
  assert.equal(aiTrendTick(1250000,"total_tokens"),"1.25M");
  assert.equal(aiTrendTick(1530,"calls"),"1.53K");
- assert.equal(aiTrendTick(18.327304,"api_equivalent_cost_usd"),"$18.33");
  assert.equal(aiTrendUnit("total_tokens"),"Tokens");
- assert.equal(aiTrendUnit("api_equivalent_cost_usd"),"USD");
+ assert.equal(aiTrendUnit("calls"),"Requests");
  assert.equal(aiTrendTime(1791574080,"UTC",24*3600),"19:28");
  assert.equal(aiTrendTime(1791574080,"UTC",7*86400),"09 Oct");
  assert.equal(aiTrendTime(1791574080,"UTC",30*86400),"09 Oct 26");
