@@ -169,11 +169,7 @@ type rangeCoverageRow struct {
 // rangeUsage stays database-side even when detailed rows exceed MaxQueryRows.
 // Rollups retain exact totals but not interval coverage proofs, so their presence
 // makes the collected values partial rather than inventing complete coverage.
-func (s *Store) rangeUsage(q Query) (RangeUsage, error) {
-	totals, err := s.aggregateTotals(q, q.From, q.To)
-	if err != nil {
-		return RangeUsage{}, err
-	}
+func (s *Store) rangeUsage(q Query, totals Totals) (RangeUsage, error) {
 	v := RangeUsage{CollectedTokens: totals.TotalTokens(), CollectedCalls: totals.Calls, Coverage: "partial", CoverageReason: "no_interval_evidence"}
 	if totals.Calls > 0 {
 		average := float64(totals.TotalTokens()) / float64(totals.Calls)
@@ -591,9 +587,6 @@ func (s *Store) aggregateDaily(q Query, loc *time.Location) ([]Day, error) {
 
 func (s *Store) aggregateOverview(q Query, now time.Time, loc *time.Location, v Overview) (Overview, error) {
 	var err error
-	if v.PricingCoverage, err = s.aggregateTotals(q, q.From, q.To); err != nil {
-		return v, err
-	}
 	if v.Models, err = s.aggregateModels(q, q.From, q.To); err != nil {
 		return v, err
 	}

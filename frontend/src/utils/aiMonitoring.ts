@@ -18,7 +18,7 @@ export type Usage = {
   model?: string; provider?: string; billing_mode?: string; task?: string;
   calls?: number; input_tokens?: number; output_tokens?: number; cache_read_tokens?: number;
   cache_write_tokens?: number; reasoning_tokens?: number; total_tokens?: number;
-  api_equivalent_cost_usd?: number | null; unpriced_calls?: number; average_tps?: number | null; output_tps?: number | null; cost_share?: number | null;
+  api_equivalent_cost_usd?: number | null; priced_calls?: number; unpriced_calls?: number; average_tps?: number | null; output_tps?: number | null; cost_share?: number | null;
 };
 export function aiNumber(value: number | null | undefined, digits = 2): string {
   return typeof value === "number" && Number.isFinite(value) ? value.toLocaleString("en-US", { maximumFractionDigits: digits }) : "N/A";

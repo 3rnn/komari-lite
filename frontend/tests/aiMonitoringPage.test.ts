@@ -10,7 +10,7 @@ import { decodeAISelectValue, encodeAISelectValue, mergeAINodeOptions } from "..
 import { revokeAdminSession } from "../src/utils/adminRevocation.ts";
 const renderAct=async(callback:()=>Promise<void>)=>{await act(callback);};
 (globalThis as any).window={setTimeout,clearTimeout};(globalThis as any).React=React;(globalThis as any).IS_REACT_ACT_ENVIRONMENT=true;
-const response=(url:string)=>url.includes("inventory")?{models:["gpt-6.1-sol","gpt-6-sol","gpt-5.6-terra"],tasks:["chat"],selectors:[]}:url.includes("overview")?{nodes:[{uuid:"one",name:"One"}],models:[{model:"gpt-5.6-terra",calls:1,total_tokens:1,task:"chat"}],model_registry:["gpt-6.1-sol","gpt-6-sol","gpt-5.6-terra"],tasks:[{task:"chat"}],daily:[],trends:[],live:{}}:url.includes("pricing")?[]:{timezone:"UTC",retention_days:30,detailed_retention_hours:24,custom_models:[]};
+const response=(url:string)=>url.includes("inventory")?{models:["gpt-6.1-sol","gpt-6-sol","gpt-5.6-terra"],tasks:["chat"],selectors:[]}:url.includes("overview")?{diagnostics:{request_id:"fixture-request",elapsed_ms:123,query_elapsed_ms:100,query_count:12},nodes:[{uuid:"one",name:"One"}],models:[{model:"gpt-5.6-terra",calls:1,total_tokens:1,task:"chat"}],model_registry:["gpt-6.1-sol","gpt-6-sol","gpt-5.6-terra"],tasks:[{task:"chat"}],daily:[],trends:[],live:{}}:url.includes("pricing")?[]:{timezone:"UTC",retention_days:30,detailed_retention_hours:24,custom_models:[]};
 test("AI monitoring remains immediately after latency inside Monitoring",()=>{const config=JSON.parse(readFileSync("src/config/menuConfig.json","utf8"));const group=config.menu.find((m:any)=>m.path==="/admin/monitoring");assert.deepEqual(group.children.map((m:any)=>m.path),["/admin/ping","/admin/ai-monitoring"]);});
 test("Advanced stays compact and pricing remains separately accessible",async t=>{t.mock.method(globalThis,"fetch",async(url:string)=>new Response(JSON.stringify(response(url)),{status:200}));let renderer:any;await renderAct(async()=>{renderer=create(React.createElement(Theme,{},React.createElement(AIMonitoringPage)));});t.after(async()=>{await renderAct(async()=>renderer.unmount());});await renderAct(async()=>renderer.root.findAllByType("button").find((b:any)=>b.props.children==="Settings").props.onClick());const text=JSON.stringify(renderer.toJSON());assert.ok(text.includes("By model"));assert.ok(text.includes("Pricing & Retention"));assert.ok(text.includes("Manual pricing"));assert.ok(text.includes("gpt-5.6-terra"));assert.ok(!text.includes("Automatic pricing"));assert.ok(!text.includes("Full model statistics"));});
 test("filter select preserves exact all-like identifiers",()=>{assert.equal(decodeAISelectValue(encodeAISelectValue("__all")),"__all");assert.equal(decodeAISelectValue(encodeAISelectValue("")),"");});
@@ -64,12 +64,12 @@ test("compact toolbar toggles filters, retains summary, resets selection and ope
  let renderer:any;await renderAct(async()=>{renderer=create(React.createElement(Theme,{},React.createElement(AIMonitoringPage)));});
  t.after(async()=>{await renderAct(async()=>renderer.unmount());});
  const button=(name:string)=>renderer.root.findAllByType("button").find((b:any)=>b.props.children===name);
- assert.ok(button("Filters"));assert.ok(button("Settings"));
+ assert.ok(button("Filters"));assert.ok(button("Settings"));assert.ok(JSON.stringify(renderer.toJSON()).includes("fixture-request"));
  await renderAct(async()=>button("Filters").props.onClick());
  await renderAct(async()=>renderer.root.findAllByType(AISelect).find((c:any)=>c.props.label==="Task").props.onChange("chat"));
  await renderAct(async()=>button("Filters").props.onClick());
  assert.ok(JSON.stringify(renderer.toJSON()).includes("Task: chat"));
- await renderAct(async()=>button("Reset").props.onClick());
+ await renderAct(async()=>button("Reset filters").props.onClick());
  assert.ok(!JSON.stringify(renderer.toJSON()).includes("Task: chat"));
  await renderAct(async()=>button("Settings").props.onClick());
  assert.ok(JSON.stringify(renderer.toJSON()).includes("Collection & Retention"));
@@ -92,6 +92,35 @@ test("manual pricing refuses blank required rates without posting",async t=>{
  await renderAct(async()=>renderer.root.findAllByType(AISelect).find((c:any)=>c.props.label==="Billing mode").props.onChange("reference"));
  await renderAct(async()=>button("Add future rule").props.onClick());
  assert.ok(JSON.stringify(renderer.toJSON()).includes("Input and output prices are required"));assert.deepEqual(writes,[]);
+});
+test("saved pricing details expose exact source metadata without claiming official verification",async t=>{
+ const rule={id:1,model:"test-model",provider:"provider-fixture",billing_mode:"subscription",source:"operator supplied",source_url:"https://example.invalid/pricing",version:"fixture-version",processing_mode:"manual",reference_tier:"fixture-tier",effective_at:1791936000};
+ t.mock.method(globalThis,"fetch",async(url:string)=>new Response(JSON.stringify(url.includes("pricing")?[rule]:response(url)),{status:200}));
+ let renderer:any;await renderAct(async()=>{renderer=create(React.createElement(Theme,{},React.createElement(AIMonitoringPage)));});t.after(async()=>{await renderAct(async()=>renderer.unmount());});
+ await renderAct(async()=>renderer.root.findAllByType("button").find((b:any)=>b.props.children==="Settings").props.onClick());
+ const text=JSON.stringify(renderer.toJSON());for(const value of ["provider-fixture","operator supplied","fixture-version","fixture-tier","Effective","not independently verified"]){assert.ok(text.includes(value),value);}
+});
+test("invalid pricing rates and custom identifiers have inline errors and disabled submits",async t=>{
+ t.mock.method(globalThis,"fetch",async(url:string)=>new Response(JSON.stringify(response(url)),{status:200}));
+ let renderer:any;await renderAct(async()=>{renderer=create(React.createElement(Theme,{},React.createElement(AIMonitoringPage)));});t.after(async()=>{await renderAct(async()=>renderer.unmount());});
+ const button=(name:string)=>renderer.root.findAllByType("button").find((b:any)=>b.props.children===name);
+ await renderAct(async()=>button("Settings").props.onClick());
+ const custom=renderer.root.findAllByType("input").find((i:any)=>i.props["aria-label"]==="Custom model identifier");
+ await renderAct(async()=>custom.props.onChange({target:{value:"bad model /"}}));
+ assert.equal(button("Add model").props.disabled,true);assert.equal(custom.props["aria-invalid"],true);
+ const rate=renderer.root.findAllByType("input").find((i:any)=>i.props.inputMode==="decimal");
+ await renderAct(async()=>rate.props.onChange({target:{value:"-1"}}));
+ assert.equal(button("Add future rule").props.disabled,true);assert.equal(rate.props["aria-invalid"],true);
+ assert.ok(JSON.stringify(renderer.toJSON()).includes("finite non-negative"));
+});
+test("late cancelled overview cannot replace a new filter or resurrect revoked private data",async t=>{
+ let resolveOld:((value:Response)=>void)|undefined;let requests=0;
+ t.mock.method(globalThis,"fetch",async(url:string)=>{if(url.includes("overview")){requests++;if(requests===1)return new Promise<Response>(resolve=>{resolveOld=resolve;});return new Response(JSON.stringify({...response(url),range_usage:{collected_calls:22,collected_tokens:220,coverage:"covered"}}));}return new Response(JSON.stringify(response(url)));});
+ let renderer:any;await renderAct(async()=>{renderer=create(React.createElement(Theme,{},React.createElement(AIMonitoringPage)));});t.after(async()=>{await renderAct(async()=>renderer.unmount());});
+ await renderAct(async()=>renderer.root.findAllByType(AISelect).find((c:any)=>c.props.label==="Task").props.onChange("chat"));
+ assert.ok(JSON.stringify(renderer.toJSON()).includes("220"));
+ await renderAct(async()=>{revokeAdminSession();resolveOld?.(new Response(JSON.stringify({...response("overview"),range_usage:{collected_tokens:999999,collected_calls:999}})));});
+ const text=JSON.stringify(renderer.toJSON());assert.ok(text.includes("Session revoked"));for(const secret of ["999999","220","Manual pricing","One"]){assert.ok(!text.includes(secret),secret);}
 });
 test("Node filter keeps the full node menu after a filtered overview response",()=>{const all=[{uuid:"one",name:"One"},{uuid:"two",name:"Two"}];assert.deepEqual(mergeAINodeOptions(all,[{uuid:"one",name:"One"}]),all);});
 

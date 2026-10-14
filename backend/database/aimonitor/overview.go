@@ -1,8 +1,11 @@
 package aimonitor
 
 import (
+	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
+	"github.com/google/uuid"
 	"github.com/komari-monitor/komari/database/models"
 	"gorm.io/gorm"
 	"sort"
@@ -154,6 +157,7 @@ type Node struct {
 	DeliveryErrorClass      string   `json:"delivery_error_class"`
 }
 type Overview struct {
+	Diagnostics     Diagnostics       `json:"diagnostics"`
 	Range           Query             `json:"range"`
 	RangeUsage      RangeUsage        `json:"range_usage"`
 	Definitions     map[string]string `json:"definitions"`
@@ -195,7 +199,27 @@ func (s *Store) details(q Query) ([]StoredSample, error) {
 	err = filtered(s.DB, q).Where("ended_at > ? AND ended_at <= ?", q.From, q.To).Order("ended_at").Find(&rows).Error
 	return rows, err
 }
+
+// Overview pins every dimension to one bounded read transaction. In SQLite WAL
+// mode writers may commit while the reader retains its original snapshot.
 func (s *Store) Overview(q Query, now time.Time) (Overview, error) {
+	ctx, cancel := context.WithTimeout(s.DB.Statement.Context, 3*time.Second)
+	defer cancel()
+	var view Overview
+	started := time.Now()
+	stats := Diagnostics{RequestID: uuid.NewString()}
+	measured := s.DB.Session(&gorm.Session{Logger: &overviewLogger{Interface: s.DB.Logger, stats: &stats}})
+	err := measured.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var err error
+		view, err = NewStore(tx).overviewSnapshot(q, now)
+		return err
+	}, &sql.TxOptions{ReadOnly: true})
+	stats.ElapsedMS = float64(time.Since(started).Microseconds()) / 1000
+	view.Diagnostics = stats
+	return view, err
+}
+
+func (s *Store) overviewSnapshot(q Query, now time.Time) (Overview, error) {
 	v := Overview{Range: q, Definitions: map[string]string{
 		"cost_label": "Estimated API-Equivalent Cost (USD)", "cost": "Calculated using reference API token pricing. This is not an actual ChatGPT Plus charge.",
 		"tokens":        "input_tokens excludes cache reads/writes; total=input+cache_read+cache_write+output; reasoning is an output subset",
@@ -219,12 +243,17 @@ func (s *Store) Overview(q Query, now time.Time) (Overview, error) {
 	if v.ModelRegistry, err = s.ModelRegistry(); err != nil {
 		return v, err
 	}
-	if v.RangeUsage, err = s.rangeUsage(q); err != nil {
+	rangeTotals, err := s.aggregateTotals(q, q.From, q.To)
+	if err != nil {
+		return v, err
+	}
+	if v.RangeUsage, err = s.rangeUsage(q, rangeTotals); err != nil {
 		return v, err
 	}
 	rows, err := s.details(q)
 	if err != nil {
 		if err == ErrQueryLimit {
+			v.PricingCoverage = rangeTotals
 			return s.aggregateOverview(q, now, loc, v)
 		}
 		return v, err
