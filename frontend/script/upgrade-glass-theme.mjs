@@ -7,6 +7,12 @@ import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const knownVersions = [
+  // Initial compact-row preview before small-width metric alignment.
+  new Map([
+    ["komari-theme.json", "022143c717a12cf44e5af525bd61cf596ace4ef1415914d2ee71a65e42a2d284"],
+    ["dist/index.html", "9baf6144d80ace7b0ae268e94cc8b627f16752d7d3dc1507b68401a0a1b9b18d"],
+    ["dist/_next/static/chunks/3859ru-43ce8b19.js", "43ce8b1948eb027a51e5b2e4cd5158eedb84e2ba031975a1f76bccea1756007c"],
+  ]),
   // Installed development list preview before compact horizontal rows.
   new Map([
     ["komari-theme.json", "022143c717a12cf44e5af525bd61cf596ace4ef1415914d2ee71a65e42a2d284"],
@@ -82,6 +88,7 @@ const knownVersions = [
   ]),
 ];
 const knownVisualStyles = new Map([
+  ["glass-visual-38210cb5.css", "38210cb587c5d334536d1e0bbf5ebf3027f84989bf7ff93c6e112777834a72e2"],
   ["glass-visual-fd073f36.css", "fd073f367cc08099f96c64314e569233a7d9cbd6d16e773e4e0e94e6fea865ca"],
   ["glass-visual-9786cb16.css", "9786cb164dfb950f4ddadd0661294ef1cf04b71d297ad87b3b87e3e963929b84"],
   ["glass-visual-fc179bf5.css", "fc179bf571b818b324c1d86465b8a6ee4bc590d551c90f5d50463e9937a3b3fd"],

@@ -67,6 +67,7 @@ test("list mode has a scoped full-width responsive layout without replacing the 
   assert.match(css, /\[data-node-view="list"\] \.node-view-grid/);
   assert.match(css, /grid-template-columns: minmax\(0, 1fr\)/);
   assert.match(css, /@media \(min-width: 1100px\)/);
+  assert.match(css, /@media \(max-width: 767px\), \(min-width: 1100px\) and \(max-width: 1199px\)/, "align primary values and bars at tight widths");
   assert.match(css, /\.node-card > div \{ display: contents; \}/, "flatten wrappers instead of preserving tall card body");
   assert.match(css, /\.node-card > header \{ padding: 0; border: 0; min-height: 0; \}/, "no full-height name divider");
   assert.match(css, /\.grid:nth-child\(4\) \{ grid-column: 1 \/ -1; grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/, "latency and loss stay side by side");

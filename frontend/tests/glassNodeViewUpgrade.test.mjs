@@ -6,7 +6,7 @@ import { join } from "node:path";
 import test from "node:test";
 const repo = new URL("../..", import.meta.url).pathname;
 const source = join(repo, "backend/web/public/bundledThemes/Glass");
-for (const fixture of ["glass-v1060", "glass-list-v1"]) test(`the pinned ${fixture} theme upgrades while retaining its original backup`, t => {
+for (const fixture of ["glass-v1060", "glass-list-v1", "glass-compact-v1"]) test(`the pinned ${fixture} theme upgrades while retaining its original backup`, t => {
   const parent = mkdtempSync(join(tmpdir(), "glass-view-upgrade-"));
   t.after(() => rmSync(parent, { recursive: true, force: true }));
   const root = join(parent, "Glass");
