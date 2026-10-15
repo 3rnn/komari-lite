@@ -65,5 +65,6 @@ test("list mode has a scoped full-width responsive layout without replacing the 
   assert.match(css, /\[data-node-view="list"\] \.node-view-grid/);
   assert.match(css, /grid-template-columns: minmax\(0, 1fr\)/);
   assert.match(css, /@media \(min-width: 1100px\)/);
+  assert.match(css, /\[data-node-view="list"\] \.node-data-panel \.tabular-nums \{ white-space: normal; overflow-wrap: anywhere;/, "list network values must remain readable in narrow metric columns");
   assert.match(code, /onKeyDown:e=>\{\("Enter"===e.key\|\|" "===e.key\)/);
 });
