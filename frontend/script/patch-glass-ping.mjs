@@ -82,6 +82,11 @@ replaceOnce('(0,L.jsx)("span",{className:"size-2 shrink-0 rounded-full",style:{b
 replaceOnce('(0,L.jsx)(rT,{bars:"latency"===n?e.latencyBars:e.lossBars})', '(0,L.jsx)(rT,{bars:"latency"===n?e.latencyBars:e.lossBars,latency:"latency"===n})');
 replaceOnce('showCarrierPing:eI(n.showCarrierPing,!1),telecomPingTaskName:', 'showCarrierPing:eI(n.showCarrierPing,!0),preferredPingTaskId:Number.isSafeInteger(n.preferredPingTaskId)&&n.preferredPingTaskId>0?n.preferredPingTaskId:0,telecomPingTaskName:');
 replaceOnce('pingTaskSelection:{telecom:r.telecomPingTaskName,mobile:r.mobilePingTaskName,unicom:r.unicomPingTaskName}', 'pingTaskSelection:{showAll:r.showCarrierPing,preferredId:r.preferredPingTaskId}');
+// Keep the original node renderer, ordering, data subscriptions and navigation.
+// Only the homepage wrapper and scoped layout classes change between views.
+const nodeView = readFileSync(new URL("glass-node-view.mjs", import.meta.url), "utf8");
+replaceOnce('function rW(){return(0,L.jsxs)("div",{className:"space-y-3.5 sm:space-y-4",children:[(0,L.jsx)(rH,{}),(0,L.jsx)(rz,{})]})}', nodeView);
+replaceOnce('className:"grid grid-cols-1 items-start gap-3 sm:grid-cols-[repeat(auto-fill,minmax(320px,1fr))]"', 'className:"node-view-grid grid grid-cols-1 items-start gap-3 sm:grid-cols-[repeat(auto-fill,minmax(320px,1fr))]"');
 new Script(patched, { filename: "Glass node-card chunk" });
 const hash = createHash("sha256").update(patched).digest("hex").slice(0, 8);
 const filename = `3859ru-${hash}.js`;

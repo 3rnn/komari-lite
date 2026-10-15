@@ -7,6 +7,12 @@ import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const knownVersions = [
+  // Development v1.0.60 immediately before the optional card/list view.
+  new Map([
+    ["komari-theme.json", "022143c717a12cf44e5af525bd61cf596ace4ef1415914d2ee71a65e42a2d284"],
+    ["dist/index.html", "83fd4f5950b2406567f9cdf5aca2d171bde44007c141254c788c30d1b2ef3ca4"],
+    ["dist/_next/static/chunks/3859ru-5c958c91.js", "5c958c916943bc516d33188524b579291be850cd544c750c16c432f348dcbcf5"],
+  ]),
   // v1.0.12 bundled Glass, verified byte-for-byte against the installed theme.
   new Map([
     ["komari-theme.json", "022143c717a12cf44e5af525bd61cf596ace4ef1415914d2ee71a65e42a2d284"],

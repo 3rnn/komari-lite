@@ -1,0 +1,25 @@
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { cpSync, mkdtempSync, readFileSync, rmSync, readdirSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import test from "node:test";
+const repo = new URL("../..", import.meta.url).pathname;
+const source = join(repo, "backend/web/public/bundledThemes/Glass");
+test("the pinned development theme upgrades to list view while retaining its original backup", t => {
+  const parent = mkdtempSync(join(tmpdir(), "glass-view-upgrade-"));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const root = join(parent, "Glass");
+  cpSync(source, root, { recursive: true });
+  cpSync(join(repo, "frontend/tests/fixtures/glass-v1060"), root, { recursive: true });
+  const before = readFileSync(join(root, "dist/index.html"));
+  const run = apply => spawnSync(process.execPath, [join(repo, "frontend/script/upgrade-glass-theme.mjs"), "--theme-dir", root, ...(apply ? ["--apply"] : [])], { encoding: "utf8" });
+  const dry = run(false);
+  assert.equal(dry.status, 0, dry.stderr);
+  assert.deepEqual(readdirSync(parent), ["Glass"]);
+  const result = run(true);
+  assert.equal(result.status, 0, result.stderr);
+  const backup = JSON.parse(result.stdout.trim().split("\n").at(-1)).backup;
+  assert.deepEqual(readFileSync(join(backup, "dist/index.html")), before);
+  assert.deepEqual(readFileSync(join(root, "dist/index.html")), readFileSync(join(source, "dist/index.html")));
+});
