@@ -6,12 +6,12 @@ import { join } from "node:path";
 import test from "node:test";
 const repo = new URL("../..", import.meta.url).pathname;
 const source = join(repo, "backend/web/public/bundledThemes/Glass");
-test("the pinned development theme upgrades to list view while retaining its original backup", t => {
+for (const fixture of ["glass-v1060", "glass-list-v1"]) test(`the pinned ${fixture} theme upgrades while retaining its original backup`, t => {
   const parent = mkdtempSync(join(tmpdir(), "glass-view-upgrade-"));
   t.after(() => rmSync(parent, { recursive: true, force: true }));
   const root = join(parent, "Glass");
   cpSync(source, root, { recursive: true });
-  cpSync(join(repo, "frontend/tests/fixtures/glass-v1060"), root, { recursive: true });
+  cpSync(join(repo, `frontend/tests/fixtures/${fixture}`), root, { recursive: true });
   const before = readFileSync(join(root, "dist/index.html"));
   const run = apply => spawnSync(process.execPath, [join(repo, "frontend/script/upgrade-glass-theme.mjs"), "--theme-dir", root, ...(apply ? ["--apply"] : [])], { encoding: "utf8" });
   const dry = run(false);

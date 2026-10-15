@@ -27,11 +27,13 @@ test("homepage defaults to cards and toggles the same nodes with accessible pers
   await act(() => { tree = create(jsx(Home, {})); });
   const button = () => tree.root.findByType("button");
   assert.equal(button().props["aria-pressed"], false);
-  assert.equal(button().props.children, "List view");
+  assert.equal(button().props.title, "List view");
+  assert.equal(button().props.children.type, "svg");
+  assert.equal(button().props.children.props["aria-hidden"], true);
   const node = tree.root.findByType("article");
   await act(() => button().props.onClick());
   assert.equal(button().props["aria-pressed"], true);
-  assert.equal(button().props.children, "Card view");
+  assert.equal(button().props.title, "Card view");
   assert.equal(tree.root.findByType("article"), node, "do not remount monitoring nodes");
   assert.equal(saved.get("komari-glass-node-view"), "list");
   await act(() => tree.unmount());
@@ -65,6 +67,9 @@ test("list mode has a scoped full-width responsive layout without replacing the 
   assert.match(css, /\[data-node-view="list"\] \.node-view-grid/);
   assert.match(css, /grid-template-columns: minmax\(0, 1fr\)/);
   assert.match(css, /@media \(min-width: 1100px\)/);
+  assert.match(css, /\.node-card > div \{ display: contents; \}/, "flatten wrappers instead of preserving tall card body");
+  assert.match(css, /\.node-card > header \{ padding: 0; border: 0; min-height: 0; \}/, "no full-height name divider");
+  assert.match(css, /\.grid:nth-child\(4\) \{ grid-column: 1 \/ -1; grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/, "latency and loss stay side by side");
   assert.match(css, /\[data-node-view="list"\] \.node-data-panel \.tabular-nums \{ white-space: normal; overflow-wrap: anywhere;/, "list network values must remain readable in narrow metric columns");
   assert.match(code, /onKeyDown:e=>\{\("Enter"===e.key\|\|" "===e.key\)/);
 });

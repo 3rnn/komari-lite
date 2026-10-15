@@ -23,7 +23,15 @@ function rW() {
           L.jsx("button", {
             type: "button", className: "node-view-toggle",
             "aria-label": "List view", "aria-pressed": view === "list",
-            onClick: toggleView, children: view === "list" ? "Card view" : "List view",
+            title: view === "list" ? "Card view" : "List view",
+            onClick: toggleView, children: L.jsx("svg", {
+              width: 18, height: 18, viewBox: "0 0 24 24", fill: "none",
+              stroke: "currentColor", strokeWidth: 1.7, strokeLinecap: "round",
+              "aria-hidden": true, focusable: "false",
+              children: L.jsx("path", { d: view === "list"
+                ? "M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z"
+                : "M8 6h13 M8 12h13 M8 18h13 M3 6h1 M3 12h1 M3 18h1" }),
+            }),
           }),
         ],
       }),
