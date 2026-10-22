@@ -15,7 +15,7 @@ import time
 import unittest
 import zipfile
 
-SCRIPT = Path(__file__).with_name('safe_upgrade.py')
+SCRIPT = Path(os.environ.get('CONTROLLER', Path(__file__).with_name('safe_upgrade.py')))
 
 
 class UpgradeTests(unittest.TestCase):
@@ -188,6 +188,10 @@ class UpgradeTests(unittest.TestCase):
         self.install()
         result = self.upgrade(env={'MUTATE_THEME_ON_STOP': '1', 'FAIL_START': '1'})
         self.assertNotEqual(result.returncode, 0)
+        self.assertIn('failed before rollback', result.stderr)
+        self.assertIn('Traceback (most recent call last)', result.stderr)
+        self.assertIn('Glass modified or unknown', result.stderr)
+        self.assertLess(result.stderr.index('Glass modified or unknown'), result.stderr.rindex('CalledProcessError'))
         record = json.loads((self.state/'journal.json').read_text())
         self.assertEqual(record['phase'], 'rollback_failed')
         self.assertNotEqual(self.runcli('gate').returncode, 0)
@@ -498,6 +502,9 @@ class UpgradeTests(unittest.TestCase):
         # The HTTP version check must fail after startup even if CLI health succeeds.
         r = self.upgrade(env={'FAKE_HTTP_VERSION': 'wrong'})
         self.assertNotEqual(r.returncode, 0)
+        self.assertIn('failed before rollback', r.stderr)
+        self.assertIn('Traceback (most recent call last)', r.stderr)
+        self.assertIn('HTTP version mismatch', r.stderr)
         self.assertEqual((self.root/'data'/'theme'/'Glass'/'dist'/'index.html').read_text(), '<html>old</html>')
 
     def test_stale_served_glass_stylesheet_triggers_rollback(self):

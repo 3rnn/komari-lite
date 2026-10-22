@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Offline-first, journaled native Komari upgrade. Python 3 standard library only."""
 import argparse
+from contextlib import closing, contextmanager
 import fcntl
 import hashlib
 import html.parser
@@ -15,6 +16,7 @@ import stat
 import subprocess
 import sys
 import time
+import traceback
 import urllib.request
 import urllib.error
 import uuid
@@ -93,16 +95,26 @@ def check_persistent_mounts(root, mountinfo=Path('/proc/self/mountinfo')):
                     'nested/persistent data mount needs a separate backup plan')
 
 
+@contextmanager
+def checked_sqlite(path, operation):
+    """Close readers deterministically, including exception/traceback paths."""
+    try:
+        with closing(sqlite3.connect('file:' + str(path) + '?mode=ro', uri=True)) as db:
+            yield db
+    except (sqlite3.Error, RuntimeError, ValueError, TypeError) as exc:
+        raise RuntimeError(operation + ' [' + str(path) + ']: ' + str(exc)) from exc
+
+
 def sqlite_check(path):
     require(path.is_file() and not path.is_symlink(), 'missing SQLite: ' + str(path))
-    with sqlite3.connect('file:' + str(path) + '?mode=ro', uri=True) as db:
+    with checked_sqlite(path, 'sqlite_check') as db:
         require(db.execute('pragma quick_check').fetchone()[0] == 'ok', 'SQLite integrity failed: ' + str(path))
 
 
 def config_check(root):
     dbpath = root / 'data' / 'komari.db'
     sqlite_check(dbpath)
-    with sqlite3.connect('file:' + str(dbpath) + '?mode=ro', uri=True) as db:
+    with checked_sqlite(dbpath, 'config_check') as db:
         columns = {row[1] for row in db.execute('pragma table_info(configs)')}
         if {'key', 'value'} <= columns:
             rows = dict(db.execute("select key, value from configs where key in ('metric_db_driver','metric_db_dsn')"))
@@ -110,16 +122,16 @@ def config_check(root):
             require({'id', 'sitename'} <= columns, 'unrecognized legacy config schema')
             # Pre-key/value legacy settings had no configurable metrics backend.
             rows = {}
-    driver = json.loads(rows.get('metric_db_driver', '"sqlite"'))
-    dsn = json.loads(rows.get('metric_db_dsn', '"./data/metrics.db"'))
-    require(driver == 'sqlite' and dsn == './data/metrics.db', 'external/custom metrics DSN is unsupported; coordinate separate backup')
+        driver = json.loads(rows.get('metric_db_driver', '"sqlite"'))
+        dsn = json.loads(rows.get('metric_db_dsn', '"./data/metrics.db"'))
+        require(driver == 'sqlite' and dsn == './data/metrics.db', 'external/custom metrics DSN is unsupported; coordinate separate backup')
     metrics = root / 'data' / 'metrics.db'
     if metrics.exists(): sqlite_check(metrics)
     return dbpath
 
 def check_restricted_migrations(root):
     dbpath = root/'data'/'komari.db'
-    with sqlite3.connect('file:' + str(dbpath) + '?mode=ro', uri=True) as db:
+    with checked_sqlite(dbpath, 'check_restricted_migrations') as db:
         for table in ('records', 'records_long_term', 'gpu_records', 'ping_records'):
             if db.execute('select 1 from sqlite_master where type=? and name=?', ('table', table)).fetchone():
                 require(db.execute('select 1 from "' + table + '" limit 1').fetchone() is None,
@@ -641,6 +653,8 @@ def upgrade(a):
         health(a, version, schema)
         save(state, j, 'committed')
     except BaseException:
+        print('safe-upgrade: transaction ' + ident + ' failed before rollback', file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
         if (state/'backups'/ident/'metadata.json').is_file():
             restore(a, j)
         else:
@@ -727,6 +741,7 @@ def main():
                 restore(a, j)
     except (Exception, KeyboardInterrupt) as exc:
         print('safe-upgrade: ' + str(exc), file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
         sys.exit(1)
 
 

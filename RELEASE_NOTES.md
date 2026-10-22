@@ -1,4 +1,4 @@
-# Komari Lite v1.0.61
+# Komari Lite v1.0.62
 
 ## Security and session boundaries
 
@@ -24,6 +24,10 @@
 
 ## Dependencies and release
 
-Panel, embedded UI, and Agent artifacts are version `1.0.61`. Agent artifacts are version `1.0.61`; install the matching artifacts to obtain Agent-side changes. Build with Go 1.27.3, updated Go networking dependencies, Vite 6.4.4, and corrected source-map/tooling dependencies.
+Panel, embedded UI, and Agent artifacts are version `1.0.62`. Agent artifacts are version `1.0.62`; install the matching artifacts to obtain Agent-side changes. Build with Go 1.27.3, updated Go networking dependencies, Vite 6.4.4, and corrected source-map/tooling dependencies.
 
 The release contains Linux panel binaries, platform Agent binaries, installers, `hermes_collector.py`, `Glass.zip`, safe-controller assets, `update-komari.sh`, manifests, and `SHA256SUMS.txt`. Verify hashes before use. Upgrades preserve databases, credentials, configuration, historical monitoring, and rollback snapshots. Historical AI pricing is unchanged. Publishing release files alone does not upgrade installed services.
+
+## Upgrade-controller follow-up
+
+Explicitly close SQLite health-check connections and retain path-labelled original upgrade tracebacks before rollback. This release includes the tested controller follow-up discovered during the staged rollout.
