@@ -1115,8 +1115,13 @@ func GetRecordsByTimeForLoadTypeMaxPoints(ctx context.Context, start, end time.T
 	}
 	perEntityMaxPoints := recordPerEntityMaxPoints(maxPoints, len(entityIDs))
 	var records []models.Record
-	for _, entityID := range entityIDs {
-		items, err := getRecordsByClientAndTimeFromSeries(ctx, s, entityID, start, end, metricNames, perEntityMaxPoints)
+	// Bound each physical batch without unbounded per-entity goroutines.
+	for offset := 0; offset < len(entityIDs); offset += 32 {
+		limit := offset + 32
+		if limit > len(entityIDs) {
+			limit = len(entityIDs)
+		}
+		items, err := getRecordsByClientsAndTimeFromSeries(ctx, s, entityIDs[offset:limit], start, end, metricNames, perEntityMaxPoints)
 		if err != nil {
 			return nil, err
 		}
@@ -1165,33 +1170,39 @@ type recordSeriesKey struct {
 }
 
 func getRecordsByClientAndTimeFromSeries(ctx context.Context, s *metric.Store, clientUUID string, start, end time.Time, metricNames []string, maxPoints int) ([]models.Record, error) {
+	return getRecordsByClientsAndTimeFromSeries(ctx, s, []string{clientUUID}, start, end, metricNames, maxPoints)
+}
+
+func getRecordsByClientsAndTimeFromSeries(ctx context.Context, s *metric.Store, clientUUIDs []string, start, end time.Time, metricNames []string, maxPoints int) ([]models.Record, error) {
 	now := time.Now().UTC()
 	interval := recordSeriesInterval(s, start, end, now, maxPoints)
 	recordMap := make(map[recordSeriesKey]*models.Record)
-	queries := make([]metric.AggregateQuery, 0, len(metricNames))
-	for _, metricName := range metricNames {
-		queries = append(queries, metric.AggregateQuery{
-			Query: metric.Query{
-				MetricName: metricName,
-				EntityID:   clientUUID,
-				Start:      start,
-				End:        end,
-				Order:      metric.OrderAsc,
-			},
-			Aggregation: recordMetricAggregation(metricName),
-			Interval:    interval,
-		})
+	queries := make([]metric.AggregateQuery, 0, len(metricNames)*len(clientUUIDs))
+	for _, clientUUID := range clientUUIDs {
+		for _, metricName := range metricNames {
+			queries = append(queries, metric.AggregateQuery{
+				Query: metric.Query{
+					MetricName: metricName,
+					EntityID:   clientUUID,
+					Start:      start,
+					End:        end,
+					Order:      metric.OrderAsc,
+				},
+				Aggregation: recordMetricAggregation(metricName),
+				Interval:    interval,
+			})
+		}
 	}
 	series, err := s.SeriesBatch(ctx, queries, now)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query record metric batch: %w", err)
 	}
 	for index, points := range series {
-		metricName := metricNames[index]
+		metricName := queries[index].MetricName
 		for _, point := range points {
 			entityID := point.EntityID
 			if entityID == "" {
-				entityID = clientUUID
+				entityID = queries[index].EntityID
 			}
 			key := recordSeriesKey{client: entityID, ts: point.Bucket.Unix()}
 			if recordMap[key] == nil {

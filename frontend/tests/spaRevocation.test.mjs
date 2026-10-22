@@ -299,13 +299,14 @@ test('account A to B rejects delayed A nodes and dashboard data', async t => {
   t.after(() => { act(() => renderer.unmount()); });
   await act(async () => { history.current.nodeRefresh(); await tick(); });
   const oldDashboard = requestDashboard(['servers'], 5, 'operator');
+  const oldDashboardRejected = assert.rejects(oldDashboard, { name: 'AbortError' });
   nextAccount = { ...authenticated, uuid: 'replacement', username: 'replacement' };
   await act(async () => { await history.current.accountRefresh(); await tick(); });
   assert.equal(nodeCalls, 3, 'one B load, not an effect-triggered duplicate');
   assert.deepEqual(history.current.nodeDetail.map(node => [node.name, node.deployment_status]), [['B-node', 'applied']]);
   finishNodes(json([{ uuid: 'stale', name: 'A-late', deployment_status: 'failed' }]));
   finishDashboard(json({ status: 'success', data: { servers: { private: 'A-late' } } }));
-  await assert.rejects(oldDashboard, { name: 'AbortError' });
+  await oldDashboardRejected;
   await act(tick);
   assert.deepEqual(history.current.nodeDetail.map(node => [node.name, node.deployment_status]), [['B-node', 'applied']]);
   assert.equal(getDashboardSnapshot('servers:5', 'operator'), null);

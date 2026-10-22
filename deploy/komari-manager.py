@@ -14,6 +14,7 @@ from pathlib import Path
 import pwd
 import grp
 import re
+import resource
 import shutil
 import stat
 import subprocess
@@ -58,7 +59,15 @@ def download(url, dest, tool, limit):
     else:
         argv = [executable, '--quiet', '--https-only', '--max-redirect=5',
                 '--timeout=20', '--tries=2', '--output-document', str(dest), url]
-    subprocess.run(argv, check=True, capture_output=True, timeout=330)
+    # Enforce the disk limit during streaming, including wget responses without
+    # Content-Length (wget --quota does not bound a single object).
+    def cap_output():
+        resource.setrlimit(resource.RLIMIT_FSIZE, (limit, limit))
+    try:
+        subprocess.run(argv, check=True, capture_output=True, timeout=330, preexec_fn=cap_output)
+    except BaseException:
+        dest.unlink(missing_ok=True)
+        raise
     require(dest.is_file() and 0 < dest.stat().st_size <= limit,
             'download missing or exceeds size limit')
 

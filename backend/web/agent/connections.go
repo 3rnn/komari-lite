@@ -142,6 +142,28 @@ func GetAllOnlineUUIDs() []string {
 	}
 	return res
 }
+
+// IsClientOnline checks a single client's WebSocket or unexpired presence.
+func IsClientOnline(uuid string) bool {
+	mu.RLock()
+	defer mu.RUnlock()
+	if _, ok := connectedClients[uuid]; ok {
+		return true
+	}
+	return presenceOnly[uuid].expire.After(time.Now())
+}
+
+// GetLatestReportByUUID returns an independent report value without copying all clients.
+func GetLatestReportByUUID(uuid string) *v1.Report {
+	mu.RLock()
+	defer mu.RUnlock()
+	if report := latestReport[uuid]; report != nil {
+		item := *report
+		return &item
+	}
+	return nil
+}
+
 func GetLatestReport() map[string]*v1.Report {
 	mu.RLock()
 	defer mu.RUnlock()

@@ -9,11 +9,18 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 	"github.com/komari-monitor/komari/database/accounts"
 	"github.com/komari-monitor/komari/pkg/config"
 	"github.com/komari-monitor/komari/pkg/rpc"
 	"github.com/komari-monitor/komari/web/api"
 	"github.com/komari-monitor/komari/web/connection"
+)
+
+const (
+	maxRPCRequestBytes  = 2 << 20
+	maxRPCResponseBytes = 4 << 20
+	rpcWorkBudget       = 5 * time.Second
 )
 
 // OnRpcRequest handles /api/rpc2: GET upgrades to WebSocket; POST accepts single or batched JSON-RPC requests.
@@ -32,16 +39,16 @@ func OnRpcRequest(c *gin.Context) {
 }
 
 // CallFromGin lets legacy gin handlers and the route bridge invoke RPC methods.
-// Reuse the principal identified by IdentityMiddleware, or fall back to IdentifyPrincipal.
+// The dispatch boundary resolves credentials afresh rather than trusting middleware.
 func CallFromGin(c *gin.Context, method string, params any) *rpc.JsonRpcResponse {
-	meta := buildContextMeta(c)
 	req := &rpc.JsonRpcRequest{Version: rpc.RPC_VERSION, Method: method, Params: params}
-	return dispatchWithSensitive(c.Request.Context(), c, meta, req)
+	return dispatchWithSensitive(c.Request.Context(), c, nil, req)
 }
 
 // dispatchWithSensitive applies additional 2FA checks before dispatch across every transport.
 // Callers of authorized sensitive methods must satisfy sensitive-operation 2FA.
-// Check the Principal (API keys and accounts without 2FA bypass this check); Dispatch remains the authoritative authorization boundary.
+// Check the current principal and factor state; Dispatch remains the
+// authoritative namespace authorization boundary.
 //
 // Extract a 2FA code per RPC request, first from params (2fa_code/two_factor_code/otp).
 // On long-lived WebSockets, each sensitive message needs a fresh TOTP code rather than reusing an expired handshake code.
@@ -49,17 +56,29 @@ func CallFromGin(c *gin.Context, method string, params any) *rpc.JsonRpcResponse
 //
 // Skip checks already completed by RequireSensitive2FA (sensitive_2fa_verified).
 func dispatchWithSensitive(ctx context.Context, c *gin.Context, meta *rpc.ContextMeta, req *rpc.JsonRpcRequest) *rpc.JsonRpcResponse {
-	if meta != nil && meta.Principal != nil && (c == nil || !c.GetBool("sensitive_2fa_verified")) &&
+	if err := ctx.Err(); err != nil {
+		return rpc.ErrorResponse(req.ID, rpc.InternalError, "RPC work budget exhausted", nil)
+	}
+	// Middleware and WebSocket handshake identities are snapshots, never proof
+	// that a credential is still valid for the next privileged operation.
+	if c != nil {
+		meta = buildContextMeta(c)
+	}
+	if meta != nil && meta.Principal != nil && (c == nil || !c.GetBool("sensitive_2fa_verified") || api.IsWebSocketUpgrade(c)) &&
 		rpc.IsSensitive(req.Method) && rpc.CheckPrincipal(meta.Principal, req.Method) {
 		code := extractRequestTwoFACode(req)
-		if code == "" && c != nil {
+		if code == "" && c != nil && !api.IsWebSocketUpgrade(c) {
 			code = headerOrQueryTwoFACode(c)
 		}
 		if err := api.VerifySensitive2FACore(meta.Principal.UserUUID, code, meta.Principal.IsAPIKey); err != nil {
 			return rpc.ErrorResponse(req.ID, rpc.PermissionDenied, err.Error(), nil)
 		}
 	}
-	return Dispatch(ctx, meta, req)
+	response := Dispatch(ctx, meta, req)
+	if ctx.Err() != nil {
+		return rpc.ErrorResponse(req.ID, rpc.InternalError, "RPC work budget exhausted", nil)
+	}
+	return response
 }
 
 // extractRequestTwoFACode reads the 2FA code from a single RPC request's named parameters.
@@ -89,38 +108,67 @@ func headerOrQueryTwoFACode(c *gin.Context) string {
 	return ""
 }
 
+// budgetErrorJSON retains correlation when the encoded ID fits the available
+// wire budget. IDs can expand under JSON escaping, so even errors need a cap.
+func budgetErrorJSON(id any, message string, limit int) []byte {
+	encoded, err := json.Marshal(rpc.ErrorResponse(id, rpc.InternalError, message, nil))
+	if err != nil || len(encoded) > limit {
+		encoded, _ = json.Marshal(rpc.ErrorResponse(nil, rpc.InternalError, message, nil))
+	}
+	return encoded
+}
+
+func writeRPCWebSocketResponse(conn *connection.SafeConn, response *rpc.JsonRpcResponse) error {
+	encoded, err := json.Marshal(response)
+	if err != nil || len(encoded) > maxRPCResponseBytes {
+		encoded = budgetErrorJSON(response.ID, "RPC response budget exhausted", maxRPCResponseBytes)
+	}
+	return conn.WriteMessage(websocket.TextMessage, encoded)
+}
+
 func serveWebSocket(c *gin.Context) {
 	_conn, err := api.UpgradeWebSocket(c)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "error": "Failed to upgrade to WebSocket." + err.Error()})
 		return
 	}
+	_conn.SetReadLimit(maxRPCRequestBytes)
 	conn := connection.NewSafeConn(_conn)
 	defer conn.Close()
 
-	meta := buildContextMeta(c)
 	for {
 		var req rpc.JsonRpcRequest
 		if err := conn.ReadJSON(&req); err != nil {
 			var se *json.SyntaxError
 			var ute *json.UnmarshalTypeError
 			if errors.As(err, &se) || errors.As(err, &ute) {
-				conn.WriteJSON(rpc.ErrorResponse(nil, rpc.InvalidRequest, "bad request: "+err.Error(), nil))
+				if err := writeRPCWebSocketResponse(conn, rpc.ErrorResponse(nil, rpc.InvalidRequest, "bad request: "+err.Error(), nil)); err != nil {
+					return
+				}
 				continue
 			}
 			// Others treated as connection/IO errors, ending the loop
 			break
 		}
 		if jerr := req.Validate(); jerr != nil {
-			conn.WriteJSON(jerr.ResponseWithID(req.ID))
+			if err := writeRPCWebSocketResponse(conn, jerr.ResponseWithID(req.ID)); err != nil {
+				return
+			}
 			continue
 		}
-		// SafeConn serializes writes under a lock, preventing reordered responses and races.
-		conn.WriteJSON(dispatchWithSensitive(context.Background(), c, meta, &req))
+		ctx, cancel := context.WithTimeout(c.Request.Context(), rpcWorkBudget)
+		response := dispatchWithSensitive(ctx, c, nil, &req)
+		cancel()
+		if err := writeRPCWebSocketResponse(conn, response); err != nil {
+			return
+		}
 	}
 }
 
 func servePost(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxRPCRequestBytes)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), rpcWorkBudget)
+	defer cancel()
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, rpc.ErrorResponse(nil, rpc.ParseError, "read body error", err.Error()))
@@ -131,28 +179,48 @@ func servePost(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, jerr.Response())
 		return
 	}
-	meta := buildContextMeta(c)
-
-	responses := make([]*rpc.JsonRpcResponse, 0, len(requests))
-	for _, rreq := range requests {
-		responses = append(responses, dispatchWithSensitive(c.Request.Context(), c, meta, rreq))
+	// Reserve a bounded, correlated error for every parsed call before spending
+	// the response budget on results. Exhaustion stops work, not error replies.
+	responses := make([]json.RawMessage, len(requests))
+	errorLimit := (maxRPCResponseBytes - 2 - len(requests)) / len(requests)
+	totalBytes := 2 + len(requests) // Array delimiters and commas (conservative).
+	for i, request := range requests {
+		responses[i] = budgetErrorJSON(request.ID, "RPC response budget exhausted", errorLimit)
+		totalBytes += len(responses[i])
 	}
-	// Single direct object, batch array (compliant with JSON-RPC 2.0).
-	if len(responses) == 1 {
-		c.JSON(http.StatusOK, responses[0])
+	for i, rreq := range requests {
+		if ctx.Err() != nil {
+			for j := i; j < len(requests); j++ {
+				responses[j] = budgetErrorJSON(requests[j].ID, "RPC work budget exhausted", errorLimit)
+			}
+			break
+		}
+		response := dispatchWithSensitive(ctx, c, nil, rreq)
+		encoded, err := json.Marshal(response)
+		if err != nil || totalBytes-len(responses[i])+len(encoded) > maxRPCResponseBytes {
+			break
+		}
+		totalBytes += len(encoded) - len(responses[i])
+		responses[i] = encoded
+	}
+	// Keep the legacy one-response shape for compatibility.
+	if len(responses) == 1 && len(requests) == 1 {
+		c.Data(http.StatusOK, "application/json; charset=utf-8", responses[0])
 	} else {
 		c.JSON(http.StatusOK, responses)
 	}
 }
 
-// buildContextMeta builds *rpc.ContextMeta from gin.Context.
-// Reuse the principal from IdentityMiddleware (api.GetPrincipal); otherwise call
-// api.IdentifyPrincipal. Populate Principal, legacy Permission, User, UUIDs, token, and related fields.
+// buildContextMeta builds fresh authentication metadata from the original
+// credentials, including principal, legacy role, account and temporary share.
 func buildContextMeta(c *gin.Context) *rpc.ContextMeta {
-	// Prefer the middleware's principal; fall back to identification for direct /api/rpc2 requests.
-	p := api.GetPrincipal(c)
-	if p == nil {
-		p = api.IdentifyPrincipal(c)
+	// Always resolve the original credentials again, including current API-key
+	// configuration and session expiry/revocation; ignore middleware snapshots.
+	p := api.IdentifyPrincipal(c)
+	if p.Type == rpc.PrincipalUser {
+		if _, err := accounts.GetUserByUUID(p.UserUUID); err != nil {
+			p = rpc.NewAnonymousPrincipal()
+		}
 	}
 
 	meta := &rpc.ContextMeta{

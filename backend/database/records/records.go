@@ -33,7 +33,23 @@ func GetRecordsByClientAndTimeForLoadType(uuid string, start, end time.Time, loa
 }
 
 func GetRecordsByClientAndTimeForLoadTypeMaxPoints(uuid string, start, end time.Time, loadType string, maxPoints int) ([]models.Record, error) {
-	return metricstore.GetRecordsByClientAndTimeForLoadTypeMaxPoints(context.Background(), uuid, start, end, loadType, maxPoints)
+	return GetRecordsByClientAndTimeForLoadTypeMaxPointsContext(context.Background(), uuid, start, end, loadType, maxPoints)
+}
+
+// GetRecordsByClientAndTimeForLoadTypeMaxPointsContext propagates request cancellation to storage and its operation gate.
+func GetRecordsByClientAndTimeForLoadTypeMaxPointsContext(ctx context.Context, uuid string, start, end time.Time, loadType string, maxPoints int) ([]models.Record, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return metricstore.GetRecordsByClientAndTimeForLoadTypeMaxPoints(ctx, uuid, start, end, loadType, maxPoints)
+}
+
+// GetRecordsByTimeForLoadTypeMaxPointsContext is the cancellable all-client query.
+func GetRecordsByTimeForLoadTypeMaxPointsContext(ctx context.Context, start, end time.Time, loadType string, maxPoints int) ([]models.Record, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return metricstore.GetRecordsByTimeForLoadTypeMaxPoints(ctx, start, end, loadType, maxPoints)
 }
 
 // GetRecordsByTime Gets all client records within the time range.
@@ -46,5 +62,5 @@ func GetRecordsByTimeForLoadType(start, end time.Time, loadType string) ([]model
 }
 
 func GetRecordsByTimeForLoadTypeMaxPoints(start, end time.Time, loadType string, maxPoints int) ([]models.Record, error) {
-	return metricstore.GetRecordsByTimeForLoadTypeMaxPoints(context.Background(), start, end, loadType, maxPoints)
+	return GetRecordsByTimeForLoadTypeMaxPointsContext(context.Background(), start, end, loadType, maxPoints)
 }

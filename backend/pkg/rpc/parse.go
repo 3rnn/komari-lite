@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 )
 
+// MaxBatchRequests bounds work amplification, including notification calls.
+const MaxBatchRequests = 64
+
 // ParseRequest Parses a single JSON-RPC request. Return request and error (parsing level).
 func ParseRequest(data []byte) (*JsonRpcRequest, *JsonRpcError) {
 	requests, err := ParseRequests(data)
@@ -36,9 +39,21 @@ func ParseRequests(data []byte) ([]*JsonRpcRequest, *JsonRpcError) {
 		return []*JsonRpcRequest{&r}, nil
 	}
 	if first == '[' { // batch
-		var arr []JsonRpcRequest
-		if err := json.Unmarshal(data, &arr); err != nil {
-			return nil, &JsonRpcError{Code: ParseError, Message: "invalid json", Data: err.Error()}
+		decoder := json.NewDecoder(bytes.NewReader(data))
+		_, _ = decoder.Token() // Opening '[' is already checked above.
+		arr := make([]JsonRpcRequest, 0, MaxBatchRequests)
+		for decoder.More() {
+			if len(arr) >= MaxBatchRequests {
+				return nil, &JsonRpcError{Code: InvalidRequest, Message: "batch request limit exceeded"}
+			}
+			var request JsonRpcRequest
+			if err := decoder.Decode(&request); err != nil {
+				return nil, &JsonRpcError{Code: ParseError, Message: "invalid json", Data: err.Error()}
+			}
+			arr = append(arr, request)
+		}
+		if _, err := decoder.Token(); err != nil || !json.Valid(data) {
+			return nil, &JsonRpcError{Code: ParseError, Message: "invalid json"}
 		}
 		if len(arr) == 0 {
 			return nil, &JsonRpcError{Code: InvalidRequest, Message: "empty batch"}

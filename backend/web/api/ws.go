@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 	"github.com/komari-monitor/komari/database/accounts"
 	"github.com/komari-monitor/komari/database/dbcore"
 	"github.com/komari-monitor/komari/database/models"
@@ -13,6 +14,33 @@ import (
 	"github.com/komari-monitor/komari/protocol/v1"
 	agent_runtime "github.com/komari-monitor/komari/web/agent"
 )
+
+const clientStatusWriteTimeout = 10 * time.Second
+
+// Browser WebSocket implementations answer control pings even when polling is paused.
+func startClientStatusHeartbeat(conn *websocket.Conn, idleTimeout, pingInterval, writeTimeout time.Duration) func() {
+	_ = conn.SetReadDeadline(time.Now().Add(idleTimeout))
+	conn.SetPongHandler(func(string) error { return conn.SetReadDeadline(time.Now().Add(idleTimeout)) })
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(pingInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-stop:
+				return
+			case <-ticker.C:
+				if err := conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(writeTimeout)); err != nil {
+					_ = conn.Close()
+					return
+				}
+			}
+		}
+	}()
+	return func() { close(stop); <-done }
+}
 
 func GetClients(c *gin.Context) {
 	// Upgrade to ws
@@ -27,29 +55,11 @@ func GetClients(c *gin.Context) {
 		return
 	}
 	defer conn.Close()
+	stopHeartbeat := startClientStatusHeartbeat(conn, 90*time.Second, 30*time.Second, clientStatusWriteTimeout)
+	defer stopHeartbeat()
 
-	// Initialize user information
-	var (
-		isLogin    = false
-		hiddenMap  = map[string]bool{}
-		session, _ = c.Cookie("session_token")
-	)
-
-	// Login status check
-	_, err = accounts.GetUserBySession(session)
-	if err == nil {
-		isLogin = true
-	}
-
-	// Hidden information only needs to be filtered when not logged in
-	if !isLogin {
-		var hiddenClients []models.Client
-		db := dbcore.GetDBInstance()
-		_ = db.Select("uuid").Where("hidden = ?", true).Find(&hiddenClients).Error
-		for _, cli := range hiddenClients {
-			hiddenMap[cli.UUID] = true
-		}
-	}
+	// Retain the original credential, never the handshake authorization snapshot.
+	session, _ := c.Cookie("session_token")
 
 	// Request
 	for {
@@ -65,6 +75,7 @@ func GetClients(c *gin.Context) {
 		if err != nil {
 			return
 		}
+		_ = conn.SetReadDeadline(time.Now().Add(90 * time.Second))
 		message := string(data)
 
 		uuID := ""
@@ -72,13 +83,53 @@ func GetClients(c *gin.Context) {
 			if strings.HasPrefix(message, "get ") {
 				uuID = strings.TrimSpace(strings.TrimPrefix(message, "get "))
 			} else {
-				conn.WriteJSON(gin.H{"status": "error", "error": "Invalid message"})
+				_ = conn.SetWriteDeadline(time.Now().Add(clientStatusWriteTimeout))
+				if err := conn.WriteJSON(gin.H{"status": "error", "error": "Invalid message"}); err != nil {
+					return
+				}
 				continue
 			}
 		}
 
+		// Resolve session expiry/revocation and account existence on every request.
+		isLogin := false
+		if session != "" {
+			if uuid, err := accounts.GetSession(session); err == nil && uuid != "" {
+				_, err = accounts.GetUserByUUID(uuid)
+				isLogin = err == nil
+			}
+		}
+		hiddenMap := map[string]bool{}
+		if !isLogin {
+			var hiddenClients []models.Client
+			if err := dbcore.GetDBInstance().WithContext(c.Request.Context()).Select("uuid").Where("hidden = ?", true).Find(&hiddenClients).Error; err != nil {
+				// A failed visibility lookup must not expose an unfiltered snapshot.
+				_ = conn.SetWriteDeadline(time.Now().Add(clientStatusWriteTimeout))
+				if err := conn.WriteJSON(gin.H{"status": "error", "error": "Failed to resolve client visibility"}); err != nil {
+					return
+				}
+				continue
+			}
+			for _, cli := range hiddenClients {
+				hiddenMap[cli.UUID] = true
+			}
+		}
+
 		// List of online client uuids (WebSocket vs. non-WebSocket)
-		for _, key := range agent_runtime.GetAllOnlineUUIDs() {
+		online := []string{}
+		reports := map[string]*v1.Report{}
+		if uuID == "" {
+			online = agent_runtime.GetAllOnlineUUIDs()
+			reports = agent_runtime.GetLatestReport()
+		} else {
+			if agent_runtime.IsClientOnline(uuID) {
+				online = append(online, uuID)
+			}
+			if report := agent_runtime.GetLatestReportByUUID(uuID); report != nil {
+				reports[uuID] = report
+			}
+		}
+		for _, key := range online {
 			if !isLogin && hiddenMap[key] {
 				continue
 			}
@@ -92,7 +143,7 @@ func GetClients(c *gin.Context) {
 		calibrated, _ := trafficledger.CurrentCalibratedCycleUsages(
 			c.Request.Context(), dbcore.GetDBInstance(), time.Now().UTC(),
 		)
-		for key, report := range agent_runtime.GetLatestReport() {
+		for key, report := range reports {
 			if !isLogin && hiddenMap[key] {
 				continue
 			}
@@ -111,6 +162,7 @@ func GetClients(c *gin.Context) {
 			resp.Data[key] = *report
 		}
 
+		_ = conn.SetWriteDeadline(time.Now().Add(clientStatusWriteTimeout))
 		err = conn.WriteJSON(gin.H{"status": "success", "data": resp})
 		if err != nil {
 			return

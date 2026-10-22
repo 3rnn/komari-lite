@@ -64,8 +64,7 @@ func (rsmi *ROCmSMI) Start() error {
 }
 
 func (rsmi *ROCmSMI) pollROCmSMI() []byte {
-	cmd := exec.Command(rsmi.BinPath, "--showallinfo", "--json")
-	output, err := cmd.CombinedOutput()
+	output, err := runGPUCommand(rsmi.BinPath, "--showallinfo", "--json")
 	if err != nil {
 		return nil
 	}

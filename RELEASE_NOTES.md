@@ -1,21 +1,29 @@
-# Komari Lite v1.0.60
+# Komari Lite v1.0.61
 
-## AI Monitoring audit corrections
+## Security and session boundaries
 
-- Read all overview dimensions in one bounded read-only database transaction so concurrent ingestion cannot mix range, pricing, model, task and daily totals from different snapshots. Reuse selected-range totals instead of scanning twice on the aggregate path.
-- Show wholly unpriced usage as Unpriced, not $0. Mixed usage explicitly shows the priced subtotal and priced/unpriced calls. Daily detail tables omit the unavailable task dimension while retaining provider and billing mode; general usage tables retain actual tasks.
-- Expose saved pricing provenance and effective time without representing operator-supplied metadata as independently verified official prices. Validate rates and exact custom model identifiers locally, disable invalid submissions, and retain server-side validation.
-- Add request identifiers and server/database timing diagnostics without exposing SQL or parameters. Clarify loading, filter reset semantics, quota observation versus last success, and missing quota-refresh telemetry. Make mobile table scrolling discoverable.
-- Add deterministic concurrent-ingestion regressions for raw and aggregate paths, duplicate-query checks, invalid-write preservation, cancellation, late-response/session-revocation and rendered UI regressions.
+- Bind pending two-factor enrollment to the authenticated account and session on the server; require the existing factor before replacement and consume enrollment atomically.
+- Revalidate RPC credentials on each dispatch so revoked sessions and rotated API keys cannot retain stale WebSocket privileges. Sensitive WebSocket methods cannot reuse a handshake OTP.
+- Bound JSON-RPC request size, batch count, execution duration, and serialized response size. Stop subsequent dispatch when a batch is canceled.
+- Make legacy GET logout non-mutating while retaining same-origin POST logout.
 
-## Unified release and preservation
+## Reliability and performance
 
-Panel, embedded administrator UI, package metadata, and Agent artifacts are version `1.0.60`. Agent artifacts are version `1.0.60`; installed Agents do not need updating for this Panel-only fix. No collector, gateway, credential routing, historical repricing, configuration or schema changes are included. Active request-account attribution remains unconfirmed and collection gaps remain null.
+- Bound queued, in-flight, and retry metric reports under one admission budget; limit write batches and preserve accepted reports during recoverable storage outages.
+- Propagate history-query cancellation, batch entity history reads, coalesce calibration cache rebuilds, and avoid unused calibration-history reads.
+- Read per-node runtime state without copying every node; add compatible browser-status WebSocket heartbeat/read/write deadlines and HTTP header/body-read limits without a global stream write timeout.
+- Abort dashboard requests on revocation and apply a deadline through response-body processing, retaining existing cache and account isolation.
+- Preserve current AI monitoring and the compact Glass card/list interface.
 
-The prior quota failure's exact historical cause is not retained in telemetry. The previously observed 17.4-second request outlier was not reproduced; diagnostics improve investigation but do not establish that every source of latency is eliminated.
+## Agent and installers
 
-Known frontend dependency audit findings are tracked separately; this release does not change dependency versions.
+- Defer GPU discovery and bound external command time/output. Bound probe concurrency with an optional local destination policy; preserve explicit private-network monitoring compatibility.
+- Harden public-IP discovery with HTTPS, validated addresses, response limits, and shared time budgets.
+- Add bounded installer downloads and an opt-in restricted service account without changing existing root deployments automatically.
+- Make traffic-retention regression tests independent of the wall clock.
 
-## Assets and rollout
+## Dependencies and release
 
-The release contains Linux panel binaries, 14 platform Agent binaries, installers, `hermes_collector.py`, `Glass.zip`, safe-controller assets, `update-komari.sh`, manifests, and `SHA256SUMS.txt`. Verify downloads before use. Safe updates preserve databases, credentials, configuration, history, and rollback snapshots; unknown/customized Glass trees must fail closed. Publishing does not itself upgrade installed services.
+Panel, embedded UI, and Agent artifacts are version `1.0.61`. Agent artifacts are version `1.0.61`; install the matching artifacts to obtain Agent-side changes. Build with Go 1.27.3, updated Go networking dependencies, Vite 6.4.4, and corrected source-map/tooling dependencies.
+
+The release contains Linux panel binaries, platform Agent binaries, installers, `hermes_collector.py`, `Glass.zip`, safe-controller assets, `update-komari.sh`, manifests, and `SHA256SUMS.txt`. Verify hashes before use. Upgrades preserve databases, credentials, configuration, historical monitoring, and rollback snapshots. Historical AI pricing is unchanged. Publishing release files alone does not upgrade installed services.

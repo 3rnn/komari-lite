@@ -130,9 +130,10 @@ func PostLogout(c *gin.Context) {
 }
 
 func Logout(c *gin.Context) {
-	session, _ := c.Cookie("session_token")
-	accounts.DeleteSession(session)
-	setSessionCookie(c, "", -1)
-	auditlog.Log(c.ClientIP(), "", "logged out", "logout")
-	c.Redirect(302, "/")
+	// Legacy links remain usable, but a navigation (including a cross-site
+	// navigation carrying a SameSite=Lax cookie) must not revoke credentials.
+	c.Header("Cache-Control", "no-store")
+	c.Header("Content-Security-Policy", "default-src 'none'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
+	c.Header("X-Frame-Options", "DENY")
+	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Confirm logout</title></head><body><h1>Log out?</h1><form method="post" action="/api/logout"><button type="submit">Log out</button></form><a href="/">Cancel</a></body></html>`))
 }

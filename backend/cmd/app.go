@@ -334,7 +334,7 @@ func (a *App) RunInstallGuide() (bool, error) {
 	})
 
 	a.engine = r
-	a.server = &http.Server{Addr: flags.Listen, Handler: r}
+	a.server = httpsserver.NewHTTPServer(flags.Listen, r)
 	serverErr := make(chan error, 1)
 	logger.Infof("server", "First-run installation guide is available on %s", flags.Listen)
 	go func() {
@@ -408,7 +408,7 @@ func (a *App) RunLegacyUpgrade(summary migrations.LegacyMonitoringSummary) (bool
 	})
 
 	a.engine = r
-	a.server = &http.Server{Addr: flags.Listen, Handler: r}
+	a.server = httpsserver.NewHTTPServer(flags.Listen, r)
 	serverErr := make(chan error, 1)
 	logger.Infof("server", "Legacy monitoring data requires the 1.2.7 upgrade wizard on %s", flags.Listen)
 	go func() {
@@ -483,7 +483,7 @@ func (a *App) RunMetricStorageUpgrade(summary metric.SQLiteMigrationSummary) (bo
 	})
 
 	a.engine = r
-	a.server = &http.Server{Addr: flags.Listen, Handler: r}
+	a.server = httpsserver.NewHTTPServer(flags.Listen, r)
 	serverErr := make(chan error, 1)
 	logger.Infof("server", "Metric storage upgrade progress is available on %s", flags.Listen)
 	go func() {
@@ -619,10 +619,7 @@ func (a *App) BuildRouter() error {
 
 // Run starts the HTTP service and blocks until an interrupt signal is received or the service exits abnormally.
 func (a *App) Run() error {
-	a.server = &http.Server{
-		Addr:    flags.Listen,
-		Handler: httpsserver.Default.HTTPRedirectHandler(a.engine),
-	}
+	a.server = httpsserver.NewHTTPServer(flags.Listen, httpsserver.Default.HTTPRedirectHandler(a.engine))
 	listener, err := listenAndFinalizeStartup(
 		flags.Listen,
 		a.CommitRestore,

@@ -6,7 +6,6 @@ package monitoring
 import (
 	"bytes"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -24,7 +23,7 @@ func GpuName() string {
 }
 
 func getFromLspci() string {
-	out, err := exec.Command("lspci").Output()
+	out, err := runGPUCommand("lspci")
 	if err != nil {
 		return "None"
 	}

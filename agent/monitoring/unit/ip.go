@@ -2,6 +2,7 @@ package monitoring
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log"
 	"net"
@@ -28,7 +29,8 @@ var (
 			TLSHandshakeTimeout:   10 * time.Second,
 			ExpectContinueTimeout: 1 * time.Second,
 		},
-		Timeout: 15 * time.Second,
+		Timeout:       5 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 	}
 	ipv6HTTPClient = &http.Client{
 		Transport: &http.Transport{
@@ -43,12 +45,15 @@ var (
 			TLSHandshakeTimeout:   10 * time.Second,
 			ExpectContinueTimeout: 1 * time.Second,
 		},
-		Timeout: 15 * time.Second,
+		Timeout:       5 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 	}
 	userAgent = "curl/8.0.1"
 )
 
 func GetIPv4Address() (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
 	webAPIs := []string{
 		"https://www.visa.cn/cdn-cgi/trace",
@@ -56,23 +61,13 @@ func GetIPv4Address() (string, error) {
 		"https://www.toutiao.com/stream/widget/local_weather/data/",
 		"https://edge-ip.html.zone/geo",
 		"https://vercel-ip.html.zone/geo",
-		"http://ipv4.ip.sb",
+		"https://ipv4.ip.sb",
 		"https://api.ipify.org?format=json",
 	}
 
 	for _, api := range webAPIs {
 		// get ipv4
-		req, err := http.NewRequest("GET", api, nil)
-		if err != nil {
-			continue
-		}
-		req.Header.Set("User-Agent", userAgent)
-		resp, err := ipv4HTTPClient.Do(req)
-		if err != nil {
-			continue
-		}
-		body, err := io.ReadAll(resp.Body)
-		_ = resp.Body.Close() // Close the response immediately after reading to avoid blocking.
+		body, err := readPublicIPResponse(ctx, ipv4HTTPClient, api)
 		if err != nil {
 			continue
 		}
@@ -86,27 +81,19 @@ func GetIPv4Address() (string, error) {
 }
 
 func GetIPv6Address() (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
 	webAPIs := []string{
 		"https://v6.ip.zxinc.org/info.php?type=json",
 		"https://api6.ipify.org?format=json",
 		"https://ipv6.icanhazip.com",
-		"http://api-ipv6.ip.sb/geoip",
+		"https://api-ipv6.ip.sb/geoip",
 	}
 
 	for _, api := range webAPIs {
 		// get ipv6
-		req, err := http.NewRequest("GET", api, nil)
-		if err != nil {
-			continue
-		}
-		req.Header.Set("User-Agent", userAgent)
-		resp, err := ipv6HTTPClient.Do(req)
-		if err != nil {
-			continue
-		}
-		body, err := io.ReadAll(resp.Body)
-		_ = resp.Body.Close() // Close the response immediately after reading to avoid blocking.
+		body, err := readPublicIPResponse(ctx, ipv6HTTPClient, api)
 		if err != nil {
 			continue
 		}
@@ -310,4 +297,34 @@ func getIPFromInterfaces(nicNames []string) (ipv4, ipv6 string) {
 	}
 
 	return ipv4, ipv6
+}
+
+// The timeout bounds the entire provider sequence, not just each request.
+const publicIPBodyLimit = 64 * 1024
+
+func readPublicIPResponse(ctx context.Context, client *http.Client, endpoint string) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	if req.URL.Scheme != "https" {
+		return nil, errors.New("public IP discovery requires HTTPS")
+	}
+	req.Header.Set("User-Agent", userAgent)
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, errors.New("public IP provider failed")
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, publicIPBodyLimit+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(body) > publicIPBodyLimit {
+		return nil, errors.New("public IP response exceeds limit")
+	}
+	return body, nil
 }

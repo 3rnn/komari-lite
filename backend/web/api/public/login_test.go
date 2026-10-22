@@ -205,7 +205,7 @@ func TestPostLogoutRequiresLiveSessionCookie(t *testing.T) {
 	}
 }
 
-func TestLegacyGetLogoutStillRedirects(t *testing.T) {
+func TestLegacyGetLogoutShowsSafeConfirmation(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	token, err := accounts.CreateSession("logout-user", sessionCookieMaxAge, "", "", "password")
 	if err != nil {
@@ -218,10 +218,12 @@ func TestLegacyGetLogoutStillRedirects(t *testing.T) {
 	request.AddCookie(&http.Cookie{Name: "session_token", Value: token})
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, request)
-	assert.Equal(t, http.StatusFound, response.Code)
-	assert.Equal(t, "/", response.Header().Get("Location"))
+	assert.Equal(t, http.StatusOK, response.Code)
+	assert.Empty(t, response.Header().Get("Location"))
+	assert.Empty(t, response.Header().Values("Set-Cookie"))
+	assert.Contains(t, response.Body.String(), `method="post" action="/api/logout"`)
 	_, err = accounts.GetSession(token)
-	assert.Error(t, err)
+	assert.NoError(t, err, "navigation must not revoke a session")
 }
 
 func TestPostLogoutBehindTrustedReverseProxy(t *testing.T) {

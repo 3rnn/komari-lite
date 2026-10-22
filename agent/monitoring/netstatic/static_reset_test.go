@@ -48,6 +48,9 @@ func TestFlushCacheDoesNotAttributePreResetTrafficToNewCycle(t *testing.T) {
 	SetResetClock(15, "12:38:12", "UTC")
 	boundary := time.Date(2026, 9, 15, 12, 38, 12, 0, time.UTC)
 	flushAt := boundary.Add(108 * time.Second)
+	previousNow := now
+	now = func() time.Time { return flushAt }
+	t.Cleanup(func() { now = previousNow; SetResetClock(0, "", "") })
 
 	mu.Lock()
 	staticCache["eth0"] = []TrafficData{
@@ -57,7 +60,10 @@ func TestFlushCacheDoesNotAttributePreResetTrafficToNewCycle(t *testing.T) {
 		{Timestamp: uint64(flushAt.Unix()), Tx: 15, Rx: 3},
 	}
 	flushCacheLocked(uint64(flushAt.Unix()))
-	_ = saveToFileLocked()
+	if err := saveToFileLocked(); err != nil {
+		mu.Unlock()
+		t.Fatal(err)
+	}
 	mu.Unlock()
 
 	after, err := GetTotalTrafficBetween(uint64(boundary.Unix()), uint64(flushAt.Unix()))

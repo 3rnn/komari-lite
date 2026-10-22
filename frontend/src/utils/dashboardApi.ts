@@ -11,9 +11,37 @@ let pendingDashboardRequest: { accountKey: string; key: string; request: Promise
 let dashboardChartsSnapshot: { accountKey: string; key: string; data: DashboardChartsData; savedAt: number } | null = null;
 let pendingDashboardChartsRequest: { accountKey: string; key: string; request: Promise<DashboardChartsData> } | null = null;
 let cacheGeneration = 0;
+const dashboardControllers = new Set<AbortController>();
+
+function dashboardRequestLifetime() {
+  const controller = new AbortController();
+  dashboardControllers.add(controller);
+  const timer = setTimeout(() => controller.abort(new DOMException("Dashboard request timed out", "TimeoutError")), 30_000);
+  return {
+    signal: controller.signal,
+    detachInvalidation: () => dashboardControllers.delete(controller),
+    async run<T>(work: Promise<T>): Promise<T> {
+      let onAbort: (() => void) | undefined;
+      try {
+        const aborted = new Promise<never>((_, reject) => {
+          onAbort = () => reject(controller.signal.reason);
+          controller.signal.addEventListener("abort", onAbort, { once: true });
+          if (controller.signal.aborted) onAbort();
+        });
+        return await Promise.race([work, aborted]);
+      } finally {
+        if (onAbort) controller.signal.removeEventListener("abort", onAbort);
+        clearTimeout(timer);
+        dashboardControllers.delete(controller);
+      }
+    },
+  };
+}
 
 function clearDashboardDataSnapshots(): void {
   cacheGeneration++;
+  for (const controller of dashboardControllers) controller.abort(new DOMException("Dashboard request invalidated", "AbortError"));
+  dashboardControllers.clear();
   dashboardSnapshot = null;
   dashboardChartsSnapshot = null;
   pendingDashboardRequest = null;
@@ -44,11 +72,15 @@ export async function requestDashboard(
   const params = new URLSearchParams({ sections: sections.join(","), limit: String(rankingLimit) });
   const generation = cacheGeneration;
   const revocationGeneration = getAdminRevocationGeneration();
-  const request = fetch(`/api/admin/dashboard?${params}`, { cache: "no-store" })
+  const lifetime = dashboardRequestLifetime();
+  const request = lifetime.run(fetch(`/api/admin/dashboard?${params}`, { cache: "no-store", signal: lifetime.signal })
     .then(async (response) => {
       adminRequestInvalidated(revocationGeneration);
       if (generation !== cacheGeneration) throw new DOMException("Dashboard request invalidated", "AbortError");
-      if (response.status === 401) revokeAdminSession();
+      if (response.status === 401) {
+        lifetime.detachInvalidation();
+        revokeAdminSession();
+      }
       if (!response.ok) {
         let message = `HTTP ${response.status}`;
         try {
@@ -68,7 +100,7 @@ export async function requestDashboard(
       dashboardSnapshot = { accountKey, key, data, savedAt: Date.now() };
       return data;
     })
-    .finally(() => {
+    ).finally(() => {
       if (pendingDashboardRequest?.request === request) {
         pendingDashboardRequest = null;
       }
@@ -89,11 +121,15 @@ export async function requestDashboardCharts(
   const params = new URLSearchParams({ sections: sections.join(","), limit: String(rankingLimit) });
   const generation = cacheGeneration;
   const revocationGeneration = getAdminRevocationGeneration();
-  const request = fetch(`/api/admin/dashboard/charts?${params}`, { cache: "no-store" })
+  const lifetime = dashboardRequestLifetime();
+  const request = lifetime.run(fetch(`/api/admin/dashboard/charts?${params}`, { cache: "no-store", signal: lifetime.signal })
     .then(async (response) => {
       adminRequestInvalidated(revocationGeneration);
       if (generation !== cacheGeneration) throw new DOMException("Dashboard request invalidated", "AbortError");
-      if (response.status === 401) revokeAdminSession();
+      if (response.status === 401) {
+        lifetime.detachInvalidation();
+        revokeAdminSession();
+      }
       if (!response.ok) {
         let message = `HTTP ${response.status}`;
         try {
@@ -113,7 +149,7 @@ export async function requestDashboardCharts(
       dashboardChartsSnapshot = { accountKey, key, data, savedAt: Date.now() };
       return data;
     })
-    .finally(() => {
+    ).finally(() => {
       if (pendingDashboardChartsRequest?.request === request) {
         pendingDashboardChartsRequest = null;
       }

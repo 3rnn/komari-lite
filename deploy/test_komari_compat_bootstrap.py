@@ -11,8 +11,8 @@ HELPER = ROOT/'komari-compat-v1019.py'
 class BootstrapTests(unittest.TestCase):
     def test_single_command_bootstrap_pins_immutable_helper(self):
         body = BOOTSTRAP.read_text()
-        self.assertIn('e8c41f12ed3a87821677925ed4095280aa7dd073', body)
-        self.assertIn('37153fa134b0395855a212c0595250c2aed294859b01f575bdbb83ac871c7e32', body)
+        self.assertIn('57034cd6c4104ca9c9c3db3898e68d1fa99588d9', body)
+        self.assertIn('5610bfffd020393eeb351d415ae60dd87c5b94447b2eb44eebe20b3b7d09efcf', body)
         self.assertIn(hashlib.sha256(HELPER.read_bytes()).hexdigest(), body)
         self.assertIn('helper_size=' + str(HELPER.stat().st_size), body)
         self.assertNotIn('/main/', body)

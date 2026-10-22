@@ -52,8 +52,7 @@ func (smi *NvidiaSMI) Start() error {
 }
 
 func (smi *NvidiaSMI) pollNvidiaSMI() []byte {
-	cmd := exec.Command(smi.BinPath, "-q", "-x")
-	output, err := cmd.CombinedOutput()
+	output, err := runGPUCommand(smi.BinPath, "-q", "-x")
 	if err != nil {
 		return nil
 	}

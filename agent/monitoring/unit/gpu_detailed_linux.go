@@ -4,6 +4,7 @@ package monitoring
 
 import (
 	"errors"
+	"sync"
 )
 
 const (
@@ -11,7 +12,13 @@ const (
 	vendorNVIDIA
 )
 
-var vendorType = getDetailedVendor()
+var vendorType uint8
+var vendorOnce sync.Once
+
+func detailedVendor() uint8 {
+	vendorOnce.Do(func() { vendorType = getDetailedVendor() })
+	return vendorType
+}
 
 // DetailedGPUInfo holds detailed GPU information.
 type DetailedGPUInfo struct {
@@ -80,7 +87,7 @@ func GetDetailedGPUHost() ([]string, error) {
 	var gi []string
 	var err error
 
-	switch vendorType {
+	switch detailedVendor() {
 	case vendorAMD:
 		gi, err = getAMDDetailedHost()
 	case vendorNVIDIA:
@@ -101,7 +108,7 @@ func GetDetailedGPUState() ([]float64, error) {
 	var gs []float64
 	var err error
 
-	switch vendorType {
+	switch detailedVendor() {
 	case vendorAMD:
 		gs, err = getAMDDetailedStat()
 	case vendorNVIDIA:
@@ -122,7 +129,7 @@ func GetDetailedGPUInfo() ([]DetailedGPUInfo, error) {
 	var gpuInfos []DetailedGPUInfo
 	var err error
 
-	switch vendorType {
+	switch detailedVendor() {
 	case vendorAMD:
 		gpuInfos, err = getAMDDetailedInfo()
 	case vendorNVIDIA:

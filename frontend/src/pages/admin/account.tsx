@@ -200,7 +200,10 @@ const InnerLayout = () => {
         <Flex direction="column" className="gap-3">
           <SettingCardLabel>2FA</SettingCardLabel>
           {account?.["2fa_enabled"] ? (
-            <TwoFactorEnabled />
+            <>
+              <TwoFactorEnabled />
+              <TwoFactorDisabled replacing />
+            </>
           ) : (
             <TwoFactorDisabled></TwoFactorDisabled>
           )}
@@ -214,37 +217,67 @@ const InnerLayout = () => {
     </Flex>
   );
 };
-const TwoFactorDisabled = () => {
+const TwoFactorDisabled = ({ replacing = false }: { replacing?: boolean }) => {
   const { t } = useTranslation();
   const { refresh } = useAccount();
   const [saving, setSaving] = React.useState(false);
   const [isOpen, setIsOpen] = React.useState(false);
-  const [isLoading, setIsLoading] = React.useState(true);
+  const [isLoading, setIsLoading] = React.useState(false);
   const [qrcode, setQRCode] = React.useState<string | null>(null);
-  const [code, setCode] = React.useState<string>("");
+  const [code, setCode] = React.useState("");
+  const [existingCode, setExistingCode] = React.useState("");
+  const pendingRequest = React.useRef<AbortController | null>(null);
+  const qrURL = React.useRef<string | null>(null);
+  const title = replacing ? "Replace authenticator" : t("account.enable_2fa");
+
+  const generateQRCode = React.useCallback(async (existingCode = "") => {
+    pendingRequest.current?.abort();
+    const controller = new AbortController();
+    pendingRequest.current = controller;
+    setIsLoading(true);
+    try {
+      const response = await fetch("/api/admin/2fa/generate", {
+        headers: existingCode ? { "X-2FA-Code": existingCode } : {},
+        cache: "no-store",
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || t("account.qr_fetch_error"));
+      }
+      const blob = await response.blob();
+      if (controller.signal.aborted) return;
+      if (qrURL.current) URL.revokeObjectURL(qrURL.current);
+      qrURL.current = URL.createObjectURL(blob);
+      setQRCode(qrURL.current);
+      setExistingCode("");
+      setCode("");
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        toast.error(error instanceof Error ? error.message : t("account.qr_fetch_error"));
+      }
+    } finally {
+      if (!controller.signal.aborted) setIsLoading(false);
+    }
+  }, [t]);
 
   React.useEffect(() => {
-    if (isOpen) {
-      setIsLoading(true);
-      fetch("/api/admin/2fa/generate")
-        .then((response) => {
-          if (!response.ok) {
-            throw new Error(t("account.qr_fetch_error"));
-          }
-          return response.blob();
-        })
-        .then((blob) => {
-          const url = URL.createObjectURL(blob);
-          setQRCode(url);
-        })
-        .catch((err) => toast.error(err.message))
-        .finally(() => setIsLoading(false));
-    }
-  }, [isOpen]);
+    setCode("");
+    setExistingCode("");
+    setQRCode(null);
+    setIsLoading(false);
+    if (isOpen && !replacing) void generateQRCode();
+    return () => {
+      pendingRequest.current?.abort();
+      if (qrURL.current) URL.revokeObjectURL(qrURL.current);
+      qrURL.current = null;
+    };
+  }, [isOpen, replacing, generateQRCode]);
 
   const handleEnable2fa = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!code) {
+    if (!qrcode || isLoading || saving) return;
+    if (code.length !== 6) {
       toast.error(t("account.otp_empty_error"));
       return;
     }
@@ -255,9 +288,7 @@ const TwoFactorDisabled = () => {
       .then(async (res) => {
         if (!res.ok) {
           const data = await res.json();
-          throw new Error(
-            data.message || `Failed to enable 2FA (${res.status})`
-          );
+          throw new Error(data.message || `Failed to enable 2FA (${res.status})`);
         }
         return res.json();
       })
@@ -277,38 +308,73 @@ const TwoFactorDisabled = () => {
       className="rounded-md border border-[var(--gray-a5)] bg-[var(--color-panel-solid)] p-4"
     >
       <label className="text-base font-semibold leading-6">
-        {t("account.2fa_disabled")}
+        {replacing ? title : t("account.2fa_disabled")}
       </label>
-      <Dialog.Root open={isOpen} onOpenChange={setIsOpen}>
+      <Dialog.Root open={isOpen} onOpenChange={(open) => { if (!saving) setIsOpen(open); }}>
         <Dialog.Trigger>
-          <div>
-            <Button className="w-full sm:w-auto">{t("account.enable_2fa")}</Button>
-          </div>
+          <Button className="w-full sm:w-auto">{title}</Button>
         </Dialog.Trigger>
         <AppDialogContent>
-          <Dialog.Title>{t("account.enable_2fa")}</Dialog.Title>
+          <Dialog.Title>{title}</Dialog.Title>
+          <Dialog.Description>
+            {replacing
+              ? "Verify your current authenticator, then scan the new QR code. Your existing factor remains active until you confirm the new code."
+              : t("account.2fa_qr_code_hint")}
+          </Dialog.Description>
           <Flex direction="column" gap="2">
-            <label>{t("account.2fa_qr_code_hint")}</label>
+            {!qrcode && !isLoading && (
+              <form className="flex flex-col gap-2" onSubmit={(event) => {
+                event.preventDefault();
+                if (replacing && !existingCode) return;
+                void generateQRCode(existingCode);
+              }}>
+                {replacing && (
+                  <>
+                    <label htmlFor="existing_2fa_code">Current authenticator code</label>
+                    <TextField.Root
+                      id="existing_2fa_code"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      maxLength={6}
+                      required
+                      pattern="[0-9]{6}"
+                      value={existingCode}
+                      onChange={(event) => setExistingCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                    />
+                  </>
+                )}
+                <Button type="submit">Generate QR code</Button>
+              </form>
+            )}
             <div className="flex justify-center">
               {isLoading ? (
                 <Skeleton width="200px" height="200px" />
-              ) : (
-                <img src={qrcode!} alt="2FA QR Code" width={200} height={200} />
-              )}
+              ) : qrcode ? (
+                <img src={qrcode} alt="2FA QR Code" width={200} height={200} />
+              ) : null}
             </div>
-            <label>{t("account.2fa_otp_input_prompt")}</label>
-            <form className="flex flex-col gap-2" onSubmit={handleEnable2fa}>
-              <TextField.Root
-                type="number"
-                name="code"
-                placeholder="000000"
-                value={code}
-                onChange={(e) => setCode((e.target as HTMLInputElement).value)}
-              />
-              <Button disabled={saving} type="submit">
-                {t("account.enable_2fa")}
-              </Button>
-            </form>
+            {qrcode && (
+              <form className="flex flex-col gap-2" onSubmit={handleEnable2fa}>
+                <label htmlFor={replacing ? "replace_2fa_code" : "enable_2fa_code"}>
+                  {t("account.2fa_otp_input_prompt")}
+                </label>
+                <TextField.Root
+                  id={replacing ? "replace_2fa_code" : "enable_2fa_code"}
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  required
+                  pattern="[0-9]{6}"
+                  name="code"
+                  placeholder="000000"
+                  value={code}
+                  onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                />
+                <Button disabled={saving || isLoading || !qrcode} type="submit">
+                  {title}
+                </Button>
+              </form>
+            )}
           </Flex>
         </AppDialogContent>
       </Dialog.Root>

@@ -21,6 +21,9 @@ func openLedgerTestDB(t *testing.T, name string) *gorm.DB {
 		Logger: logger.Default.LogMode(logger.Silent),
 	})
 	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, sqlDB.Close()) })
 	require.NoError(t, db.AutoMigrate(
 		&models.Client{},
 		&models.TrafficReportNotification{},

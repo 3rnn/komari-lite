@@ -11,6 +11,7 @@ import json
 import os
 from pathlib import Path
 import re
+import resource
 import shutil
 import stat
 import subprocess
@@ -51,7 +52,15 @@ def download(url, target, tool, limit):
     else:
         argv = [executable, '--quiet', '--https-only', '--max-redirect=5',
                 '--timeout=20', '--tries=2', '--output-document', str(target), url]
-    subprocess.run(argv, check=True, capture_output=True, timeout=330)
+    # Enforce the disk limit during streaming, including wget responses without
+    # Content-Length (wget --quota does not bound a single object).
+    def cap_output():
+        resource.setrlimit(resource.RLIMIT_FSIZE, (limit, limit))
+    try:
+        subprocess.run(argv, check=True, capture_output=True, timeout=330, preexec_fn=cap_output)
+    except BaseException:
+        target.unlink(missing_ok=True)
+        raise
     require(target.is_file() and 0 < target.stat().st_size <= limit, 'missing/oversized download')
 
 

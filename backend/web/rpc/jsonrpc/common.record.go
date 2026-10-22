@@ -7,9 +7,10 @@ import (
 	"time"
 
 	"github.com/komari-monitor/komari/database/clients"
+	"github.com/komari-monitor/komari/database/dbcore"
+	"github.com/komari-monitor/komari/database/metricstore"
 	"github.com/komari-monitor/komari/database/models"
 	recordsdb "github.com/komari-monitor/komari/database/records"
-	"github.com/komari-monitor/komari/database/tasks"
 	"github.com/komari-monitor/komari/pkg/rpc"
 )
 
@@ -18,6 +19,9 @@ func init() {
 }
 
 func getRecords(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
+	if err := ctx.Err(); err != nil {
+		return nil, rpc.MakeError(rpc.InternalError, "Record request cancelled", err.Error())
+	}
 	meta := rpc.MetaFromContext(ctx)
 	var params struct {
 		Type     string     `json:"type"`      // "load" | "ping"; default "load"
@@ -92,7 +96,7 @@ func getRecords(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpc
 			queryMaxCount = -1
 		}
 		// fetch load records
-		recs, err := getLoadRecordsCombined(params.UUID, startTime, endTime, params.LoadType, queryMaxCount)
+		recs, err := getLoadRecordsCombined(ctx, params.UUID, startTime, endTime, params.LoadType, queryMaxCount)
 		if err != nil {
 			return nil, rpc.MakeError(rpc.InternalError, "Failed to fetch records", err.Error())
 		}
@@ -178,12 +182,14 @@ func getRecords(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpc
 		if taskId == 0 {
 			taskId = -1
 		}
-		recs, err := tasks.GetPingRecords(params.UUID, taskId, startTime, endTime)
+		recs, err := metricstore.GetPingRecords(ctx, params.UUID, taskId, startTime, endTime)
 		if err != nil {
 			return nil, rpc.MakeError(rpc.InternalError, "Failed to fetch ping records", err.Error())
 		}
-		pingTasks, err := tasks.GetAllPingTasks()
-		if err != nil {
+		// Keep the existing task ordering while binding this lookup to the same
+		// request budget as the metric-store history read.
+		var pingTasks []models.PingTask
+		if err := dbcore.GetDBInstance().WithContext(ctx).Order("weight ASC").Order("id ASC").Find(&pingTasks).Error; err != nil {
 			return nil, rpc.MakeError(rpc.InternalError, "Failed to fetch ping tasks", err.Error())
 		}
 		recs = filterPingRecordsByCurrentAssignments(recs, pingTasksByStringID(pingTasks))
@@ -231,6 +237,9 @@ func getRecords(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpc
 		})
 
 		for _, r := range recs {
+			if err := ctx.Err(); err != nil {
+				return nil, rpc.MakeError(rpc.InternalError, "Ping history request cancelled", err.Error())
+			}
 			rr := RecordsResp{
 				TaskId: r.TaskId,
 				Time:   r.Time,
@@ -275,6 +284,9 @@ func getRecords(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpc
 		// tasks summary (always included for ping type; do not expose target field)
 		toList := make([]map[string]any, 0, len(pingTasks))
 		for _, t := range pingTasks {
+			if err := ctx.Err(); err != nil {
+				return nil, rpc.MakeError(rpc.InternalError, "Ping history request cancelled", err.Error())
+			}
 			if taskId != -1 && t.Id != uint(taskId) {
 				continue
 			}
@@ -294,6 +306,9 @@ func getRecords(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpc
 			// Collect all valid (non-dropout) latency values for the task to calculate the percentile
 			latencies := make([]int, 0, 64)
 			for _, r := range recs {
+				if err := ctx.Err(); err != nil {
+					return nil, rpc.MakeError(rpc.InternalError, "Ping history request cancelled", err.Error())
+				}
 				if r.TaskId != t.Id {
 					continue
 				}
@@ -429,6 +444,9 @@ func getRecords(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpc
 		sort.Slice(response.Records, func(i, j int) bool {
 			return response.Records[i].Time.Before(response.Records[j].Time)
 		})
+		if err := ctx.Err(); err != nil {
+			return nil, rpc.MakeError(rpc.InternalError, "Ping history request cancelled", err.Error())
+		}
 		return response, nil
 	default:
 		return nil, rpc.MakeError(rpc.InvalidParams, "Invalid type, expected 'load' or 'ping'", params.Type)
@@ -439,13 +457,13 @@ func getRecords(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpc
 
 // getLoadRecordsCombined fetches records for a client or all clients within a time range,
 // combining recent short-term table and long-term table with 15-min grouping for recent part.
-func getLoadRecordsCombined(uuid string, start, end time.Time, loadType string, maxCount int) ([]models.Record, error) {
+func getLoadRecordsCombined(ctx context.Context, uuid string, start, end time.Time, loadType string, maxCount int) ([]models.Record, error) {
 	// prefer the existing function when uuid provided
 	if uuid != "" {
-		return recordsdb.GetRecordsByClientAndTimeForLoadTypeMaxPoints(uuid, start, end, loadType, maxCount)
+		return recordsdb.GetRecordsByClientAndTimeForLoadTypeMaxPointsContext(ctx, uuid, start, end, loadType, maxCount)
 	}
 	// All clients: unified query through the records package, automatically go to the metric store when the metric store is enabled
-	return recordsdb.GetRecordsByTimeForLoadTypeMaxPoints(start, end, loadType, maxCount)
+	return recordsdb.GetRecordsByTimeForLoadTypeMaxPointsContext(ctx, start, end, loadType, maxCount)
 }
 
 // ---------- downsampling helpers ----------

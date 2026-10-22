@@ -41,6 +41,7 @@ target_dir="/opt/komari"
 install_source=""
 install_version="" # the panel's one-click command supplies the pinned release version
 install_sha256="" # caller-pinned digest for custom download sources
+install_service_user="" # explicit opt-in, pre-existing dedicated account (systemd only)
 # Opt-in helper inputs are local installation choices, never remote configuration.
 enable_hermes_ai=false
 hermes_owner="" hermes_home="" install_hermes_sha256=""
@@ -79,7 +80,7 @@ esac
 komari_args=()
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --install-dir|--install-service-name|--install-source|--install-ghproxy|--install-version|--install-sha256|--install-hermes-owner|--install-hermes-home|--install-hermes-sha256)
+        --install-dir|--install-service-name|--install-source|--install-ghproxy|--install-version|--install-sha256|--install-service-user|--install-hermes-owner|--install-hermes-home|--install-hermes-sha256)
             if [[ $# -lt 2 || -z $2 || $2 == --install* ]]; then
                 log_error "$1 requires a value"
                 exit 1
@@ -119,6 +120,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --install-version)
             install_version="$2"
+            shift 2
+            ;;
+        --install-service-user)
+            install_service_user="$2"
             shift 2
             ;;
         --install-sha256)
@@ -677,11 +682,11 @@ stage_hermes_helper() {
     staged_helper="$staging_dir/helper"
     local expected_helper=$install_hermes_sha256 actual_helper
     if [[ -z $expected_helper ]]; then
-        [[ -f $staging_dir/SHA256SUMS.txt ]] || curl --fail --show-error --proto '=https' --proto-redir '=https' -L -o "$staging_dir/SHA256SUMS.txt" "$install_source/SHA256SUMS.txt" || return 1
+        [[ -f $staging_dir/SHA256SUMS.txt ]] || download_https "$install_source/SHA256SUMS.txt" "$staging_dir/SHA256SUMS.txt" 1048576 || return 1
         expected_helper=$(awk '$2 == "hermes_collector.py" && length($1) == 64 { print tolower($1) }' "$staging_dir/SHA256SUMS.txt")
     fi
     [[ $expected_helper =~ ^[[:xdigit:]]{64}$ ]] || { log_error 'Missing or ambiguous pinned helper checksum'; return 1; }
-    curl --fail --show-error --proto '=https' --proto-redir '=https' -L -o "$staged_helper" "$install_source/hermes_collector.py" || return 1
+    download_https "$install_source/hermes_collector.py" "$staged_helper" 1048576 || return 1
     actual_helper=$(sha256sum "$staged_helper"); actual_helper=${actual_helper%% *}
     [[ $actual_helper == ${expected_helper,,} ]] || { log_error 'Hermes helper checksum mismatch'; return 1; }
     chmod 644 "$staged_helper" || return 1
@@ -776,7 +781,63 @@ verify_existing_service() {
         [[ ! -L $file ]] || { log_error 'Symlink at existing Agent artifact'; return 1; }
     done
 }
+# Existing root services stay root unless an operator performs a separate,
+# reviewed migration of credentials and traffic history. Restricted upgrades
+# inherit their verified account when the option is omitted.
+select_service_user() {
+    local requested=$1 existing=$2 user
+    user=${requested:-${existing:-root}}
+    [[ $user =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || return 1
+    [[ -z $existing || $user == "$existing" ]] || return 1
+    if [[ $user != root ]]; then
+        [[ $(id -u "$user") != 0 && $(id -g "$user") != 0 ]] || return 1
+        id "$user" >/dev/null 2>&1 || return 1
+    fi
+    printf '%s' "$user"
+}
+
+systemd_security() {
+    [[ $1 != root ]] || return 0
+    local path=$2
+    path=${path//\\/\\\\}
+    path=${path//\"/\\\"}
+    path=${path//%/%%}
+    printf '%s\n' 'NoNewPrivileges=yes' 'ProtectSystem=strict' \
+        "ReadWritePaths=\"$path\"" 'CapabilityBoundingSet=CAP_NET_RAW' \
+        'AmbientCapabilities=CAP_NET_RAW' 'Environment=KOMARI_AGENT_PRIVILEGED_ICMP=1' \
+        'ProtectKernelTunables=yes' 'ProtectKernelModules=yes' \
+        'ProtectControlGroups=yes' 'RestrictSUIDSGID=yes' 'LockPersonality=yes' \
+        'RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK'
+}
+
+validate_service_mode() {
+    # The existing helper spool is owner-private and root-relayed. Never widen
+    # its permissions or silently install a restricted Agent unable to ACK it.
+    if [[ $1 != root && $2 == true ]]; then
+        log_error 'Hermes AI relay requires root Agent mode; restricted spool access needs a reviewed migration'
+        return 1
+    fi
+}
+
 verify_existing_service || exit 1
+existing_service_user=""
+if [[ $init_system == systemd && -f /etc/systemd/system/${service_name}.service ]]; then
+    existing_service_user=$(systemctl show "${service_name}.service" -p User --value) || exit 1
+    existing_service_user=${existing_service_user:-root}
+fi
+service_user=$(select_service_user "$install_service_user" "$existing_service_user") || {
+    log_error 'Invalid service account or unsupported identity migration; existing service unchanged'; exit 1;
+}
+validate_service_mode "$service_user" "$enable_hermes_ai" || exit 1
+if [[ -n $existing_service_user && $service_user != root ]]; then
+    existing_workdir=$(systemctl show "${service_name}.service" -p WorkingDirectory --value) || exit 1
+    [[ $existing_workdir == "$target_dir/state" ]] || {
+        log_error 'Existing restricted service has a different state layout; manual migration required'; exit 1;
+    }
+fi
+if [[ $service_user != root && $init_system != systemd ]]; then
+    log_error 'Restricted service mode requires systemd'; exit 1
+fi
 if [[ $init_system == openrc && ( -e $komari_agent_path || -e $target_dir/agent-config.json || -e $target_dir/agent-service.sh ) ]]; then
     log_error 'OpenRC artifacts already exist; manual migration required before installation'
     exit 1
@@ -796,6 +857,25 @@ fi
 install_dependencies
 log_step "Creating installation directory: ${GREEN}$target_dir${NC}"
 validate_install_directory "$target_dir" || exit 1
+service_workdir=$target_dir
+if [[ $service_user != root ]]; then
+    command -v runuser >/dev/null 2>&1 || { log_error 'Restricted mode requires runuser'; exit 1; }
+    service_group=$(id -gn "$service_user") || exit 1
+    # Do not broaden permissions of any ancestor (especially /root or /home).
+    ancestor=$(dirname "$target_dir")
+    runuser -u "$service_user" -- test -x "$ancestor" || {
+        log_error 'Service account cannot traverse installation ancestors'; exit 1;
+    }
+    chown "root:$service_group" "$target_dir" && chmod 750 "$target_dir" || exit 1
+    service_workdir="$target_dir/state"
+    if [[ -e $service_workdir || -L $service_workdir ]]; then
+        [[ -d $service_workdir && ! -L $service_workdir && $(stat -c %u "$service_workdir") == $(id -u "$service_user") && $(stat -c %a "$service_workdir") == 700 ]] || {
+            log_error 'Unsafe restricted state directory'; exit 1;
+        }
+    else
+        mkdir -m 700 "$service_workdir" && chown "$service_user:$service_group" "$service_workdir" || exit 1
+    fi
+fi
 
 verify_started_service() {
     local state domain
@@ -813,10 +893,27 @@ trap 'if [[ ${transaction_pending:-no} == yes ]]; then rollback_install; fi; if 
 trap 'exit 1' INT TERM
 staged_agent="${staging_dir}/${file_name}"
 
+# Bound time, protocols and streamed disk use, even on curl versions where
+# --max-filesize only checks Content-Length. The private staging file is removed
+# after any failure. Bash ulimit -f uses 1024-byte blocks on supported Linux.
+download_https() {
+    local url=$1 output=$2 limit=$3
+    [[ $url == https://* && $limit =~ ^[1-9][0-9]*$ ]] || return 1
+    if ! (
+        ulimit -f "$(( (limit + 1023) / 1024 ))" || exit 1
+        curl --fail --show-error --location --proto '=https' --proto-redir '=https' \
+            --connect-timeout 15 --max-time 300 --max-filesize "$limit" -o "$output" "$url"
+    ); then
+        rm -f -- "$output"
+        return 1
+    fi
+    [[ -s $output && $(stat -c %s "$output") -le $limit ]] || { rm -f -- "$output"; return 1; }
+}
+
 # Download and check the new binary before removing a working installation.
 log_step "Downloading $file_name from the pinned release..."
 log_info "URL: ${CYAN}$download_url${NC}"
-if ! curl --fail --show-error -L -o "$staged_agent" "$download_url"; then
+if ! download_https "$download_url" "$staged_agent" 134217728; then
     log_error "Download failed"
     exit 1
 fi
@@ -825,7 +922,7 @@ if [ -n "$install_sha256" ]; then
     expected=${install_sha256,,}
 else
     checksum_file="${staging_dir}/SHA256SUMS.txt"
-    if ! curl --fail --show-error -L -o "$checksum_file" "${install_source}/SHA256SUMS.txt"; then
+    if ! download_https "${install_source}/SHA256SUMS.txt" "$checksum_file" 1048576; then
         log_error "Unable to download release checksums"
         exit 1
     fi
@@ -879,8 +976,15 @@ if [[ $enable_hermes_ai == true ]]; then
 fi
 komari_args+=("--hermes-ai-spool" "$ai_spool" "--enable-hermes-ai=$enable_hermes_ai")
 
-# Set executable permissions
-chmod +x "$staged_agent"
+# The restricted account must execute root-owned code even with umask 077.
+set_agent_permissions() {
+    if [[ ${service_user:-root} == root ]]; then
+        chmod +x "$1"
+    else
+        chown "root:$service_group" "$1" && chmod 750 "$1"
+    fi
+}
+set_agent_permissions "$staged_agent" || exit 1
 # Only the private JSON config carries runtime credentials, never service argv.
 umask 077
 config_path="${target_dir}/agent-config.json"
@@ -888,6 +992,9 @@ config_tmp=$(mktemp "${target_dir}/.agent-config.XXXXXXXX") || exit 1
 printf '{"token":"%s","endpoint":"%s","cf_access_client_secret":"%s"}\n' \
     "$(json_escape "$agent_token")" "$(json_escape "$agent_endpoint")" "$(json_escape "$agent_cf_secret")" > "$config_tmp"
 chmod 600 "$config_tmp" || exit 1
+if [[ ${service_user:-root} != root ]]; then
+    chown "root:$service_group" "$config_tmp" && chmod 640 "$config_tmp" || exit 1
+fi
 komari_args+=("--config" "$config_path")
 # Serialize each Agent argument for the destination format before writing service files.
 shell_command=$(shell_quote "$komari_agent_path")
@@ -948,9 +1055,10 @@ After=network.target
 [Service]
 Type=simple
 ExecStart=${systemd_command}
-WorkingDirectory=$(systemd_workdir "$target_dir")
+WorkingDirectory=$(systemd_workdir "$service_workdir")
 Restart=always
-User=root
+User=${service_user}
+$(systemd_security "$service_user" "$service_workdir")
 # Agent itself gets no source mount or permission grant.
 $(if [[ $enable_hermes_ai == true ]]; then printf 'InaccessiblePaths=%s\n' "$hermes_home"; fi)
 

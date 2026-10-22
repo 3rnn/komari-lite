@@ -432,18 +432,9 @@ func (m *Manager) Apply(settings Settings) error {
 		m.setError(normalized, err)
 		return err
 	}
-	server := &http.Server{
-		Addr:              normalized.Listen,
-		Handler:           m.httpsSecurityHandler(handler),
-		ReadHeaderTimeout: 15 * time.Second,
-		IdleTimeout:       90 * time.Second,
-	}
-	redirectServer := &http.Server{
-		Addr:              normalized.Listen,
-		Handler:           m.httpsPortRedirectHandler(),
-		ReadHeaderTimeout: 15 * time.Second,
-		IdleTimeout:       30 * time.Second,
-	}
+	server := NewHTTPServer(normalized.Listen, m.httpsSecurityHandler(handler))
+	redirectServer := NewHTTPServer(normalized.Listen, m.httpsPortRedirectHandler())
+	redirectServer.IdleTimeout = 30 * time.Second
 	tlsConfig := &tls.Config{
 		MinVersion: tls.VersionTLS12,
 		NextProtos: []string{"h2", "http/1.1"},

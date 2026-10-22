@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"math"
 	"sync"
@@ -46,10 +47,18 @@ type calibrationDay struct {
 	Effective  Usage
 }
 
+type calibratedCycleLoad struct {
+	done  chan struct{}
+	err   error
+	stale bool
+}
+
 type calibratedCycleCacheState struct {
 	sync.Mutex
-	expires time.Time
-	values  map[string]Usage
+	expires    time.Time
+	values     map[string]Usage
+	generation uint64
+	loading    *calibratedCycleLoad
 }
 
 var calibratedCycleCache calibratedCycleCacheState
@@ -364,13 +373,59 @@ func applyHourlyDirection(hours []HourlyUsage, delta int64, field func(*HourlyUs
 }
 
 func CurrentCalibratedCycleUsages(ctx context.Context, db *gorm.DB, now time.Time) (map[string]Usage, error) {
-	calibratedCycleCache.Lock()
-	if now.Before(calibratedCycleCache.expires) && calibratedCycleCache.values != nil {
-		values := cloneUsageMap(calibratedCycleCache.values)
+	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		calibratedCycleCache.Lock()
+		if now.Before(calibratedCycleCache.expires) && calibratedCycleCache.values != nil {
+			values := cloneUsageMap(calibratedCycleCache.values)
+			calibratedCycleCache.Unlock()
+			return values, nil
+		}
+		if loading := calibratedCycleCache.loading; loading != nil {
+			calibratedCycleCache.Unlock()
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-loading.done:
+				if err := ctx.Err(); err != nil {
+					return nil, err
+				}
+				// A canceled leader must not cancel independent waiting requests.
+				if loading.err != nil && !loading.stale && !errors.Is(loading.err, context.Canceled) && !errors.Is(loading.err, context.DeadlineExceeded) {
+					return nil, loading.err
+				}
+				continue
+			}
+		}
+		generation := calibratedCycleCache.generation
+		loading := &calibratedCycleLoad{done: make(chan struct{})}
+		calibratedCycleCache.loading = loading
 		calibratedCycleCache.Unlock()
+		values, err := loadCurrentCalibratedCycleUsages(ctx, db, now)
+		calibratedCycleCache.Lock()
+		stale := generation != calibratedCycleCache.generation
+		if err == nil && !stale {
+			calibratedCycleCache.values = cloneUsageMap(values)
+			calibratedCycleCache.expires = now.Add(calibratedCycleCacheTTL)
+		}
+		calibratedCycleCache.loading = nil
+		loading.err = err
+		loading.stale = stale
+		close(loading.done)
+		calibratedCycleCache.Unlock()
+		if err != nil {
+			return nil, err
+		}
+		if stale {
+			continue
+		}
 		return values, nil
 	}
-	calibratedCycleCache.Unlock()
+}
+
+func loadCurrentCalibratedCycleUsages(ctx context.Context, db *gorm.DB, now time.Time) (map[string]Usage, error) {
 
 	cutoff := BeijingDay(now).AddDate(0, 0, -32).Format(time.DateOnly)
 	var refs []struct {
@@ -385,10 +440,6 @@ func CurrentCalibratedCycleUsages(ctx context.Context, db *gorm.DB, now time.Tim
 		return nil, fmt.Errorf("list active traffic calibrations: %w", err)
 	}
 	if len(refs) == 0 {
-		calibratedCycleCache.Lock()
-		calibratedCycleCache.values = map[string]Usage{}
-		calibratedCycleCache.expires = now.Add(calibratedCycleCacheTTL)
-		calibratedCycleCache.Unlock()
 		return map[string]Usage{}, nil
 	}
 	ids := make([]string, 0, len(refs))
@@ -415,21 +466,20 @@ func CurrentCalibratedCycleUsages(ctx context.Context, db *gorm.DB, now time.Tim
 		if !active {
 			continue
 		}
-		snapshot, err := LoadCalibrationSnapshot(ctx, db, client, now)
+		days, _, err := loadCalibrationDays(ctx, db, client, now)
 		if err != nil {
 			return nil, err
 		}
-		values[client.UUID] = snapshot.Effective
+		for _, day := range days {
+			values[client.UUID] = addUsage(values[client.UUID], day.Effective)
+		}
 	}
-	calibratedCycleCache.Lock()
-	calibratedCycleCache.values = cloneUsageMap(values)
-	calibratedCycleCache.expires = now.Add(calibratedCycleCacheTTL)
-	calibratedCycleCache.Unlock()
 	return values, nil
 }
 
 func InvalidateCalibratedCycleCache() {
 	calibratedCycleCache.Lock()
+	calibratedCycleCache.generation++
 	calibratedCycleCache.expires = time.Time{}
 	calibratedCycleCache.values = nil
 	calibratedCycleCache.Unlock()

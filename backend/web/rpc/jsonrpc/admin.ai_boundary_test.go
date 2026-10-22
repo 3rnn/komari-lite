@@ -3,15 +3,16 @@ package jsonrpc
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/komari-monitor/komari/database/accounts"
 	"github.com/komari-monitor/komari/database/aimonitor"
 	"github.com/komari-monitor/komari/database/dbcore"
-	"github.com/komari-monitor/komari/pkg/rpc"
 	"github.com/komari-monitor/komari/web/api"
 )
 
@@ -42,7 +43,17 @@ func TestAIOverviewHTTPUnalignedFullDayAboveRawLimit(t *testing.T) {
 	t.Cleanup(func() { db.Where("node = ?", node).Delete(&aimonitor.StoredSample{}) })
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
-	engine.Use(func(c *gin.Context) { api.SetPrincipal(c, rpc.NewUserPrincipal(uuid.NewString())) })
+	user, err := accounts.CreateAccount("ai-boundary-"+uuid.NewString(), "test-only-password")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { accounts.DeleteAccountByUsername(user.Username) })
+	token, err := accounts.CreateSession(user.UUID, 3600, "", "", "password")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { accounts.DeleteSession(token) })
+	engine.Use(api.IdentityMiddleware())
 	engine.GET("/api/admin/ai/overview", Bind("admin:getAIOverview", WithRaw(), WithQuery("preset", "from", "to", "timezone", "node", "model", "task")))
 	// Identical frontend filter encoding with explicit stable boundaries for a
 	// deterministic regression, followed by its literal default preset request.
@@ -52,7 +63,9 @@ func TestAIOverviewHTTPUnalignedFullDayAboveRawLimit(t *testing.T) {
 		"preset=24H&timezone=Asia%2FShanghai&node=&model=&task=",
 	} {
 		w := httptest.NewRecorder()
-		engine.ServeHTTP(w, httptest.NewRequest("GET", "/api/admin/ai/overview?"+query, nil))
+		request := httptest.NewRequest("GET", "/api/admin/ai/overview?"+query, nil)
+		request.AddCookie(&http.Cookie{Name: "session_token", Value: token})
+		engine.ServeHTTP(w, request)
 		if w.Code != 200 {
 			t.Fatalf("GET overview?%s: HTTP %d %s", query, w.Code, w.Body.String())
 		}

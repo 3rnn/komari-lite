@@ -28,7 +28,7 @@ class InstallerSecurity(unittest.TestCase):
         src=SH.read_text()
         self.assertIn('stage_hermes_helper || exit 1',src)
         self.assertLess(src.index('stage_hermes_helper || exit 1'),src.index('commit_install || exit 1'))
-        stage=function(src,'stage_hermes_helper')
+        stage=function(src,'download_https') + '\n' + function(src,'stage_hermes_helper')
         with tempfile.TemporaryDirectory() as temp:
             path=pathlib.Path(temp)
             helper=path/'hermes_collector.py'; helper.write_text('print("fixture")\n')
@@ -151,7 +151,7 @@ verify_started_service() { return 0; }
     @unittest.skipUnless(shutil.which('systemd-analyze'), 'systemd-analyze unavailable')
     def test_generated_systemd_working_directory_is_valid(self):
         source = SH.read_text()
-        self.assertIn('WorkingDirectory=$(systemd_workdir "$target_dir")', source)
+        self.assertIn('WorkingDirectory=$(systemd_workdir "$service_workdir")', source)
         quote = function(source, 'systemd_workdir')
         with tempfile.TemporaryDirectory() as temp:
             directory = pathlib.Path(temp) / 'agent space%'
@@ -513,7 +513,7 @@ curl() {
         cp "$fixture" "$output"
     fi
 }
-''' + validation + '\n' + download
+''' + function(src, 'download_https') + '\n' + validation + '\n' + download
             def run(checksum, source='https://mirror.example.test/release'):
                 return subprocess.run(['bash', '-c', harness, '--', checksum, str(root / 'installed'), str(binary), source],
                                       capture_output=True, text=True)

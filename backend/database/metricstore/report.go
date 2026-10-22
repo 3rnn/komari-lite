@@ -37,6 +37,7 @@ var reportTrafficStates sync.Map
 const (
 	reportBatchInterval         = 3 * time.Second
 	reportBatchQueueSize        = 4096
+	reportBatchMaxWriteSize     = 256
 	reportBatchWriteTimeout     = 10 * time.Second
 	reportTrafficRateMultiplier = int64(4)
 	reportTrafficRateAllowance  = int64(64 * 1024 * 1024)
@@ -64,6 +65,8 @@ type reportBatchWorker struct {
 	requests chan reportBatchRequest
 	done     chan struct{}
 	stopping bool
+	// outstanding covers queued, in-flight, and retrying reports under one budget.
+	outstanding int
 }
 
 // StartReportBatcher starts the shared report writer.
@@ -83,6 +86,7 @@ func StartReportBatcher() {
 }
 
 // StopReportBatcher stops the report writer after flushing all queued reports.
+// On failure the worker retains its pending reports; a later stop can retry.
 func StopReportBatcher(ctx context.Context) error {
 	reportBatcherMu.Lock()
 	worker := reportBatcher
@@ -95,21 +99,34 @@ func StopReportBatcher(ctx context.Context) error {
 	worker.mu.Unlock()
 	reportBatcherMu.Unlock()
 
+	defer func() {
+		select {
+		case <-worker.done:
+			reportBatcherMu.Lock()
+			if reportBatcher == worker {
+				reportBatcher = nil
+			}
+			reportBatcherMu.Unlock()
+		default:
+		}
+	}()
 	request := reportBatchRequest{ctx: ctx, done: make(chan error, 1), stop: true}
 	select {
 	case worker.requests <- request:
+	case <-worker.done:
+		return nil
 	case <-ctx.Done():
 		return ctx.Err()
 	}
 	select {
 	case err := <-request.done:
-		<-worker.done
-		reportBatcherMu.Lock()
-		if reportBatcher == worker {
-			reportBatcher = nil
+		if err != nil {
+			return err
 		}
-		reportBatcherMu.Unlock()
-		return err
+		<-worker.done
+		return nil
+	case <-worker.done:
+		return nil
 	case <-ctx.Done():
 		return ctx.Err()
 	}
@@ -142,6 +159,8 @@ func FlushReportBatch(ctx context.Context) error {
 	select {
 	case err := <-request.done:
 		return err
+	case <-worker.done:
+		return ErrReportBatchStopped
 	case <-ctx.Done():
 		return ctx.Err()
 	}
@@ -194,8 +213,12 @@ func (w *reportBatchWorker) enqueue(ctx context.Context, report v1.Report) error
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	if w.outstanding >= cap(w.queue) {
+		return ErrReportBatchQueueFull
+	}
 	select {
 	case w.queue <- report:
+		w.outstanding++
 		return nil
 	default:
 		return ErrReportBatchQueueFull
@@ -210,20 +233,33 @@ func (w *reportBatchWorker) run() {
 	for {
 		select {
 		case request := <-w.requests:
-			pending = append(pending, drainReportQueue(w.queue, reportBatchQueueSize)...)
+			pending = append(pending, drainReportQueue(w.queue, reportBatchQueueSize-len(pending))...)
+			before := len(pending)
 			err := writePendingReports(request.ctx, &pending)
+			w.mu.Lock()
+			w.outstanding -= before - len(pending)
+			w.mu.Unlock()
 			if request.stop {
 				if err != nil {
 					logger.Errorf("metricstore", "failed to flush metric report batch during shutdown: %v", err)
 				}
-				close(w.done)
+				if err == nil {
+					close(w.done)
+					request.done <- nil
+					return
+				}
 				request.done <- err
-				return
+				continue
 			}
 			request.done <- err
 		case <-ticker.C:
-			pending = append(pending, drainReportQueue(w.queue, reportBatchQueueSize)...)
-			if err := writePendingReports(context.Background(), &pending); err != nil {
+			pending = append(pending, drainReportQueue(w.queue, reportBatchQueueSize-len(pending))...)
+			before := len(pending)
+			err := writePendingReports(context.Background(), &pending)
+			w.mu.Lock()
+			w.outstanding -= before - len(pending)
+			w.mu.Unlock()
+			if err != nil {
 				logger.Errorf("metricstore", "failed to flush metric report batch: %v", err)
 			}
 		}
@@ -257,7 +293,7 @@ func writePendingReports(ctx context.Context, pending *[]v1.Report) error {
 	if len(*pending) == 0 {
 		return nil
 	}
-	batchSize := len(*pending)
+	batchSize := reportBatchMaxWriteSize
 	for len(*pending) > 0 {
 		if batchSize > len(*pending) {
 			batchSize = len(*pending)
@@ -277,7 +313,8 @@ func writeReportBatch(ctx context.Context, reports []v1.Report) ([]v1.Report, er
 	if len(reports) == 0 {
 		return nil, nil
 	}
-	filtered := reports[:0]
+	// Filtering must not alter the retry buffer before a write commits.
+	filtered := make([]v1.Report, 0, len(reports))
 	for _, report := range reports {
 		if !EntityWritesBlocked(report.UUID) {
 			filtered = append(filtered, report)

@@ -93,7 +93,10 @@ func currentResetClock() resetClockState {
 	return state
 }
 
-func nowUnix() uint64 { return uint64(time.Now().Unix()) }
+// now is injectable by package tests; access is serialized by mu.
+var now = time.Now
+
+func nowUnix() uint64 { return uint64(now().Unix()) }
 
 // isNicAllowed checks the interface allowlist; an empty or nil allowlist permits all interfaces.
 func isNicAllowed(name string) bool {
@@ -198,7 +201,7 @@ func configOrDefault(c NetStaticConfig) NetStaticConfig {
 func purgeExpiredLocked() {
 	// Remove data older than DataPreserveDay.
 	ttl := time.Duration(config.DataPreserveDay * 24 * float64(time.Hour))
-	cutoff := uint64(time.Now().Add(-ttl).Unix())
+	cutoff := uint64(now().Add(-ttl).Unix())
 	for name, arr := range store.Interfaces {
 		// Keep samples at or after the cutoff.
 		kept := arr[:0]

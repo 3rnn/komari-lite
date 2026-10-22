@@ -6,16 +6,28 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/komari-monitor/komari/database/accounts"
 	"github.com/komari-monitor/komari/web/api"
-	"github.com/pquerna/otp/totp"
 )
 
 func Generate2FA(c *gin.Context) {
-	secret, img, err := accounts.Generate2Fa()
+	uuid, _ := c.Get("uuid")
+	userUUID, _ := uuid.(string)
+	session, _ := c.Cookie("session_token")
+	code := c.GetHeader("X-2FA-Code")
+	if code == "" {
+		code = c.GetHeader("X-Two-Factor-Code")
+	}
+	if code == "" {
+		code = c.Query("2fa_code")
+	}
+	if code == "" {
+		code = c.Query("code")
+	}
+	img, err := accounts.Begin2FAEnrollment(userUUID, session, code)
 	if err != nil {
-		api.RespondError(c, 500, "Failed to generate 2FA: "+err.Error())
+		api.RespondError(c, 401, "Failed to generate 2FA: "+err.Error())
 		return
 	}
-	c.SetCookie("2fa_secret", secret, 1800, "/", "", false, true)
+	c.Header("Cache-Control", "no-store")
 	c.Header("Content-Type", "image/png")
 	c.Writer.WriteHeader(200)
 	png.Encode(c.Writer, img)
@@ -23,19 +35,11 @@ func Generate2FA(c *gin.Context) {
 
 func Enable2FA(c *gin.Context) {
 	uuid, _ := c.Get("uuid")
-	secret, _ := c.Cookie("2fa_secret")
+	userUUID, _ := uuid.(string)
+	session, _ := c.Cookie("session_token")
 	code := c.Query("code")
-	if secret == "" || uuid == nil || code == "" {
-		api.RespondError(c, 400, "2FA secret or code not provided")
-		return
-	}
-	if !totp.Validate(code, secret) {
-		api.RespondError(c, 400, "Invalid 2FA code")
-		return
-	}
-	err := accounts.Enable2Fa(uuid.(string), secret)
-	if err != nil {
-		api.RespondError(c, 500, "Failed to enable 2FA: "+err.Error())
+	if err := accounts.Complete2FAEnrollment(userUUID, session, code); err != nil {
+		api.RespondError(c, 400, "Failed to enable 2FA: "+err.Error())
 		return
 	}
 	c.SetCookie("2fa_secret", "", -1, "/", "", false, true)
