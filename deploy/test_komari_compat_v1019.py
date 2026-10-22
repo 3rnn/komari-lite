@@ -89,7 +89,7 @@ class CompatTests(unittest.TestCase):
             response.read.return_value = b'{"data":{"version":"1.0.19"}}'
             with mock.patch.object(compat,'ROOT',root), mock.patch.object(compat,'STATE',state), \
                  mock.patch.object(compat,'trusted_script'), mock.patch.object(compat,'trusted_file'), \
-                 mock.patch.object(compat.subprocess,'run',side_effect=fake_run), \
+                 mock.patch.object(compat,'run_bounded',side_effect=fake_run), \
                  mock.patch.object(compat,'active_panel_identity',return_value=(42,'start')) as identity, \
                  mock.patch.object(compat,'download_verified',side_effect=AssertionError('status must not download')), \
                  mock.patch.object(compat,'HTTPConnection',create=True) as connection, \
@@ -106,7 +106,7 @@ class CompatTests(unittest.TestCase):
     def test_status_rejects_other_running_executable(self):
         fields = ('LoadState=loaded\nActiveState=active\nWorkingDirectory=/opt/komari\n'
                   'User=root\nMainPID=42\nExecStart={ path=/opt/other/komari ; }\n')
-        with mock.patch.object(compat.subprocess,'run',return_value=mock.Mock(stdout=fields)):
+        with mock.patch.object(compat,'run_bounded',return_value=mock.Mock(stdout=fields)):
             with self.assertRaisesRegex(ValueError,'service executable'):
                 compat.active_panel_identity(Path('/opt/komari/releases/1.0.19/komari'))
 
@@ -119,7 +119,7 @@ class CompatTests(unittest.TestCase):
                        basic.replace(' server ;', ' server -d/other/db.sqlite ;'),
                        basic + 'EnvironmentFiles=/etc/komari.env\n',
                        basic + 'Environment=KOMARI_LISTEN=127.0.0.1:12345\n'):
-            with self.subTest(fields=fields), mock.patch.object(compat.subprocess,'run',return_value=mock.Mock(stdout=fields)), \
+            with self.subTest(fields=fields), mock.patch.object(compat,'run_bounded',return_value=mock.Mock(stdout=fields)), \
                  mock.patch.object(compat.os.path,'samefile',return_value=True), \
                  mock.patch.object(compat.Path,'read_text',return_value='42 (komari) S ' + '0 '*19 + '123'), \
                  mock.patch.object(compat,'panel_owns_listener',return_value=True):
@@ -129,7 +129,7 @@ class CompatTests(unittest.TestCase):
     def test_status_rejects_old_running_binary_inode(self):
         fields = ('LoadState=loaded\nActiveState=active\nWorkingDirectory=/opt/komari\n'
                   'User=root\nMainPID=42\nExecStart={ path=/opt/komari/komari ; }\n')
-        with mock.patch.object(compat.subprocess,'run',return_value=mock.Mock(stdout=fields)), \
+        with mock.patch.object(compat,'run_bounded',return_value=mock.Mock(stdout=fields)), \
              mock.patch.object(compat.os.path,'samefile',return_value=False):
             with self.assertRaisesRegex(ValueError,'running executable'):
                 compat.active_panel_identity(Path('/opt/komari/releases/1.0.19/komari'))
@@ -174,7 +174,7 @@ class CompatTests(unittest.TestCase):
             (state/'journal.json').write_text('{"phase":"starting","target":"1.0.19"}')
             with mock.patch.object(compat,'ROOT',root), mock.patch.object(compat,'STATE',state), \
                  mock.patch.object(compat,'trusted_script'), \
-                 mock.patch.object(compat,'trusted_file'), mock.patch.object(compat.subprocess,'run',
+                 mock.patch.object(compat,'trusted_file'), mock.patch.object(compat,'run_bounded',
                  return_value=mock.Mock(stdout='{"version":"1.0.19"}')), \
                  mock.patch.object(compat,'download_verified') as download:
                 self.assertEqual(compat.main(['status']),1)
@@ -187,6 +187,77 @@ class CompatTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'Glass'):
                 compat.check_target_theme(theme)
 
+    def test_streaming_cap_is_checked_before_any_disk_write(self):
+        with tempfile.TemporaryFile() as destination:
+            with self.assertRaisesRegex(ValueError, 'stdout size limit'):
+                compat.run_bounded([compat.sys.executable, '-c',
+                                    'import os; os.write(1,b"x"*8192)'],
+                                   output=destination, stdout_limit=4096)
+            self.assertLessEqual(destination.tell(), 4096)
+            self.assertLessEqual(os.fstat(destination.fileno()).st_size, 4096)
+
+    def test_bounded_capture_accepts_exact_limits_on_both_pipes(self):
+        result = compat.run_bounded([compat.sys.executable, '-c',
+                                    'import os; os.write(1,b"x"*65536); os.write(2,b"y"*65536)'])
+        self.assertEqual(result.stdout, 'x'*65536)
+        self.assertEqual(result.stderr, 'y'*65536)
+
+    def test_bounded_capture_rejects_either_pipe_flood_without_echoing_output(self):
+        original_popen = subprocess.Popen
+        for fd, stream in ((1, 'stdout'), (2, 'stderr')):
+            processes = []
+            def launch(*args, **kwargs):
+                process = original_popen(*args, **kwargs)
+                processes.append(process)
+                return process
+            with self.subTest(stream=stream), \
+                 mock.patch.object(compat.subprocess, 'Popen', side_effect=launch):
+                with self.assertRaisesRegex(ValueError, stream + ' size limit') as caught:
+                    compat.run_bounded([compat.sys.executable, '-c',
+                                        f'import os; os.write({fd}, b"PRIVATE"*1000000)'])
+                self.assertNotIn('PRIVATE', str(caught.exception))
+                self.assertIsNotNone(processes[0].returncode)
+
+    def test_bounded_capture_deadline_covers_idle_closed_and_inherited_pipes(self):
+        import time
+        for code in ('import time; time.sleep(30)',
+                     'import os,time; os.close(1); os.close(2); time.sleep(30)',
+                     'import os,time; pid=os.fork(); time.sleep(30) if pid==0 else None'):
+            with self.subTest(code=code):
+                start = time.monotonic()
+                with self.assertRaisesRegex(ValueError, 'deadline'):
+                    compat.run_bounded([compat.sys.executable, '-c', code], timeout=0.15)
+                self.assertLess(time.monotonic() - start, 3)
+
+    def test_failed_download_removes_only_its_own_partial_artifact(self):
+        for body in (b'short', b'wrong-hash', b'x'*8192):
+            with self.subTest(body_size=len(body)), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                downloader = root/'curl'
+                downloader.write_text('#!/usr/bin/python3\nimport sys\nsys.stdout.buffer.write(' + repr(body) + ')\n')
+                downloader.chmod(0o700)
+                with mock.patch.object(compat, 'ASSETS', {'fixture': ('0'*64, 10, 'https://example.invalid/a')}), \
+                     mock.patch.object(compat, 'trusted_downloader', return_value=('curl', str(downloader))):
+                    with self.assertRaises(ValueError):
+                        compat.download_verified('fixture', root)
+                    self.assertFalse((root/'fixture').exists())
+                    (root/'original').write_bytes(b'preserve')
+                    (root/'fixture').symlink_to(root/'original')
+                    with self.assertRaises(FileExistsError):
+                        compat.download_verified('fixture', root)
+                    self.assertTrue((root/'fixture').is_symlink())
+                    self.assertEqual((root/'original').read_bytes(), b'preserve')
+
+    def test_manager_version_capture_rejects_stdout_flood(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            binary = root/'komari'
+            binary.write_text('#!/usr/bin/python3\nimport os\nos.write(1, b"x" * 1000000)\n')
+            binary.chmod(0o700)
+            with mock.patch.object(compat, 'ROOT', root):
+                with self.assertRaisesRegex(ValueError, 'stdout size limit'):
+                    compat.run_manager(root)
+
     def test_manager_failure_does_not_echo_host_identity_command_arguments(self):
         with tempfile.TemporaryDirectory() as tmp:
             stage = Path(tmp); (stage/'komari').write_bytes(b'fixture')
@@ -195,7 +266,8 @@ class CompatTests(unittest.TestCase):
             with mock.patch.object(compat,'ROOT',stage), \
                  mock.patch.object(compat,'compare_stock',return_value=(True,33)), \
                  mock.patch.object(compat,'check_persistent_mounts'), \
-                 mock.patch.object(compat.subprocess,'run',side_effect=[result,failure]):
+                 mock.patch.object(compat,'run_bounded',return_value=result), \
+                 mock.patch.object(compat.subprocess,'run',side_effect=failure):
                 with self.assertRaises(ValueError) as caught:
                     compat.run_manager(stage)
             self.assertNotIn('HOST-IDENTITY',str(caught.exception))
@@ -223,13 +295,156 @@ class CompatTests(unittest.TestCase):
             expected = hashlib.sha256(payload).hexdigest()
             assets = dict(compat.ASSETS)
             assets['komari'] = (expected, len(payload), 'https://example.invalid/komari')
-            def fake_download(args, **kwargs):
-                Path(args[args.index('--output') + 1]).write_bytes(payload)
+            downloader = Path(tmp)/'curl'
+            downloader.write_text('#!/usr/bin/python3\nimport sys\nsys.stdout.buffer.write(' + repr(payload) + ')\n')
+            downloader.chmod(0o700)
             with mock.patch.object(compat, 'ASSETS', assets), \
-                 mock.patch.object(compat, 'trusted_downloader', return_value=('curl', '/usr/bin/curl')), \
-                 mock.patch.object(compat.subprocess, 'run', side_effect=fake_download):
+                 mock.patch.object(compat, 'trusted_downloader', return_value=('curl', str(downloader))):
                 target = compat.download_verified('komari', tmp)
             self.assertEqual(stat.S_IMODE(target.stat().st_mode), 0o755)
+
+    def test_downloader_ignores_user_configuration(self):
+        for tool, flag in (('curl', '-q'), ('wget', '--no-config')):
+            with self.subTest(tool=tool), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                executable = root/'downloader'
+                executable.write_text('#!/usr/bin/python3\nimport sys\n'
+                                      'sys.exit(0 if sys.argv[1] == ' + repr(flag) + ' else 1)\n')
+                executable.chmod(0o700)
+                assets = {'fixture': (hashlib.sha256(b'').hexdigest(), 0, 'https://example.invalid/object')}
+                with mock.patch.object(compat, 'ASSETS', assets), \
+                     mock.patch.object(compat, 'trusted_downloader', return_value=(tool, str(executable))), \
+                     mock.patch.object(compat, 'run_bounded', wraps=compat.run_bounded) as runner:
+                    try:
+                        compat.download_verified('fixture', root)
+                    except ValueError:
+                        pass  # wget fixture intentionally omits HTTP headers
+                self.assertEqual(runner.call_args.args[0][1], flag)
+
+    def test_non_https_asset_is_rejected_before_downloader(self):
+        with tempfile.TemporaryDirectory() as tmp, \
+             mock.patch.object(compat, 'ASSETS', {'fixture': ('0'*64, 10, 'http://127.0.0.1/object')}), \
+             mock.patch.object(compat, 'trusted_downloader') as downloader:
+            with self.assertRaisesRegex(ValueError, 'HTTPS'):
+                compat.download_verified('fixture', tmp)
+            downloader.assert_not_called()
+
+    def test_wget_https_redirect_never_contacts_plain_http(self):
+        import http.server
+        import ssl
+        import threading
+        import shutil
+        wget = shutil.which('wget')
+        if not wget:
+            self.skipTest('wget unavailable')
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            subprocess.run(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes',
+                            '-keyout', str(root/'key'), '-out', str(root/'cert'),
+                            '-days', '1', '-subj', '/CN=localhost'],
+                           check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            contacted = []
+            class Handler(http.server.BaseHTTPRequestHandler):
+                def do_GET(self):
+                    if self.path == '/redirect':
+                        self.send_response(302)
+                        self.send_header('Location', f'http://127.0.0.1:{plain.server_port}/insecure')
+                    elif self.path == '/safe':
+                        self.send_response(307)
+                        self.send_header('Location', '/object')
+                    elif self.path == '/loop':
+                        self.send_response(302)
+                        self.send_header('Location', '/loop')
+                    else:
+                        contacted.append(self.path)
+                        self.send_response(200)
+                        self.send_header('Content-Length', '10' if self.path == '/object' else '0')
+                    self.end_headers()
+                    if self.path == '/object':
+                        self.wfile.write(b'valid-body')
+                def log_message(self, format, *args):
+                    pass
+            plain = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+            server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+            ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            ctx.load_cert_chain(root/'cert', root/'key')
+            server.socket = ctx.wrap_socket(server.socket, server_side=True)
+            threads = [threading.Thread(target=s.serve_forever, daemon=True) for s in (plain, server)]
+            for thread in threads: thread.start()
+            wrapper = root/'wget'
+            wrapper.write_text('#!/bin/sh\nexec ' + wget + ' --no-proxy --no-check-certificate "$@"\n')
+            wrapper.chmod(0o700)
+            assets = {'fixture': ('0'*64, 4096, f'https://127.0.0.1:{server.server_port}/redirect')}
+            try:
+                with mock.patch.object(compat, 'ASSETS', assets), \
+                     mock.patch.object(compat, 'trusted_downloader', return_value=('wget', str(wrapper))):
+                    with self.assertRaises(ValueError):
+                        compat.download_verified('fixture', root)
+                self.assertEqual(contacted, [], 'wget followed an HTTPS downgrade')
+                for route in ('safe', 'loop'):
+                    assets['fixture'] = (hashlib.sha256(b'valid-body').hexdigest(), 10,
+                                         f'https://127.0.0.1:{server.server_port}/{route}')
+                    with mock.patch.object(compat, 'ASSETS', assets), \
+                         mock.patch.object(compat, 'trusted_downloader', return_value=('wget', str(wrapper))):
+                        if route == 'safe':
+                            result = compat.download_verified('fixture', root)
+                            self.assertEqual(result.read_bytes(), b'valid-body')
+                            self.assertEqual(stat.S_IMODE(result.stat().st_mode), 0o600)
+                            result.unlink()
+                        else:
+                            with self.assertRaisesRegex(ValueError, 'redirect limit'):
+                                compat.download_verified('fixture', root)
+                            self.assertFalse((root/'fixture').exists())
+            finally:
+                for s in (plain, server): s.shutdown(); s.server_close()
+                for thread in threads: thread.join()
+
+    def test_chunked_https_download_never_writes_beyond_pin(self):
+        # Reproduce the residual probe with real tools and no Content-Length.
+        import http.server
+        import ssl
+        import threading
+        for tool in ('curl', 'wget'):
+            executable = __import__('shutil').which(tool)
+            if not executable:
+                self.skipTest(tool + ' unavailable')
+            with self.subTest(tool=tool), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                subprocess.run(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes',
+                                '-keyout', str(root/'key'), '-out', str(root/'cert'),
+                                '-days', '1', '-subj', '/CN=localhost'],
+                               check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                class Handler(http.server.BaseHTTPRequestHandler):
+                    protocol_version = 'HTTP/1.1'
+                    def do_GET(self):
+                        self.send_response(200)
+                        self.send_header('Transfer-Encoding', 'chunked')
+                        self.end_headers()
+                        self.wfile.write(b'2000\r\n' + b'x'*8192 + b'\r\n0\r\n\r\n')
+                    def log_message(self, format, *args):
+                        pass
+                server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+                ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+                ctx.load_cert_chain(root/'cert', root/'key')
+                server.socket = ctx.wrap_socket(server.socket, server_side=True)
+                thread = threading.Thread(target=server.serve_forever, daemon=True)
+                thread.start()
+                wrapper = root/'downloader'
+                # Certificate bypass is loopback-fixture-only, never production.
+                extra = '--insecure --noproxy *' if tool == 'curl' else '--no-check-certificate --no-proxy'
+                wrapper.write_text('#!/bin/sh\nexec ' + executable + ' ' + extra.replace('*', "'*'") + ' "$@"\n')
+                wrapper.chmod(0o700)
+                assets = {'fixture': ('0'*64, 4096, f'https://127.0.0.1:{server.server_port}/asset')}
+                try:
+                    with mock.patch.object(compat, 'ASSETS', assets), \
+                         mock.patch.object(compat, 'trusted_downloader', return_value=(tool, str(wrapper))):
+                        with self.assertRaises((ValueError, subprocess.CalledProcessError)):
+                            compat.download_verified('fixture', root)
+                    target = root/'fixture'
+                    self.assertTrue(not target.exists() or target.stat().st_size <= 4096,
+                                    'chunked body exceeded pinned on-disk size')
+                finally:
+                    server.shutdown(); server.server_close(); thread.join()
 
     def test_nested_bind_mount_in_data_is_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:

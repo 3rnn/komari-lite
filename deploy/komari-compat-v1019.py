@@ -14,7 +14,10 @@ import os
 from pathlib import Path
 import platform
 import re
+import selectors
+import signal
 import shutil
+import time
 import socket
 import sqlite3
 import stat
@@ -22,6 +25,7 @@ import subprocess
 import sys
 import tempfile
 import zipfile
+from urllib.parse import urljoin
 
 TAG = 'v1.0.19'
 OLD_VERSION = '1.0.16'
@@ -85,21 +89,110 @@ def trusted_downloader():
     raise ValueError('curl or wget is required')
 
 
+def run_bounded(argv, *, timeout=20.0, cwd=None, output=None,
+                stdout_limit=64 * 1024, stderr_limit=64 * 1024,
+                allowed_returncodes=(0,)):
+    """Drain both pipes without unbounded RAM/disk or inherited-pipe hangs."""
+    deadline = time.monotonic() + timeout
+    buffers = {'stdout': bytearray(), 'stderr': bytearray()}
+    counts = {'stdout': 0, 'stderr': 0}
+    with subprocess.Popen(argv, cwd=cwd, stdin=subprocess.DEVNULL,
+                          stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                          start_new_session=True) as process:
+        try:
+            with selectors.DefaultSelector() as selector:
+                for pipe, name in ((process.stdout, 'stdout'), (process.stderr, 'stderr')):
+                    assert pipe is not None  # both Popen streams explicitly use PIPE
+                    os.set_blocking(pipe.fileno(), False)
+                    selector.register(pipe, selectors.EVENT_READ, name)
+                while selector.get_map():
+                    remaining = deadline - time.monotonic()
+                    require(remaining > 0, 'subprocess deadline exceeded; refused')
+                    for key, _ in selector.select(remaining):
+                        name = key.data
+                        limit = stdout_limit if name == 'stdout' else stderr_limit
+                        # Read at most one byte beyond the remaining allowance.
+                        chunk = os.read(key.fd, min(64 * 1024, limit - counts[name] + 1))
+                        if not chunk:
+                            selector.unregister(key.fileobj)
+                            continue
+                        counts[name] += len(chunk)
+                        require(counts[name] <= limit, 'subprocess ' + name + ' size limit exceeded; refused')
+                        if name == 'stdout' and output is not None:
+                            output.write(chunk)
+                        else:
+                            buffers[name].extend(chunk)
+                remaining = deadline - time.monotonic()
+                require(remaining > 0, 'subprocess deadline exceeded; refused')
+                try:
+                    code = process.wait(timeout=remaining)
+                except subprocess.TimeoutExpired:
+                    raise ValueError('subprocess deadline exceeded; refused') from None
+                require(code in allowed_returncodes, 'subprocess failed; refused')
+        finally:
+            # Kill descendants too, including those holding inherited pipes open.
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            process.wait()
+    return subprocess.CompletedProcess(argv, code,
+                                       bytes(buffers['stdout']).decode('utf-8', 'replace'),
+                                       bytes(buffers['stderr']).decode('utf-8', 'replace'))
+
+
 def download_verified(name, directory):
     expected, size, url = ASSETS[name]
+    require(url.startswith('https://'), 'asset URL must use HTTPS')
     tool, executable = trusted_downloader()
     output = Path(directory)/name
     if tool == 'curl':
-        argv = [executable, '--fail', '--location', '--silent', '--show-error',
+        argv = [executable, '-q', '--fail', '--location', '--silent', '--show-error',
                 '--proto', '=https', '--proto-redir', '=https', '--connect-timeout', '15',
-                '--max-time', '600', '--max-filesize', str(size), '--output', str(output), url]
+                '--max-redirs', '5', '--max-time', '600', '--max-filesize', str(size),
+                '--output', '-', url]
     else:
-        argv = [executable, '--quiet', '--https-only', '--max-redirect=5',
-                '--timeout=25', '--tries=2', '--quota=32m',
-                '--output-document', str(output), url]
-    subprocess.run(argv, check=True, capture_output=True, timeout=630)
-    require(output.is_file() and output.stat().st_size == size and sha256(output) == expected,
-            name + ' size/SHA-256 mismatch; refused')
+        argv = [executable, '--no-config', '--quiet', '--https-only', '--max-redirect=0',
+                '--server-response',
+                '--timeout=25', '--tries=2', '--output-document', '-', url]
+    # The parent owns the only destination FD. Downloader quotas/max-filesize
+    # are not sufficient for responses without Content-Length (notably wget).
+    created = False
+    try:
+        with output.open('xb') as destination:
+            created = True
+            if tool == 'curl':
+                run_bounded(argv, timeout=630, output=destination, stdout_limit=size)
+            else:
+                # GNU wget's --https-only does NOT prohibit HTTP redirects.
+                # Follow redirects ourselves, validating every hop before I/O.
+                deadline = time.monotonic() + 630
+                for hop in range(6):
+                    result = run_bounded(argv, timeout=deadline - time.monotonic(),
+                                         output=destination, stdout_limit=size,
+                                         allowed_returncodes=(0, 8))
+                    headers = re.split(r'(?m)^  HTTP/\S+ ', result.stderr)[-1]
+                    status = headers.split(' ', 1)[0]
+                    if result.returncode == 0:
+                        require(status == '200', 'unexpected download HTTP status; refused')
+                        break
+                    require(status in ('301', '302', '303', '307', '308') and hop < 5,
+                            'download failed or redirect limit exceeded; refused')
+                    locations = re.findall(r'(?mi)^  Location: ([^\r\n]+)', headers)
+                    require(len(locations) == 1, 'invalid download redirect; refused')
+                    url = urljoin(url, locations[0].strip())
+                    require(url.startswith('https://'), 'download redirect must use HTTPS')
+                    argv[-1] = url
+                    destination.seek(0)
+                    destination.truncate()
+        require(output.stat().st_size == size and sha256(output) == expected,
+                name + ' size/SHA-256 mismatch; refused')
+    except BaseException:
+        # Do not leave a partial/unverified artifact for a later transaction.
+        # Existing files are never overwritten or removed.
+        if created:
+            output.unlink(missing_ok=True)
+        raise
     # The controller copies this mode into the release. The panel runs as a
     # non-root user, so 0700 would make the new service fail to start.
     output.chmod(0o755 if name == 'komari' else 0o600)
@@ -167,11 +260,11 @@ def panel_owns_listener(pid, port=25774):
     return False
 
 def active_panel_identity(binary):
-    result = subprocess.run([trusted_file(Path('/usr/bin/systemctl')), 'show',
+    result = run_bounded([trusted_file(Path('/usr/bin/systemctl')), 'show',
                              '-p', 'LoadState', '-p', 'ActiveState', '-p', 'WorkingDirectory',
                              '-p', 'User', '-p', 'MainPID', '-p', 'ExecStart',
                              '-p', 'Environment', '-p', 'EnvironmentFiles', 'komari.service'],
-                            check=True, capture_output=True, text=True, timeout=20)
+                            timeout=20)
     fields = dict(row.split('=', 1) for row in result.stdout.splitlines() if '=' in row)
     require(fields.get('LoadState') == 'loaded' and fields.get('ActiveState') == 'active' and
             fields.get('WorkingDirectory') == str(ROOT) and bool(fields.get('User')),
@@ -230,8 +323,8 @@ def verify_status():
     binary = (ROOT/'komari').resolve(strict=True)
     require(binary.is_relative_to(ROOT), 'installed binary resolves outside panel root')
     trusted_file(binary)
-    installed = subprocess.run([str(binary), 'version', '--json'], cwd=ROOT,
-                               capture_output=True, text=True, check=True, timeout=20)
+    installed = run_bounded([str(binary), 'version', '--json'], cwd=ROOT,
+                               timeout=20)
     require(json.loads(installed.stdout).get('version') == '1.0.19',
             'panel binary is not v1.0.19')
     identity = active_panel_identity(binary)
@@ -357,7 +450,7 @@ def host_check():
         require(stat.S_ISDIR(meta.st_mode) and meta.st_uid == 0 and not meta.st_mode & 0o022,
                 'release storage is untrusted')
     check_persistent_mounts(ROOT)
-    result = subprocess.run([trusted_file(Path('/usr/bin/systemctl')), 'show', '-p', 'LoadState',
+    result = run_bounded([trusted_file(Path('/usr/bin/systemctl')), 'show', '-p', 'LoadState',
                              '-p', 'ActiveState', '-p', 'WorkingDirectory', '-p', 'User',
                              '-p', 'Restart', '-p', 'ExecStart', '-p', 'Environment',
                              '-p', 'EnvironmentFiles', '-p', 'RootDirectory',
@@ -365,7 +458,7 @@ def host_check():
                              '-p', 'TemporaryFileSystem', '-p', 'PrivateMounts',
                              '-p', 'JoinsNamespaceOf', '-p', 'ExtensionImages',
                              '-p', 'ExtensionDirectories', 'komari.service'],
-                            check=True, capture_output=True, text=True, timeout=20)
+                            timeout=20)
     fields = dict(row.split('=', 1) for row in result.stdout.splitlines() if '=' in row)
     check_unit_mount_view(fields)
     check_standard_unit_layout(fields)
@@ -375,8 +468,8 @@ def host_check():
     listen = re.search(r'--listen(?:=|\s+)([^\s;]+)', fields['ExecStart'])
     require(not listen or listen.group(1) in ('127.0.0.1:25774', '0.0.0.0:25774'),
             'custom listen port needs review')
-    version = subprocess.run([str(ROOT/'komari'), 'version', '--json'], cwd=ROOT,
-                             check=True, capture_output=True, text=True, timeout=20)
+    version = run_bounded([str(ROOT/'komari'), 'version', '--json'], cwd=ROOT,
+                             timeout=20)
     require(json.loads(version.stdout).get('version') == OLD_VERSION,
             'installed binary is not 1.0.16; refuse to downgrade or repeat update')
     read_only_database_check()
@@ -405,8 +498,8 @@ def preflight():
 
 def run_manager(stage):
     binary = Path(stage)/'komari'
-    version = subprocess.run([str(binary), 'version', '--json'], cwd=ROOT,
-                             check=True, capture_output=True, text=True, timeout=20)
+    version = run_bounded([str(binary), 'version', '--json'], cwd=ROOT,
+                             timeout=20)
     require(json.loads(version.stdout).get('version') == TAG.removeprefix('v'),
             'downloaded release binary version mismatch')
     bundle = Path(stage)/BUNDLE
@@ -424,8 +517,8 @@ def run_manager(stage):
         # CalledProcessError echoes every argv token, including host identity.
         # The manager already reports its own error without dumping arguments.
         raise ValueError('upgrade manager failed; inspect the service and transaction journal before retrying') from None
-    result = subprocess.run([str(ROOT/'komari'), 'version', '--json'], cwd=ROOT,
-                            capture_output=True, text=True, check=True, timeout=20)
+    result = run_bounded([str(ROOT/'komari'), 'version', '--json'], cwd=ROOT,
+                            timeout=20)
     require(json.loads(result.stdout).get('version') == TAG.removeprefix('v'),
             'upgrade returned but installed version differs; inspect recovery status')
     print('Verified: v1.0.19 installed. Snapshot retained in /var/lib/komari-upgrade/backups.', flush=True)
