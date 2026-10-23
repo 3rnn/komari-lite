@@ -168,6 +168,20 @@ main { min-width: 0; }
   [data-node-view="list"] .node-card > div > .grid:nth-child(4) { grid-column: 4; grid-row: 1 / 4; gap: 14px; }
 }
 
+/* The throughput annotation occupies the existing title/value rows only.
+   Invisible original sizing content reserves exact pre-change row heights. */
+.overview-network-stat { container-type: inline-size; }
+.overview-network-heading, .overview-network-value { position: relative; }
+.overview-network-heading-content, .overview-network-value-content {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: space-between; gap: 6px; min-width: 0;
+}
+.overview-network-label { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 500; }
+.overview-network-host { min-width: 0; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-weight: 600; color: var(--primary); }
+.overview-network-stat[data-network-empty="true"] .overview-network-host { color: var(--muted-foreground); }
+.overview-network-value-content { align-items: baseline; }
+.overview-network-total { min-width: 0; white-space: nowrap; font-size: clamp(9px, calc((100cqi - 6px - clamp(8px, 4cqi, 11px) * var(--network-host-chars) * .7) / var(--network-total-chars) / .7), 28px); font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; }
+.overview-network-host-speed { flex-shrink: 0; white-space: nowrap; font-size: clamp(8px, 4cqi, 11px); line-height: 1; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+
 @media (max-width: 640px) {
   header.w-full > div { height: 3.25rem; }
   .overview-stat { min-height: 4.5rem; }

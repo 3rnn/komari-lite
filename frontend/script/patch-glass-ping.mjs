@@ -87,6 +87,11 @@ replaceOnce('pingTaskSelection:{telecom:r.telecomPingTaskName,mobile:r.mobilePin
 const nodeView = readFileSync(new URL("glass-node-view.mjs", import.meta.url), "utf8");
 replaceOnce('function rW(){return(0,L.jsxs)("div",{className:"space-y-3.5 sm:space-y-4",children:[(0,L.jsx)(rH,{}),(0,L.jsx)(rz,{})]})}', nodeView);
 replaceOnce('className:"grid grid-cols-1 items-start gap-3 sm:grid-cols-[repeat(auto-fill,minmax(320px,1fr))]"', 'className:"node-view-grid grid grid-cols-1 items-start gap-3 sm:grid-cols-[repeat(auto-fill,minmax(320px,1fr))]"');
+const networkSummary = readFileSync(new URL("glass-network-summary.mjs", import.meta.url), "utf8")
+  .replace(/^export function /gm, "function ");
+replaceOnce("function rH(){", `${networkSummary}\nfunction rH(){`);
+replaceOnce('function rH(){let{overview:e,settings:t}=eB();', 'function rH(){let{overview:e,settings:t,nodes:networkNodes}=eB();');
+replaceOnce('t.showSpeed&&n.push((0,L.jsxs)(rK,{icon:', 't.showSpeed&&n.push((0,L.jsxs)(glassNetworkStat,{nodes:networkNodes,icon:');
 new Script(patched, { filename: "Glass node-card chunk" });
 const hash = createHash("sha256").update(patched).digest("hex").slice(0, 8);
 const filename = `3859ru-${hash}.js`;

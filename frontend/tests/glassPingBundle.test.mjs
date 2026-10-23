@@ -20,6 +20,17 @@ test("Glass serves the content-hashed node-card bundle referenced by its HTML", 
   assert.ok(matches.every((match) => match[1] === fingerprint));
 });
 
+test("the compact network annotation leaves the pinned shared stat renderer and other summary logic intact", () => {
+  const original = readFileSync(new URL("_next/static/chunks/3859ru-aa5bf30a.js", dist), "utf8");
+  const between = (text, from, until) => text.slice(text.indexOf(from), text.indexOf(until, text.indexOf(from)));
+  assert.equal(between(code, "function rK(", "// Input is the existing public node context"), between(original, "function rK(", "function rH()"));
+  const normalize = text => text
+    .replace('settings:t,nodes:networkNodes', 'settings:t')
+    .replace('glassNetworkStat,{nodes:networkNodes,icon:', 'rK,{icon:');
+  assert.equal(normalize(between(code, "function rH()", "// Injected into the pinned Glass module")), between(original, "function rH()", "function rW()"));
+  assert.match(code, /selectGlassTopThroughput\(nodes\)/);
+});
+
 test("node cards use the tested per-task model instead of averaging different tasks", () => {
   assert.match(code, /function selectPingTaskData\(/);
   assert.match(code, /selectPingTaskData\(i\.history\.tasks,i\.history\.records/);
