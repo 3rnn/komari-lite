@@ -64,7 +64,7 @@ test("the shipped summary renders compact host and speed in its original three r
   assert.equal((rendered.match(/class="overview-stat /g) ?? []).length, 4);
   const original = readFileSync(new URL("_next/static/chunks/3859ru-aa5bf30a.js", dist), "utf8");
   const firstThree = text => text.slice(0, text.indexOf("Live network speed")).slice(0, text.lastIndexOf('<div class="overview-stat', text.indexOf("Live network speed")));
-  assert.equal(firstThree(rendered), firstThree(renderSummary(original, context)), "other three cells remain byte-identical React output");
+  assert.equal(firstThree(rendered).replace(" overview-traffic-stat", ""), firstThree(renderSummary(original, context)), "other three cells retain original markup except the mobile traffic layout class");
   const empty = renderSummary(code, summaryContext([]));
   assert.match(empty, /class="overview-network-empty"[^>]*>No fresh online sample</);
   assert.doesNotMatch(empty, /class="overview-network-rank-row"/);

@@ -21,7 +21,65 @@ export function rankGlassThroughput(nodes, now = Date.now()) {
   return ranked.sort((a, b) => b.speed - a.speed || (a.uuid < b.uuid ? -1 : a.uuid > b.uuid ? 1 : 0));
 }
 
+// At most one real observation per second; no backfill or timer sampling.
+export function observeGlassThroughput(history, nodes, now = Date.now(), visible = true) {
+  const retained = history.filter(point => point.time > now - 60_000 && point.time <= now);
+  const ranked = visible ? rankGlassThroughput(nodes, now) : [];
+  const signature = ranked.map(node => `${node.uuid}:${node.expiresAt}:${node.speed}`).sort().join("|");
+  const previous = retained.at(-1);
+  if (previous?.signature === signature || (signature && previous?.observedSignature === signature) || (!previous && !signature)) return retained;
+  const sum = ranked.reduce((total, node) => total + node.speed, 0);
+  const sameBucket = previous && Math.floor(previous.time / 1000) === Math.floor(now / 1000);
+  const point = { time: now, value: signature && Number.isFinite(sum) ? sum : null, signature,
+    observedSignature: signature || previous?.observedSignature || "",
+    breakBefore: previous?.value === null || Boolean(sameBucket && previous?.breakBefore) };
+  if (sameBucket) retained.pop();
+  return [...retained, point].slice(-60);
+}
+
+export function glassThroughputPaths(history, now = Date.now()) {
+  const points = history.filter(point => point.time > now - 60_000 && point.time <= now);
+  const maximum = Math.max(1, ...points.map(point => point.value ?? 0));
+  const paths = [];
+  let previous;
+  for (const point of points) {
+    if (point.value === null) { previous = undefined; continue; }
+    const x = ((point.time - (now - 60_000)) / 60_000 * 120).toFixed(2);
+    const y = (35 - point.value / maximum * 30).toFixed(2);
+    // Feed silence is a gap, not an interpolated throughput claim.
+    if (!previous || point.breakBefore || point.time - previous.time > 2500) paths.push(`M${x},${y}l0,0`);
+    else paths[paths.length - 1] += `L${x},${y}`;
+    previous = point;
+  }
+  return paths;
+}
+
+function glassTrafficStat(props) {
+  const cell = rK(props);
+  return R.cloneElement(cell, { className: `${cell.props.className} overview-traffic-stat` });
+}
+
 function glassNetworkStat({ nodes, ...props }) {
+  const [history, setHistory] = (0,R.useState)([]);
+  // This hook consumes only existing feed renders. Local expiry never samples.
+  (0,R.useEffect)(() => {
+    setHistory(previous => observeGlassThroughput(previous, nodes, Date.now(), typeof document === "undefined" || !document.hidden));
+  }, [nodes]);
+  (0,R.useEffect)(() => {
+    if (typeof document === "undefined") return;
+    const onVisibility = () => {
+      // Neither hiding nor resuming may sample a cached feed snapshot.
+      setHistory(previous => observeGlassThroughput(previous, [], Date.now(), false));
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
+  const chartPaths = glassThroughputPaths(history);
+  const chart = (0,L.jsxs)("div", { className: "overview-network-chart", "data-sample-count": history.filter(point => point.value !== null && point.time > Date.now() - 60_000).length, children: [
+    (0,L.jsx)("span", { className: "overview-network-live", children: rankGlassThroughput(nodes).length ? "LIVE" : "NO DATA" }),
+    chartPaths.length ? (0,L.jsx)("svg", { viewBox: "0 0 120 40", role: "img", "aria-label": "Observed aggregate upload plus download throughput over the last 60 seconds; gaps indicate missing observations.", preserveAspectRatio: "none", children: chartPaths.map((d, index) => (0,L.jsx)("path", { d, fill: "none", stroke: "currentColor", strokeWidth: 1.5, strokeLinecap: "round", vectorEffect: "non-scaling-stroke" }, index)) }) : (0,L.jsx)("span", { className: "overview-network-chart-empty", children: "Awaiting live samples" }),
+    (0,L.jsxs)("span", { className: "overview-network-axis", "aria-hidden": true, children: [(0,L.jsx)("span", { children: "−60s" }), (0,L.jsx)("span", { children: "Now" })] }),
+  ] });
   const [, refreshExpiry] = (0,R.useState)(0);
   const ranked = rankGlassThroughput(nodes);
   const top = ranked[0];
@@ -64,5 +122,5 @@ function glassNetworkStat({ nodes, ...props }) {
     (0,L.jsx)("span", { className: "overview-network-value-content", children:
       (0,L.jsx)("span", { className: "overview-network-total", title: props.value, children: props.value }),
     }));
-  return R.cloneElement(cell, { className: `${cell.props.className} overview-network-stat`, "data-network-empty": !top, style: { "--network-total-chars": String(props.value).length, "--network-host-chars": top ? ej(top.speed).length : 1 } }, header, main, footer);
+  return R.cloneElement(cell, { className: `${cell.props.className} overview-network-stat`, "data-network-empty": !top, style: { "--network-total-chars": String(props.value).length, "--network-host-chars": top ? ej(top.speed).length : 1 } }, header, main, footer, chart, (0,L.jsxs)("div", { className: "overview-network-rank-heading", children: [(0,L.jsx)("span", { children: "TOP THROUGHPUT" }), (0,L.jsx)("span", { children: ranked.length > 4 ? `${ranked.length} nodes · scroll for more` : "Upload + download" })] }));
 }

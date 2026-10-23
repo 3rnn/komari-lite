@@ -91,6 +91,7 @@ const networkSummary = readFileSync(new URL("glass-network-summary.mjs", import.
   .replace(/^export function /gm, "function ");
 replaceOnce("function rH(){", `${networkSummary}\nfunction rH(){`);
 replaceOnce('function rH(){let{overview:e,settings:t}=eB();', 'function rH(){let{overview:e,settings:t,nodes:networkNodes}=eB();');
+replaceOnce('t.showTraffic&&n.push((0,L.jsxs)(rK,{icon:', 't.showTraffic&&n.push((0,L.jsxs)(glassTrafficStat,{icon:');
 replaceOnce('t.showSpeed&&n.push((0,L.jsxs)(rK,{icon:', 't.showSpeed&&n.push((0,L.jsxs)(glassNetworkStat,{nodes:networkNodes,icon:');
 new Script(patched, { filename: "Glass node-card chunk" });
 const hash = createHash("sha256").update(patched).digest("hex").slice(0, 8);

@@ -26,6 +26,7 @@ test("the compact network annotation leaves the pinned shared stat renderer and 
   assert.equal(between(code, "function rK(", "// Input is the existing public node context"), between(original, "function rK(", "function rH()"));
   const normalize = text => text
     .replace('settings:t,nodes:networkNodes', 'settings:t')
+    .replace('glassTrafficStat,{icon:', 'rK,{icon:')
     .replace('glassNetworkStat,{nodes:networkNodes,icon:', 'rK,{icon:');
   assert.equal(normalize(between(code, "function rH()", "// Injected into the pinned Glass module")), between(original, "function rH()", "function rW()"));
   assert.match(code, /rankGlassThroughput\(nodes\)/);
