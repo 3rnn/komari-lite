@@ -28,7 +28,8 @@ test("the compact network annotation leaves the pinned shared stat renderer and 
     .replace('settings:t,nodes:networkNodes', 'settings:t')
     .replace('glassNetworkStat,{nodes:networkNodes,icon:', 'rK,{icon:');
   assert.equal(normalize(between(code, "function rH()", "// Injected into the pinned Glass module")), between(original, "function rH()", "function rW()"));
-  assert.match(code, /selectGlassTopThroughput\(nodes\)/);
+  assert.match(code, /rankGlassThroughput\(nodes\)/);
+  assert.match(code, /function selectGlassTopThroughput\(/);
 });
 
 test("node cards use the tested per-task model instead of averaging different tasks", () => {

@@ -7,6 +7,12 @@ import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const knownVersions = [
+  // Exact installed c74f01c compact annotation before the bounded ranking rail.
+  new Map([
+    ["komari-theme.json", "022143c717a12cf44e5af525bd61cf596ace4ef1415914d2ee71a65e42a2d284"],
+    ["dist/index.html", "b815ccf7e617f9c983f5c3ce0fd1c787a366657d9336e55aae83b60f16e94443"],
+    ["dist/_next/static/chunks/3859ru-2f2505a3.js", "2f2505a35064a721b0b32313b4d8d0658f7f83fe845ac3c8aa5a65b778ce202d"],
+  ]),
   // Exact installed compact card/list theme before the throughput annotation.
   new Map([
     ["komari-theme.json", "022143c717a12cf44e5af525bd61cf596ace4ef1415914d2ee71a65e42a2d284"],
@@ -94,6 +100,7 @@ const knownVersions = [
   ]),
 ];
 const knownVisualStyles = new Map([
+  ["glass-visual-ecf8ea54.css", "ecf8ea54d3d36f6beb72fe404a670af5a2869ae845836223720bd95ac139eb02"],
   ["glass-visual-15bcafd2.css", "15bcafd269e32f626d5777b1b454991ff424011d2268503dd5bbdffc632f94cb"],
   ["glass-visual-38210cb5.css", "38210cb587c5d334536d1e0bbf5ebf3027f84989bf7ff93c6e112777834a72e2"],
   ["glass-visual-fd073f36.css", "fd073f367cc08099f96c64314e569233a7d9cbd6d16e773e4e0e94e6fea865ca"],

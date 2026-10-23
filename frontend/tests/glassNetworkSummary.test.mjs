@@ -66,11 +66,37 @@ test("the shipped summary renders compact host and speed in its original three r
   const firstThree = text => text.slice(0, text.indexOf("Live network speed")).slice(0, text.lastIndexOf('<div class="overview-stat', text.indexOf("Live network speed")));
   assert.equal(firstThree(rendered), firstThree(renderSummary(original, context)), "other three cells remain byte-identical React output");
   const empty = renderSummary(code, summaryContext([]));
-  assert.match(empty, /class="overview-network-host"[^>]*>—</);
-  assert.match(empty, /class="overview-network-host-speed"[^>]*>—</);
+  assert.match(empty, /class="overview-network-empty"[^>]*>No fresh online sample</);
+  assert.doesNotMatch(empty, /class="overview-network-rank-row"/);
   assert.match(empty, /data-network-empty="true"/);
   context.settings.showSpeed = false;
   assert.doesNotMatch(renderSummary(code, context), /overview-network-host/);
+});
+
+test("ranking is one keyboard-focusable rail and expires a lower-ranked sample first", async () => {
+  let clock = now;
+  const timers = new Map();
+  let id = 0;
+  class Clock extends Date { static now() { return clock; } }
+  const nodes = Array.from({ length: 9 }, (_, i) => node(`host-${i}`, 100 - i, 0));
+  nodes[8].updated_at_live = new Date(now - 59_000).toISOString();
+  const context = summaryContext(nodes);
+  const Summary = summaryRenderer(code, context, { Date: Clock, setTimeout: (fn, delay) => { timers.set(++id, { fn, delay }); return id; }, clearTimeout: id => timers.delete(id) });
+  let tree;
+  await act(() => { tree = create(jsx(Summary, {})); });
+  const rail = () => tree.root.findByProps({ className: "overview-network-ranking" });
+  assert.equal(rail().props.tabIndex, 0);
+  assert.match(rail().props["aria-label"], /Live throughput ranking/);
+  assert.equal(tree.root.findAllByProps({ className: "overview-network-rank-row" }).length, 9);
+  assert.equal([...timers.values()][0].delay, 1001);
+  clock += 1001;
+  const [key, timer] = [...timers.entries()][0];
+  timers.delete(key);
+  await act(() => timer.fn());
+  assert.equal(tree.root.findAllByProps({ className: "overview-network-rank-row" }).length, 8);
+  assert.equal(timers.size, 1);
+  await act(() => tree.unmount());
+  assert.equal(timers.size, 0);
 });
 
 test("the mounted summary follows feed updates and expires a frozen winner without fetching or polling", async () => {
@@ -86,7 +112,7 @@ test("the mounted summary follows feed updates and expires a frozen winner witho
   });
   let tree;
   await act(() => { tree = create(jsx(Summary, {})); });
-  const host = () => tree.root.findByProps({ className: "overview-network-host" }).children.join("");
+  const host = () => tree.root.findAllByProps({ className: "overview-network-host" })[0]?.children.join("") ?? "—";
   assert.equal(host(), "a");
   assert.equal(timers.size, 1, "only one local expiry timer, not a network poll");
   assert.equal([...timers.values()][0].delay, 60_001);

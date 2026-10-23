@@ -168,19 +168,39 @@ main { min-width: 0; }
   [data-node-view="list"] .node-card > div > .grid:nth-child(4) { grid-column: 4; grid-row: 1 / 4; gap: 14px; }
 }
 
-/* The throughput annotation occupies the existing title/value rows only.
-   Invisible original sizing content reserves exact pre-change row heights. */
-.overview-network-stat { container-type: inline-size; }
+/* The timing tower is a single bounded right-hand annotation. The original
+   three sizing rows and upload/download footer retain their exact geometry. */
+.overview-network-stat {
+  container-type: inline-size;
+  --network-total-font: clamp(9px, calc((100cqi - 6px - clamp(8px, 4cqi, 11px) * var(--network-host-chars) * .7) / var(--network-total-chars) / .7), 28px);
+  --network-rail-width: min(40%, calc(100% - var(--network-total-font) * var(--network-total-chars) * .7 - 6px));
+}
 .overview-network-heading, .overview-network-value { position: relative; }
 .overview-network-heading-content, .overview-network-value-content {
-  position: absolute; inset: 0; display: flex; align-items: center; justify-content: space-between; gap: 6px; min-width: 0;
+  position: absolute; inset: 0 calc(var(--network-rail-width) + 6px) 0 0; display: flex; align-items: center; min-width: 0;
 }
-.overview-network-label { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 500; }
-.overview-network-host { min-width: 0; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-weight: 600; color: var(--primary); }
-.overview-network-stat[data-network-empty="true"] .overview-network-host { color: var(--muted-foreground); }
+.overview-network-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 500; }
 .overview-network-value-content { align-items: baseline; }
-.overview-network-total { min-width: 0; white-space: nowrap; font-size: clamp(9px, calc((100cqi - 6px - clamp(8px, 4cqi, 11px) * var(--network-host-chars) * .7) / var(--network-total-chars) / .7), 28px); font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; }
-.overview-network-host-speed { flex-shrink: 0; white-space: nowrap; font-size: clamp(8px, 4cqi, 11px); line-height: 1; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+.overview-network-total { min-width: 0; white-space: nowrap; font-size: var(--network-total-font); font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; }
+.overview-network-ranking {
+  position: absolute; z-index: 1; top: -10px; right: -8px; width: calc(var(--network-rail-width) + 8px); height: 64px;
+  margin: 0; padding: 0; list-style: none; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain;
+  scrollbar-width: none; color: var(--muted-foreground); font-variant-numeric: tabular-nums;
+}
+.overview-network-ranking::-webkit-scrollbar { display: none; }
+.overview-network-ranking:focus-visible { outline: 1px solid var(--ring); outline-offset: 2px; }
+.overview-network-rank-row {
+  box-sizing: border-box; display: grid; grid-template-columns: 9px minmax(0, 1fr) auto; align-items: center; gap: 2px;
+  height: 16px; padding-inline: 3px 0; border-left: 2px solid transparent; font-size: 9px; line-height: 1;
+}
+.overview-network-rank-row:first-child { border-left-color: var(--primary); color: var(--foreground); }
+.overview-network-rank { font-size: 8px; opacity: .75; }
+.overview-network-host { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.overview-network-host-speed { white-space: nowrap; font-size: clamp(6px, 3cqi, 8px); }
+.overview-network-empty { font-size: 9px; line-height: 1.3; padding: 2px; }
+@media (min-width: 641px) {
+  .overview-network-rank-row { height: 12.8px; }
+}
 
 @media (max-width: 640px) {
   header.w-full > div { height: 3.25rem; }
