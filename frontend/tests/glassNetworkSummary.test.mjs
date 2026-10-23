@@ -106,4 +106,3 @@ test("the mounted summary follows feed updates and expires a frozen winner witho
   await act(() => tree.unmount());
   assert.equal(timers.size, 0, "clean up expiry on unmount");
 });
-
