@@ -7,6 +7,12 @@ import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const knownVersions = [
+  // Exact deployed 49914cf mobile summary before the desktop-only redesign.
+  new Map([
+    ["komari-theme.json", "022143c717a12cf44e5af525bd61cf596ace4ef1415914d2ee71a65e42a2d284"],
+    ["dist/index.html", "6661f600004f91ef1ddb624c26451a1b98fccd7b2bf0539467d1160d513f25dd"],
+    ["dist/_next/static/chunks/3859ru-30af502c.js", "30af502c54497f844beb5c4b8d4429c8b981da0d875241c73a6ec2d73adfbd58"],
+  ]),
   // Exact deployed 58d6998 bounded ranking before the mobile-only summary.
   new Map([
     ["komari-theme.json", "022143c717a12cf44e5af525bd61cf596ace4ef1415914d2ee71a65e42a2d284"],
@@ -106,6 +112,7 @@ const knownVersions = [
   ]),
 ];
 const knownVisualStyles = new Map([
+  ["glass-visual-557fe8f7.css", "557fe8f73e245e930be75f4367502d84b158328b989dd7cc2c05cfbc84cedb39"],
   ["glass-visual-8af54d66.css", "8af54d66f5eb4a5bd76e839f2ef8ae627744471e495401a1290f953b9b158115"],
   ["glass-visual-ecf8ea54.css", "ecf8ea54d3d36f6beb72fe404a670af5a2869ae845836223720bd95ac139eb02"],
   ["glass-visual-15bcafd2.css", "15bcafd269e32f626d5777b1b454991ff424011d2268503dd5bbdffc632f94cb"],

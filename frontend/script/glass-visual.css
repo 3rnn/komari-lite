@@ -198,8 +198,32 @@ main { min-width: 0; }
 .overview-network-host { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .overview-network-host-speed { white-space: nowrap; font-size: clamp(6px, 3cqi, 8px); }
 .overview-network-empty { font-size: 9px; line-height: 1.3; padding: 2px; }
+/* Desktop overlays never enter the shared sizing flow; mobile DOM stays pinned. */
+.overview-network-desktop { display: none; }
 @media (min-width: 641px) {
-  .overview-network-rank-row { height: 12.8px; }
+  .overview-network-stat {
+    position: relative;
+    --network-rail-width: min(164px, 52cqi);
+    --network-left-width: calc(100cqi - var(--network-rail-width) - 12px);
+    --network-total-font: clamp(9px, calc(var(--network-left-width) / var(--network-total-chars) / .65), 24px);
+  }
+  .overview-network-heading { position: static; }
+  .overview-network-heading-content { inset: 14px auto auto 20px; width: var(--network-left-width); }
+  .overview-network-label { font-size: clamp(9px, 3.6cqi, 11px); }
+  .overview-network-value-content { right: auto; width: var(--network-left-width); }
+  .overview-network-stat > div:nth-child(3) { visibility: hidden; }
+  .overview-network-desktop-rates { display: flex; position: absolute; top: 68px; left: 20px; width: var(--network-left-width); flex-direction: column; gap: 3px; font-size: clamp(9px, 3.6cqi, 11px); line-height: 13px; }
+  .overview-network-desktop-rates > span { min-width: 0; white-space: nowrap; }
+  .overview-network-desktop-rates svg { display: none; }
+  .overview-network-desktop-rates > span:first-child::before { content: "↑ "; }
+  .overview-network-desktop-rates > span:last-child::before { content: "↓ "; }
+  .overview-network-ranking { top: 29px; right: 14px; width: var(--network-rail-width); height: 75px; border-left: 1px solid var(--border); padding-left: 10px; box-sizing: border-box; }
+  .overview-network-desktop-header { display: flex; position: absolute; top: 12px; right: 14px; width: var(--network-rail-width); box-sizing: border-box; border-left: 1px solid var(--border); padding-left: 10px; justify-content: space-between; color: var(--muted-foreground); font-size: 8px; line-height: 17px; letter-spacing: .8px; }
+  .overview-network-rank-row { height: 15px; grid-template-columns: 13px minmax(0, 1fr) auto; gap: 4px; padding: 0; border-left: 0; font-size: 10px; }
+  .overview-network-rank-row:first-child { color: var(--primary); }
+  .overview-network-rank-row:not(:first-child) .overview-network-host { font-weight: 400; }
+  .overview-network-host-speed { font-size: 0; }
+  .overview-network-host-speed::after { content: attr(data-short-speed); font-size: 9px; }
 }
 
 /* Only the mobile overview uses these additions; desktop sizing stays pinned. */

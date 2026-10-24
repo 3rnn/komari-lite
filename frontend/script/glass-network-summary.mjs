@@ -102,7 +102,7 @@ function glassNetworkStat({ nodes, ...props }) {
         children: [
           (0,L.jsx)("span", { className: "overview-network-rank", "aria-hidden": true, children: String(index + 1).padStart(2, "0") }),
           (0,L.jsx)("span", { className: "overview-network-host", children: node.name }),
-          (0,L.jsx)("span", { className: "overview-network-host-speed", children: speed }),
+          (0,L.jsx)("span", { className: "overview-network-host-speed", "data-short-speed": speed.replace(/([KMGTP])B\/s$/, "$1/s"), children: speed }),
         ],
       }, node.uuid);
     }) : (0,L.jsx)("li", { className: "overview-network-empty", children: "No fresh online sample" }),
@@ -122,5 +122,5 @@ function glassNetworkStat({ nodes, ...props }) {
     (0,L.jsx)("span", { className: "overview-network-value-content", children:
       (0,L.jsx)("span", { className: "overview-network-total", title: props.value, children: props.value }),
     }));
-  return R.cloneElement(cell, { className: `${cell.props.className} overview-network-stat`, "data-network-empty": !top, style: { "--network-total-chars": String(props.value).length, "--network-host-chars": top ? ej(top.speed).length : 1 } }, header, main, footer, chart, (0,L.jsxs)("div", { className: "overview-network-rank-heading", children: [(0,L.jsx)("span", { children: "TOP THROUGHPUT" }), (0,L.jsx)("span", { children: ranked.length > 4 ? `${ranked.length} nodes · scroll for more` : "Upload + download" })] }));
+  return R.cloneElement(cell, { className: `${cell.props.className} overview-network-stat`, "data-network-empty": !top, style: { "--network-total-chars": String(props.value).length, "--network-host-chars": top ? ej(top.speed).length : 1 } }, header, main, footer, chart, (0,L.jsxs)("div", { className: "overview-network-desktop overview-network-desktop-header", children: [(0,L.jsx)("span", { children: "TOP 5" }), (0,L.jsx)("span", { children: ranked.length ? "LIVE" : "NO DATA" })] }), (0,L.jsx)("div", { className: "overview-network-desktop overview-network-desktop-rates", children: footer.props.children }), (0,L.jsxs)("div", { className: "overview-network-rank-heading", children: [(0,L.jsx)("span", { children: "TOP THROUGHPUT" }), (0,L.jsx)("span", { children: ranked.length > 4 ? `${ranked.length} nodes · scroll for more` : "Upload + download" })] }));
 }
