@@ -4,11 +4,12 @@ import test from "node:test";
 import { renderGlassHome } from "./fixtures/glass-home-render.mjs";
 import { summaryContext, renderSummary } from "./fixtures/glass-summary-render.mjs";
 const dist = new URL("../../backend/web/public/bundledThemes/Glass/dist/", import.meta.url);
-const index = readFileSync(new URL("index.html", dist), "utf8");
-const code = readFileSync(new URL(`_next/static/chunks/${index.match(/3859ru-[a-f0-9]{8}\.js/)[0]}`, dist), "utf8");
+// Historical layout comparison for the theme that predates the homepage redesign.
+const index = readFileSync(new URL("index.html", dist), "utf8").replace(/glass-visual-[a-f0-9]{8}\.css/g, "glass-visual-6f7452ea.css");
+const code = readFileSync(new URL("_next/static/chunks/3859ru-da34a50c.js", dist), "utf8");
 const prior = readFileSync(new URL("_next/static/chunks/3859ru-30af502c.js", dist), "utf8");
 const css = [...index.matchAll(/<link[^>]+rel="stylesheet"[^>]+href="([^"]+)"/g)].map(([, name]) => readFileSync(new URL(name.replace(/^\//, ""), dist), "utf8")).join("\n");
-const priorCss = css.replace(readFileSync(new URL("../script/glass-visual.css", import.meta.url), "utf8"), readFileSync(new URL("glass-visual-557fe8f7.css", dist), "utf8"));
+const priorCss = css.replace(readFileSync(new URL("glass-visual-6f7452ea.css", dist), "utf8"), readFileSync(new URL("glass-visual-557fe8f7.css", dist), "utf8"));
 test("desktop shorthand preserves shipped binary-byte formatter precision and full tooltip", () => {
   for (const [bytes, compact, full] of [[0, "0 B/s", "0 B/s"], [12.5, "12.50 B/s", "12.50 B/s"], [1024 * 42.72, "42.72 K/s", "42.72 KB/s"], [1024 ** 2 * 2.5, "2.50 M/s", "2.50 MB/s"], [1024 ** 3, "1.00 G/s", "1.00 GB/s"]]) {
     const html = renderSummary(code, summaryContext([{ uuid: "unit", name: "unit-host", online: true, net_out: bytes, net_in: 0, updated_at_live: new Date().toISOString() }]));

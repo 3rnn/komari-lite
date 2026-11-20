@@ -14,7 +14,7 @@ const now = Date.parse("2026-10-23T12:00:00Z");
 const node = (uuid, up, down, extra = {}) => ({ uuid, name: uuid, online: true, net_out: up, net_in: down, updated_at_live: new Date(now).toISOString(), ...extra });
 function selector() {
   const start = code.indexOf("function selectGlassTopThroughput(");
-  const end = code.indexOf("function glassNetworkStat(", start);
+  const end = code.indexOf("function rH(", start);
   assert.ok(start > 0 && end > start, "the shipped chunk must include the tested throughput model");
   return runInNewContext(`${code.slice(start, end)};selectGlassTopThroughput`);
 }
@@ -50,7 +50,7 @@ test("only fresh online valid public samples qualify, with stable UUID ties and 
   }
 });
 
-test("the shipped summary renders compact host and speed in its original three rows, escaping host text", () => {
+test("the shipped summary renders rates and the separate ranking with escaped host text", () => {
   const host = '<img src=x onerror="alert(1)"> & edge';
   const context = summaryContext([node("winner", 2 * 1024 ** 2, 1024 ** 2, { name: host, updated_at_live: new Date().toISOString() })]);
   const rendered = renderSummary(code, context);
@@ -58,17 +58,18 @@ test("the shipped summary renders compact host and speed in its original three r
   assert.match(rendered, /&lt;img src=x onerror=&quot;alert\(1\)&quot;&gt; &amp; edge/);
   assert.doesNotMatch(rendered, /<img|dangerouslySetInnerHTML/);
   assert.match(rendered, /class="overview-network-host-speed"[^>]*>3.00 MB\/s</);
-  assert.match(rendered, /24.00 MB\/s/);
   assert.match(rendered, /16.00 MB\/s/);
   assert.match(rendered, /8.00 MB\/s/);
-  assert.equal((rendered.match(/class="overview-stat /g) ?? []).length, 4);
-  const original = readFileSync(new URL("_next/static/chunks/3859ru-aa5bf30a.js", dist), "utf8");
-  const firstThree = text => text.slice(0, text.indexOf("Live network speed")).slice(0, text.lastIndexOf('<div class="overview-stat', text.indexOf("Live network speed")));
-  assert.equal(firstThree(rendered).replace(" overview-traffic-stat", ""), firstThree(renderSummary(original, context)), "other three cells retain original markup except the mobile traffic layout class");
+  assert.match(rendered, /507.55 GB/);
+  assert.match(rendered, /Active assets ¥821.71/);
+  assert.match(rendered, /Nodes online/);
+  assert.match(rendered, /PARA-RAID/);
   const empty = renderSummary(code, summaryContext([]));
   assert.match(empty, /class="overview-network-empty"[^>]*>No fresh online sample</);
   assert.doesNotMatch(empty, /class="overview-network-rank-row"/);
-  assert.match(empty, /data-network-empty="true"/);
+  const disconnected = renderSummary(code, { ...context, feedLive: false });
+  assert.match(disconnected, /Disconnected/);
+  assert.doesNotMatch(disconnected, /overview-network-host|>16.00 MB\/s</);
   context.settings.showSpeed = false;
   assert.doesNotMatch(renderSummary(code, context), /overview-network-host/);
 });

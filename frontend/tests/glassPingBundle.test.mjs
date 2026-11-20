@@ -21,15 +21,16 @@ test("Glass serves the content-hashed node-card bundle referenced by its HTML", 
 });
 
 test("the live status subscription starts during initial loading and is cleaned up on unmount", () => {
-  const liveEffect = code.match(/\(0,R\.useEffect\)\((\(\)=>\{[^{}]*new eT[^{}]*\{[^{}]*\}\}),(\[[^\]]*\])\)/);
+  const liveEffect = code.match(/\(0,R\.useEffect\)\((\(\)=>\{let e=\(ez\|\|\(ez=new eT\),ez\)[^;]*?;setFeedLive[^;]*?;return e\.connect\(\),\(\)=>\{r\(\),e\.disconnect\(\)\}\}),(\[[^\]]*\])\)/);
   assert.ok(liveEffect, "extract the shipped live status effect");
   const [, setup, dependencies] = liveEffect;
   assert.equal(dependencies, "[]", "loading state changes must not reconnect the socket");
   const calls = [];
-  const receiveStatus = () => {};
+  const receiveStatus = snapshot => calls.push(snapshot);
+  let subscription;
   class LiveStatus {
     subscribe(listener) {
-      assert.equal(listener, receiveStatus);
+      subscription = listener;
       calls.push("subscribe");
       return () => calls.push("unsubscribe");
     }
@@ -41,22 +42,19 @@ test("the live status subscription starts during initial loading and is cleaned 
     eT: LiveStatus,
     c: receiveStatus,
     t: true,
+    setFeedLive: connected => calls.push(connected),
   });
   assert.deepEqual(calls, ["subscribe", "connect"]);
+  subscription("snapshot", true);
+  subscription(null, false);
   cleanup();
-  assert.deepEqual(calls, ["subscribe", "connect", "unsubscribe", "disconnect"]);
+  assert.deepEqual(calls, ["subscribe", "connect", "snapshot", true, false, "unsubscribe", "disconnect"]);
 });
 
-test("the compact network annotation leaves the pinned shared stat renderer and other summary logic intact", () => {
-  const original = readFileSync(new URL("_next/static/chunks/3859ru-aa5bf30a.js", dist), "utf8");
-  const between = (text, from, until) => text.slice(text.indexOf(from), text.indexOf(until, text.indexOf(from)));
-  assert.equal(between(code, "function rK(", "// Input is the existing public node context"), between(original, "function rK(", "function rH()"));
-  const normalize = text => text
-    .replace('settings:t,nodes:networkNodes', 'settings:t')
-    .replace('glassTrafficStat,{icon:', 'rK,{icon:')
-    .replace('glassNetworkStat,{nodes:networkNodes,icon:', 'rK,{icon:');
-  assert.equal(normalize(between(code, "function rH()", "// Injected into the pinned Glass module")), between(original, "function rH()", "function rW()"));
-  assert.match(code, /rankGlassThroughput\(nodes\)/);
+test("the dashboard reuses the public node feed and existing overview settings", () => {
+  assert.match(code, /const \{ overview, settings, nodes, feedLive \} = eB\(\)/);
+  assert.match(code, /settings.showStatsBar && settings.showSpeed \? L.jsx\(GlassNetworkPanels, \{ nodes, feedLive \}\)/);
+  assert.match(code, /rankGlassThroughput\(nodes, now\)/);
   assert.match(code, /function selectGlassTopThroughput\(/);
 });
 
@@ -128,7 +126,7 @@ test("the 32-column strip has its own compact class and a subtle hover", () => {
 
 function pingRenderers() {
   const start = code.indexOf("function rC(");
-  const end = code.indexOf("function rz()", start);
+  const end = code.indexOf("function rz(", start);
   assert.ok(start > 0 && end > start, "extract the shipped single/multi ping renderers");
   return runInNewContext(`${code.slice(start, end)};({ rC, rD })`, {
     L: { jsx, jsxs },

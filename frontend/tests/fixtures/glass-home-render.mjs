@@ -14,7 +14,11 @@ export function renderGlassHome(code, context, view = "cards") {
     return code.slice(from, to);
   };
   const icon = props => jsx("svg", { ...props, "aria-hidden": true });
-  const support = slice("let ek=[", "function eP(") + slice("let rk=[", "// Pure node-card") + slice("function resolveNodePingSelection(", "function rP(") + slice("function ru(", "function rc(");
+  const sharedSummary = code.includes("function formatPingLatency(");
+  const support = slice("let ek=[", "function eP(")
+    + slice("let rk=[", sharedSummary ? "// Shared Glass ping summaries" : "// Pure node-card")
+    + slice(sharedSummary ? "function formatPingLatency(" : "function resolveNodePingSelection(", "function rP(")
+    + slice("function ru(", "function rc(");
   const renderers = slice("function rP(", "function rz()");
   const Card = runInNewContext(`${support};${renderers};rP`, {
     R: React, L: { jsx, jsxs, Fragment },

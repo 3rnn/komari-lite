@@ -1,41 +1,127 @@
-// Injected into the pinned Glass module: R and L are its React/runtime imports.
+// Injected into the pinned Glass module with its React runtime and formatters.
 function rW() {
-  const [view, setView] = R.useState("cards");
+  const { nodes, sitename, metricRetention } = eB();
+  const [view, setView] = R.useState("list");
+  const [search, setSearch] = R.useState("");
   R.useEffect(() => {
     try {
-      if (localStorage.getItem("komari-glass-node-view") === "list") setView("list");
-    } catch { /* Storage can be disabled; the view remains usable. */ }
+      const saved = localStorage.getItem("komari-glass-node-view");
+      if (saved === "cards" || saved === "list") setView(saved);
+    } catch { /* The default view is usable with storage disabled. */ }
   }, []);
-  function toggleView() {
-    const next = view === "list" ? "cards" : "list";
+  function selectView(next) {
     setView(next);
-    try { localStorage.setItem("komari-glass-node-view", next); } catch { /* Optional persistence. */ }
+    try { localStorage.setItem("komari-glass-node-view", next); } catch { /* Optional preference. */ }
   }
+  const query = search.trim().toLowerCase();
+  const visibleNodes = query
+    ? nodes.filter(node => node.name.toLowerCase().includes(query))
+    : nodes;
+  const pingEnabled = metricRetention.pingHours >= 1;
+
   return L.jsxs("div", {
-    className: "space-y-3.5 sm:space-y-4 glass-node-home",
+    className: "glass-node-home",
     "data-node-view": view,
     children: [
       L.jsx(rH, {}),
-      L.jsxs("div", {
-        className: "node-view-toolbar",
-        children: [
-          L.jsx("span", { className: "node-view-heading", children: "Nodes" }),
-          L.jsx("button", {
-            type: "button", className: "node-view-toggle",
-            "aria-label": "List view", "aria-pressed": view === "list",
-            title: view === "list" ? "Card view" : "List view",
-            onClick: toggleView, children: L.jsx("svg", {
-              width: 18, height: 18, viewBox: "0 0 24 24", fill: "none",
-              stroke: "currentColor", strokeWidth: 1.7, strokeLinecap: "round",
-              "aria-hidden": true, focusable: "false",
-              children: L.jsx("path", { d: view === "list"
-                ? "M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z"
-                : "M8 6h13 M8 12h13 M8 18h13 M3 6h1 M3 12h1 M3 18h1" }),
-            }),
-          }),
-        ],
-      }),
-      L.jsx(rz, {}),
+      L.jsxs("section", { "aria-labelledby": "glass-nodes", children: [
+        L.jsxs("div", {
+          className: "node-view-toolbar",
+          children: [
+            L.jsx("h2", { id: "glass-nodes", className: "glass-section-title", children: "Nodes" }),
+            L.jsxs("div", { className: "node-view-controls", children: [
+              L.jsx("input", { className: "node-view-search", type: "search", "aria-label": "Find a node",
+                placeholder: "Find a node", value: search, onChange: event => setSearch(event.target.value) }),
+              L.jsx("div", { className: "node-view-switch", role: "group", "aria-label": "Node view", children:
+                [["list", "List"], ["cards", "Cards"]].map(([value, label]) => L.jsx("button", {
+                  type: "button", "aria-pressed": value === view, onClick: () => selectView(value), children: label,
+                }, value)),
+              }),
+            ] }),
+          ],
+        }),
+        L.jsx(rz, { visibleNodes, view, pingEnabled }),
+      ] }),
+      L.jsxs("footer", { className: "glass-home-footer", children: [
+        L.jsx("span", { children: sitename }),
+        L.jsxs("span", { className: "glass-fido", title: "Fido", children: [
+          L.jsx("span", { className: "glass-fido-icon", "aria-hidden": true }),
+          L.jsx("span", { children: "FIDO" }),
+        ] }),
+      ] }),
     ],
   });
+}
+
+function glassNodeTable({ nodes, settings, pingEnabled, goInstance }) {
+  const columns = [
+    ["Node", ""], ["Uptime", "node-cell-secondary"], ["CPU", "node-cell-metric"],
+    ["Memory", "node-cell-metric"], ["Disk", "node-cell-metric"],
+    ...(pingEnabled ? [["Latency · 1h avg", ""], ["Loss · 1h", ""]] : []),
+  ];
+  return L.jsx("div", { className: "node-table-panel", children: L.jsxs("table", {
+    className: "node-table", "aria-labelledby": "glass-nodes", children: [
+      L.jsx("thead", { children: L.jsx("tr", { children: columns.map(([label, className]) =>
+        L.jsx("th", { scope: "col", className, children: label }, label)),
+      }) }),
+      L.jsx("tbody", { children: nodes.map(node =>
+        L.jsx(GlassNodeRow, { node, settings, pingEnabled, goInstance }, node.uuid)),
+      }),
+    ],
+  }) });
+}
+
+function GlassNodeRow({ node, settings, pingEnabled, goInstance }) {
+  const selection = resolveNodePingSelection(settings.showCarrierPing, { preferredId: settings.preferredPingTaskId },
+    node.display_ping_task_ids, node.display_ping_task_id);
+  const ping = useGlassNodePing(node.uuid, pingEnabled, 1, selection);
+  const tasks = ping.showAll ? ping.tasks : [{
+    id: "selected", name: ping.selectedName, avgLatency: ping.avgLatency,
+    latencyDisplay: ping.latencyDisplay, lossDisplay: ping.lossDisplay,
+  }];
+  const valueCell = (value, available = true) => {
+    const percent = node.online && available && Number.isFinite(value) ? value : null;
+    return L.jsxs("td", { className: "node-cell-metric", children: [
+      L.jsx("span", { children: percent === null ? "—" : `${percent.toFixed(1)}%` }),
+      percent === null ? null : L.jsx("span", { className: "node-meter", "aria-hidden": true, children:
+        L.jsx("span", { style: { width: `${eA(percent)}%` } }),
+      }),
+    ] });
+  };
+  const uptime = node.online && Number.isFinite(node.uptime) && node.uptime >= 0
+    ? `${Math.floor(node.uptime / 86400)}d ${Math.floor(node.uptime / 3600) % 24}h`
+    : "—";
+  const probeValues = (valueKey) => tasks.length ? tasks.map(task => L.jsxs("span", {
+    className: "node-probe-value", children: [
+      task.name && (valueKey === "latencyDisplay" || ping.showAll)
+        ? L.jsx("span", { className: "node-probe-name", title: task.name, children: task.name }) : null,
+      L.jsx("span", { className: valueKey === "latencyDisplay" && task.avgLatency > 200 ? "node-latency-high" : undefined,
+        children: task[valueKey] === "-" ? "—" : task[valueKey] }),
+    ],
+  }, task.id)) : (ping.loading ? "Loading" : "—");
+  return L.jsxs("tr", { children: [
+    L.jsx("th", { scope: "row", children: L.jsxs("a", {
+      className: "node-table-link", href: `/instance/${encodeURIComponent(node.uuid)}`,
+      "aria-label": `View ${node.name} details`,
+      onClick: event => {
+        if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        goInstance(node.uuid);
+      },
+      children: [
+        L.jsx("span", { className: "node-status-dot", role: "img", "aria-label": node.online ? "Online" : "Offline",
+          "data-online": node.online }),
+        L.jsx("span", { className: "node-table-name", title: node.name, children: node.name }),
+        L.jsx("span", { className: "glass-spearhead", "aria-hidden": true }),
+      ],
+    }) }),
+    L.jsx("td", { className: "node-cell-secondary", children: uptime }),
+    valueCell(node.cpu),
+    valueCell(eS(node.ram, node.mem_total), node.mem_total > 0),
+    valueCell(eS(node.disk, node.disk_total), node.disk_total > 0),
+    ...(pingEnabled ? [
+      L.jsx("td", { className: "node-probes", children: probeValues("latencyDisplay") }),
+      L.jsx("td", { className: "node-probes", children: probeValues("lossDisplay") }),
+    ] : []),
+  ] });
 }

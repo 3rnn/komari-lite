@@ -5,72 +5,84 @@ import test from "node:test";
 import * as React from "react";
 import { jsx, jsxs } from "react/jsx-runtime";
 import { act, create } from "react-test-renderer";
+import { resolveNodePingSelection } from "../script/glass-ping-view.mjs";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 const dist = new URL("../../backend/web/public/bundledThemes/Glass/dist/", import.meta.url);
 const html = readFileSync(new URL("index.html", dist), "utf8");
 const name = html.match(/3859ru-[a-f0-9]{8}\.js/)[0];
 const code = readFileSync(new URL(`_next/static/chunks/${name}`, dist), "utf8");
-function homepage(storage) {
+const nodes = [
+  { uuid: "green", name: "greencloud", online: true, display_ping_task_ids: [3] },
+  { uuid: "edge", name: "edge", online: false },
+];
+function homepage(storage, globals = {}) {
   const start = code.indexOf("function rW()");
   const end = code.indexOf("let rV=", start);
-  return runInNewContext(`${code.slice(start, end)};rW`, {
+  return runInNewContext(`${code.slice(start, end)};({ rW, glassNodeTable })`, {
     R: React, L: { jsx, jsxs }, localStorage: storage,
+    eB: () => ({ nodes, sitename: "Test Panel", metricRetention: { pingHours: 24 } }),
     rH: () => jsx("section", { children: "Overview" }),
-    rz: () => jsx("article", { children: "Unchanged node metrics" }),
+    rz: props => jsx("div", { id: "nodes", ...props }),
+    eS: () => 0, eA: value => value, resolveNodePingSelection,
+    ...globals,
   });
 }
-test("homepage defaults to cards and toggles the same nodes with accessible persisted state", async () => {
+const viewButton = (tree, name) => tree.root.findAllByType("button").find(button => button.props.children === name);
+
+test("list defaults, search filters both views and saved cards preferences survive reopening", async () => {
   const saved = new Map();
-  const Home = homepage({ getItem: key => saved.get(key), setItem: (key, value) => saved.set(key, value) });
+  const { rW } = homepage({ getItem: key => saved.get(key), setItem: (key, value) => saved.set(key, value) });
   let tree;
-  await act(() => { tree = create(jsx(Home, {})); });
-  const button = () => tree.root.findByType("button");
-  assert.equal(button().props["aria-pressed"], false);
-  assert.equal(button().props.title, "List view");
-  assert.equal(button().props.children.type, "svg");
-  assert.equal(button().props.children.props["aria-hidden"], true);
-  const node = tree.root.findByType("article");
-  await act(() => button().props.onClick());
-  assert.equal(button().props["aria-pressed"], true);
-  assert.equal(button().props.title, "Card view");
-  assert.equal(tree.root.findByType("article"), node, "do not remount monitoring nodes");
-  assert.equal(saved.get("komari-glass-node-view"), "list");
-  await act(() => tree.unmount());
-  await act(() => { tree = create(jsx(Home, {})); });
-  assert.equal(button().props["aria-pressed"], true);
-  await act(() => button().props.onClick());
+  await act(() => { tree = create(jsx(rW, {})); });
+  assert.equal(viewButton(tree, "List").props["aria-pressed"], true);
+  await act(() => tree.root.findByType("input").props.onChange({ target: { value: " GREEN " } }));
+  assert.deepEqual(tree.root.findByProps({ id: "nodes" }).props.visibleNodes, [nodes[0]]);
+  await act(() => viewButton(tree, "Cards").props.onClick());
+  assert.equal(viewButton(tree, "Cards").props["aria-pressed"], true);
+  assert.deepEqual(tree.root.findByProps({ id: "nodes" }).props.visibleNodes, [nodes[0]]);
   assert.equal(saved.get("komari-glass-node-view"), "cards");
+  await act(() => tree.unmount());
+  await act(() => { tree = create(jsx(rW, {})); });
+  assert.equal(viewButton(tree, "Cards").props["aria-pressed"], true);
   await act(() => tree.unmount());
 });
 
-test("invalid preferences and blocked storage fail safely", async () => {
+test("invalid preferences and blocked storage leave a usable list and toggle", async () => {
   for (const storage of [
     { getItem: () => "invalid", setItem: () => {} },
     { getItem: () => { throw Error("disabled"); }, setItem: () => { throw Error("disabled"); } },
   ]) {
     let tree;
-    await act(() => { tree = create(jsx(homepage(storage), {})); });
-    const button = () => tree.root.findByType("button");
-    assert.equal(button().props["aria-pressed"], false);
-    assert.equal(button().props.type, "button");
-    await act(() => button().props.onClick());
-    assert.equal(button().props["aria-pressed"], true);
+    await act(() => { tree = create(jsx(homepage(storage).rW, {})); });
+    assert.equal(viewButton(tree, "List").props["aria-pressed"], true);
+    await act(() => viewButton(tree, "Cards").props.onClick());
+    assert.equal(viewButton(tree, "Cards").props["aria-pressed"], true);
     await act(() => tree.unmount());
   }
 });
 
-test("list mode has a scoped full-width responsive layout without replacing the node renderer", () => {
-  const cssName = html.match(/glass-visual-[a-f0-9]{8}\.css/)[0];
-  const css = readFileSync(new URL(cssName, dist), "utf8");
-  assert.match(code, /node-view-grid grid grid-cols-1/);
-  assert.match(css, /\[data-node-view="list"\] \.node-view-grid/);
-  assert.match(css, /grid-template-columns: minmax\(0, 1fr\)/);
-  assert.match(css, /@media \(min-width: 1100px\)/);
-  assert.match(css, /@media \(max-width: 767px\), \(min-width: 1100px\) and \(max-width: 1199px\)/, "align primary values and bars at tight widths");
-  assert.match(css, /\.node-card > div \{ display: contents; \}/, "flatten wrappers instead of preserving tall card body");
-  assert.match(css, /\.node-card > header \{ padding: 0; border: 0; min-height: 0; \}/, "no full-height name divider");
-  assert.match(css, /\.grid:nth-child\(4\) \{ grid-column: 1 \/ -1; grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/, "latency and loss stay side by side");
-  assert.match(css, /\[data-node-view="list"\] \.node-data-panel \.tabular-nums \{ white-space: normal; overflow-wrap: anywhere;/, "list network values must remain readable in narrow metric columns");
-  assert.match(code, /onKeyDown:e=>\{\("Enter"===e.key\|\|" "===e.key\)/);
+test("list columns show the same selected probe and one-hour window as the card", async () => {
+  const { glassNodeTable } = homepage({}, {
+    useGlassNodePing(uuid, enabled, hours, selection) {
+      assert.equal(uuid, "green");
+      assert.equal(enabled, true);
+      assert.equal(hours, 1);
+      assert.equal(selection.preferredId, 3);
+      assert.equal(selection.showAll, false);
+      return { selectedName: "CU", latencyDisplay: "885 ms", lossDisplay: "3.4%" };
+    },
+  });
+  let tree;
+  await act(() => { tree = create(jsx(glassNodeTable, {
+    nodes: [nodes[0]], settings: { showCarrierPing: true }, pingEnabled: true,
+  })); });
+  assert.equal(tree.root.findByType("a").props.href, "/instance/green");
+  const out = JSON.stringify(tree.toJSON());
+  assert.match(out, /Latency · 1h avg/);
+  assert.match(out, /"CU"/);
+  assert.match(out, /"885 ms"/);
+  assert.match(out, /"3.4%"/);
+  assert.doesNotMatch(out, /"CT"|"CM"/);
+  await act(() => tree.unmount());
 });

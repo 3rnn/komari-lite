@@ -6,7 +6,7 @@ import { jsx, jsxs } from "react/jsx-runtime";
 import { renderToStaticMarkup } from "react-dom/server";
 
 export function summaryRenderer(code, context, globals = {}) {
-  const start = code.indexOf("function rK(");
+  const start = code.includes("function rK(") ? code.indexOf("function rK(") : code.indexOf("function selectGlassTopThroughput(");
   const end = code.indexOf("function rW()", start);
   assert.ok(start > 0 && end > start);
   const unitsStart = code.indexOf("let ek=[");
@@ -24,7 +24,7 @@ export function renderSummary(code, context) {
 }
 export function summaryContext(nodes) {
   return {
-    nodes,
+    nodes, feedLive: true,
     settings: { showStatsBar: true, showOnline: true, showAssets: true, showTraffic: true, showSpeed: true },
     overview: { online: 11, total: 12, offline: 1, totalValue: 821.71, remainingValue: 661.8, paidCount: 12,
       trafficTotal: 507.55 * 1024 ** 3, trafficUp: 197.68 * 1024 ** 3, trafficDown: 309.87 * 1024 ** 3,

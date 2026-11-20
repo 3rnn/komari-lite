@@ -15,6 +15,8 @@ test("sparkline records only observed fresh public aggregate rates, bounded to s
   assert.equal(history.length, 60);
   assert.equal(history[0].time, now + 40_000);
   assert.equal(history.at(-1).value, 21);
+  assert.equal(history.at(-1).upload, 15);
+  assert.equal(history.at(-1).download, 6);
   const unchanged = model.observeGlassThroughput(history, [node(now + 99_000), { ...node(now + 99_000, 10), uuid: "b" }], now + 99_500, true);
   assert.deepEqual(unchanged, history, "never repeat a frozen feed as invented history");
 });
@@ -59,13 +61,13 @@ test("actual shipped streaming hook records feed only and gaps hidden intervals 
   const Summary = summaryRenderer(code, context, { Date: Clock, document, setTimeout: (fn, delay) => { timers.set(++id, { fn, delay }); return id; }, clearTimeout: id => timers.delete(id) });
   let tree;
   await act(() => { tree = create(jsx(Summary, {})); });
-  const chart = () => tree.root.findByProps({ className: "overview-network-chart" });
+  const chart = () => tree.root.findByProps({ className: "glass-throughput-plot" });
   assert.equal(chart().props["data-sample-count"], 1);
   clock += 1000;
   context.nodes = [node(clock, 9)];
   await act(() => tree.update(jsx(Summary, {})));
   assert.equal(chart().props["data-sample-count"], 2);
-  assert.equal(tree.root.findAllByType("path").length, 1);
+  assert.equal(tree.root.findAllByType("path").length, 2, "one path for each channel");
   clock += 1000;
   document.hidden = true;
   await act(() => listeners.get("visibilitychange")());
@@ -79,7 +81,7 @@ test("actual shipped streaming hook records feed only and gaps hidden intervals 
   context.nodes = [node(clock, 11)];
   await act(() => tree.update(jsx(Summary, {})));
   assert.equal(chart().props["data-sample-count"], 3);
-  assert.equal(tree.root.findAllByType("path").length, 2, "resuming never bridges hidden time");
+  assert.equal(tree.root.findAllByType("path").length, 4, "neither channel bridges hidden time");
   clock += 60_001;
   const pending = [...timers.values()]; timers.clear();
   await act(() => pending.forEach(timer => timer.fn()));

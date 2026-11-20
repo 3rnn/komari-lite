@@ -7,6 +7,12 @@ import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const knownVersions = [
+  // Exact deployed Glass with aligned per-task ping summaries.
+  new Map([
+    ["komari-theme.json", "022143c717a12cf44e5af525bd61cf596ace4ef1415914d2ee71a65e42a2d284"],
+    ["dist/index.html", "223c59691afc602eeae37fa797ed46617ee02d176788977d4a0bb474984feaca"],
+    ["dist/_next/static/chunks/3859ru-da34a50c.js", "da34a50c8cb2d6e05db2d9306b3c1e1d07c85b9448b5af38c767489ab3d9cad8"],
+  ]),
   // Exact deployed Glass with parallel live status startup.
   new Map([
     ["komari-theme.json", "022143c717a12cf44e5af525bd61cf596ace4ef1415914d2ee71a65e42a2d284"],

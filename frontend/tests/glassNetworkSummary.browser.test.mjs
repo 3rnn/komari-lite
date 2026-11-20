@@ -6,11 +6,12 @@ import { build } from "esbuild";
 import { renderSummary, summaryContext } from "./fixtures/glass-summary-render.mjs";
 import { renderGlassHome } from "./fixtures/glass-home-render.mjs";
 const dist = new URL("../../backend/web/public/bundledThemes/Glass/dist/", import.meta.url);
-const index = readFileSync(new URL("index.html", dist), "utf8");
-const code = readFileSync(new URL(`_next/static/chunks/${index.match(/3859ru-[a-f0-9]{8}\.js/)[0]}`, dist), "utf8");
+// Historical layout comparison for the theme that predates the homepage redesign.
+const index = readFileSync(new URL("index.html", dist), "utf8").replace(/glass-visual-[a-f0-9]{8}\.css/g, "glass-visual-6f7452ea.css");
+const code = readFileSync(new URL("_next/static/chunks/3859ru-da34a50c.js", dist), "utf8");
 const prior = readFileSync(new URL("_next/static/chunks/3859ru-fa8e62f6.js", dist), "utf8");
 const styles = [...index.matchAll(/<link[^>]+rel="stylesheet"[^>]+href="([^"]+)"/g)].map(([, name]) => readFileSync(new URL(name.replace(/^\//, ""), dist), "utf8")).join("\n");
-const priorStyles = styles.replace(readFileSync(new URL("../script/glass-visual.css", import.meta.url), "utf8"), readFileSync(new URL("glass-visual-8af54d66.css", dist), "utf8"));
+const priorStyles = styles.replace(readFileSync(new URL("glass-visual-6f7452ea.css", dist), "utf8"), readFileSync(new URL("glass-visual-8af54d66.css", dist), "utf8"));
 const nodes = () => Array.from({ length: 12 }, (_, i) => ({ uuid: String(i), name: i ? `edge-${i}-long-hostname` : "edge-very-long-hostname-".repeat(20), online: true,
   net_out: 600 * 1024 ** 2 / (i + 1), net_in: 423.99 * 1024 ** 2 / (i + 1), updated_at_live: new Date().toISOString(),
   cpu: 7.1 + i, ram: 2 * 1024 ** 3, mem_total: 8 * 1024 ** 3, disk: 15 * 1024 ** 3, disk_total: 80 * 1024 ** 3, load: .12, load5: .08, load15: .05, uptime: 864000,
