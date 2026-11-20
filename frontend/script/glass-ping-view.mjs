@@ -1,4 +1,8 @@
-// Pure node-card ping selection; the Glass asset patch embeds these functions.
+// Shared Glass ping summaries for node cards and latency charts.
+export function formatPingLatency(value) {
+  return Number.isFinite(value) ? `${Math.round(value)} ms` : "-";
+}
+
 export function resolveNodePingSelection(showAll, pingTaskSelection, displayIds, legacyId = 0) {
   const ids = [...new Set((Array.isArray(displayIds) && displayIds.length ? displayIds : [legacyId])
     .filter((id) => Number.isSafeInteger(id) && id > 0))];
@@ -45,7 +49,7 @@ export function selectPingTaskData(tasks, records, showAll, preferredId, makeHis
         ? successful.reduce((sum, record) => sum + record.value, 0) / successful.length
         : null,
       loss: samples.length ? (samples.length - successful.length) / samples.length * 100 : null,
-      history: makeHistory(samples),
+      ...(makeHistory ? { history: makeHistory(samples) } : {}),
     };
   });
   return { rows: effectiveShowAll ? summaries : [], selected: effectiveShowAll ? null : summaries[0] ?? null, showAll: effectiveShowAll };

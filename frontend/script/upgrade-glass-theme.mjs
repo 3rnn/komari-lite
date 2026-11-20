@@ -7,6 +7,12 @@ import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const knownVersions = [
+  // Exact deployed Glass with parallel live status startup.
+  new Map([
+    ["komari-theme.json", "022143c717a12cf44e5af525bd61cf596ace4ef1415914d2ee71a65e42a2d284"],
+    ["dist/index.html", "7843151341f18318b2fe33c066741df78c891d1e7b2deb14677737cb266fc01c"],
+    ["dist/_next/static/chunks/3859ru-b6bf91d0.js", "b6bf91d068e28185216d4907ac74092b3cdd9cfcb00e026db4d1b765289f275d"],
+  ]),
   // Exact deployed 990808a theme before the parallel live status startup.
   new Map([
     ["komari-theme.json", "022143c717a12cf44e5af525bd61cf596ace4ef1415914d2ee71a65e42a2d284"],

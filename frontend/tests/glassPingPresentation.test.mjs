@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { resolveNodePingSelection, selectPingTaskData } from "../script/glass-ping-view.mjs";
+import { formatPingLatency, resolveNodePingSelection, selectPingTaskData } from "../script/glass-ping-view.mjs";
 
 const tasks = [
   { id: 1, name: "CT", weight: 1 },
@@ -30,6 +30,20 @@ test("single mode selects the configured task ID, never an aggregate", () => {
   assert.equal(view.selected.loss, 0);
   assert.deepEqual(view.selected.history.map((point) => point.latency), [80]);
   assert.equal(view.rows.length, 0);
+});
+
+test("card and detail agree on the mean even when the latest sample is an outlier", () => {
+  const rows = [sample(2, 80, 1), sample(2, 240, 2), sample(2, 242, 3), sample(2, -1, 4), sample(3, -1, 5)];
+  const card = selectPingTaskData(tasks, rows, false, 2, makeHistory).selected;
+  const detail = selectPingTaskData(tasks, rows, true, 0).rows;
+  assert.equal(formatPingLatency(card.avgLatency), "187 ms");
+  assert.equal(formatPingLatency(detail[1].avgLatency), formatPingLatency(card.avgLatency));
+  assert.equal(detail[1].loss, card.loss);
+  assert.equal(detail[1].loss, 25);
+  assert.equal(formatPingLatency(detail[2].avgLatency), "-");
+  assert.equal(detail[2].loss, 100);
+  assert.equal(detail[0].loss, null);
+  assert.equal(formatPingLatency(0), "0 ms");
 });
 
 test("a deleted or unassigned preferred task falls back to the first assigned task even without samples", () => {

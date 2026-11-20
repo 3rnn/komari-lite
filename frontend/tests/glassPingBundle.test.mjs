@@ -68,6 +68,15 @@ test("node cards use the tested per-task model instead of averaging different ta
   assert.match(code, /v\.selectedName\?`Latency/);
 });
 
+test("the chart legend uses the same per-task history and average formatter as the card", () => {
+  const detail = code.slice(code.indexOf("function jc("), code.indexOf("function jf("));
+  assert.match(detail, /await rv\(e,t\)/);
+  assert.match(detail, /selectPingTaskData\(h,r\?\.records,!0,0\)/);
+  assert.match(detail, /formatPingLatency\(e\.avgLatency\)/);
+  assert.match(code, /formatPingLatency\(a\?\.avgLatency\)/);
+  assert.doesNotMatch(code, /public:getPingMetricStats/);
+});
+
 test("node cards apply the server display IDs before choosing multi-task or single-task panels", () => {
   assert.match(code, /function resolveNodePingSelection\(/);
   assert.match(code, /resolveNodePingSelection\(r,n,e\.display_ping_task_ids,e\.display_ping_task_id\)/);
@@ -95,7 +104,7 @@ test("latency and loss timelines use up to 32 real history buckets with matching
 
 test("timeline buckets preserve sparse samples and aggregate dense real samples", () => {
   const from = code.indexOf("function rc(e){");
-  const until = code.indexOf("function rf(e,t=!1){", from);
+  const until = code.indexOf("let rp=new Map", from);
   assert.ok(from > 0 && until > from, "extract the pinned aggregation routine");
   const bucket = runInNewContext(`${code.slice(from, until)};rd`, Object.create(null));
   const record = (minutes, value) => ({ time: new Date(Date.UTC(2026, 0, 1, 0, minutes)).toISOString(), value });
