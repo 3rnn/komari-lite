@@ -7,6 +7,12 @@ import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const knownVersions = [
+  // Exact deployed 990808a theme before the parallel live status startup.
+  new Map([
+    ["komari-theme.json", "022143c717a12cf44e5af525bd61cf596ace4ef1415914d2ee71a65e42a2d284"],
+    ["dist/index.html", "62685e5c7c1b4de44ee9f549cb941695d5f2d53e3cf6d00421dd46ae86cde2c9"],
+    ["dist/_next/static/chunks/3859ru-a8ab9aa7.js", "a8ab9aa7325cbb52f7104ae848ea054f0dd2c10daeb02249c3722293a650a09c"],
+  ]),
   // Exact deployed 49914cf mobile summary before the desktop-only redesign.
   new Map([
     ["komari-theme.json", "022143c717a12cf44e5af525bd61cf596ace4ef1415914d2ee71a65e42a2d284"],
@@ -112,6 +118,7 @@ const knownVersions = [
   ]),
 ];
 const knownVisualStyles = new Map([
+  ["glass-visual-6f7452ea.css", "6f7452ea7a537a21fa2eb94762ce6ad7307f0f6990cd85addf6450e26b322763"],
   ["glass-visual-557fe8f7.css", "557fe8f73e245e930be75f4367502d84b158328b989dd7cc2c05cfbc84cedb39"],
   ["glass-visual-8af54d66.css", "8af54d66f5eb4a5bd76e839f2ef8ae627744471e495401a1290f953b9b158115"],
   ["glass-visual-ecf8ea54.css", "ecf8ea54d3d36f6beb72fe404a670af5a2869ae845836223720bd95ac139eb02"],

@@ -21,6 +21,13 @@ function replaceOnce(before, after) {
   patched = patched.replace(before, after);
 }
 
+// Overlap the live status handshake and first snapshot with the initial RPCs.
+// The provider still waits for its initial data before showing the dashboard.
+replaceOnce(
+  '()=>{if(t)return;let e=(ez||(ez=new eT),ez),r=e.subscribe(c);return e.connect(),()=>{r(),e.disconnect()}},[t]',
+  '()=>{let e=(ez||(ez=new eT),ez),r=e.subscribe(c);return e.connect(),()=>{r(),e.disconnect()}},[]',
+);
+
 const model = readFileSync(new URL("glass-ping-view.mjs", import.meta.url), "utf8")
   .replace(/^export function /gm, "function ");
 replaceOnce("function rP({node:e", `${model}\nfunction rP({node:e`);

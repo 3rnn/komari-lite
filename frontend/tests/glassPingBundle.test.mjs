@@ -20,6 +20,33 @@ test("Glass serves the content-hashed node-card bundle referenced by its HTML", 
   assert.ok(matches.every((match) => match[1] === fingerprint));
 });
 
+test("the live status subscription starts during initial loading and is cleaned up on unmount", () => {
+  const liveEffect = code.match(/\(0,R\.useEffect\)\((\(\)=>\{[^{}]*new eT[^{}]*\{[^{}]*\}\}),(\[[^\]]*\])\)/);
+  assert.ok(liveEffect, "extract the shipped live status effect");
+  const [, setup, dependencies] = liveEffect;
+  assert.equal(dependencies, "[]", "loading state changes must not reconnect the socket");
+  const calls = [];
+  const receiveStatus = () => {};
+  class LiveStatus {
+    subscribe(listener) {
+      assert.equal(listener, receiveStatus);
+      calls.push("subscribe");
+      return () => calls.push("unsubscribe");
+    }
+    connect() { calls.push("connect"); }
+    disconnect() { calls.push("disconnect"); }
+  }
+  const cleanup = runInNewContext(`(${setup})()`, {
+    ez: undefined,
+    eT: LiveStatus,
+    c: receiveStatus,
+    t: true,
+  });
+  assert.deepEqual(calls, ["subscribe", "connect"]);
+  cleanup();
+  assert.deepEqual(calls, ["subscribe", "connect", "unsubscribe", "disconnect"]);
+});
+
 test("the compact network annotation leaves the pinned shared stat renderer and other summary logic intact", () => {
   const original = readFileSync(new URL("_next/static/chunks/3859ru-aa5bf30a.js", dist), "utf8");
   const between = (text, from, until) => text.slice(text.indexOf(from), text.indexOf(until, text.indexOf(from)));
