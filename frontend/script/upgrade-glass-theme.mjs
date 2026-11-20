@@ -7,6 +7,12 @@ import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const knownVersions = [
+  // Exact deployed Glass homepage before the signal-console revision.
+  new Map([
+    ["komari-theme.json", "022143c717a12cf44e5af525bd61cf596ace4ef1415914d2ee71a65e42a2d284"],
+    ["dist/index.html", "7e48544397030bb9b2663ed557c70ec5bf45735e8d99ce83f46dcd22d66aba31"],
+    ["dist/_next/static/chunks/3859ru-13c756a2.js", "13c756a27a6f2bd824f3aa8706c4ecec1629856f8dd7bebc7d7974705928e9dd"],
+  ]),
   // Exact deployed Glass with aligned per-task ping summaries.
   new Map([
     ["komari-theme.json", "022143c717a12cf44e5af525bd61cf596ace4ef1415914d2ee71a65e42a2d284"],
@@ -130,6 +136,7 @@ const knownVersions = [
   ]),
 ];
 const knownVisualStyles = new Map([
+  ["glass-visual-02b6afeb.css", "02b6afebc451601aa1a85641822451d1bfb80d0919866f3f8520c9924282713a"],
   ["glass-visual-6f7452ea.css", "6f7452ea7a537a21fa2eb94762ce6ad7307f0f6990cd85addf6450e26b322763"],
   ["glass-visual-557fe8f7.css", "557fe8f73e245e930be75f4367502d84b158328b989dd7cc2c05cfbc84cedb39"],
   ["glass-visual-8af54d66.css", "8af54d66f5eb4a5bd76e839f2ef8ae627744471e495401a1290f953b9b158115"],

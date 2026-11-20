@@ -1,22 +1,22 @@
-/* Glass public-theme overrides. Keep the vendored CSS untouched and retain light-mode support. */
+/* Glass public theme. Cold blue instruments and high-contrast telemetry in both appearances. */
 :root {
-  --background: #edf3ef;
-  --foreground: #15332a;
-  --card-solid: #f5f8f5;
-  --card-foreground: #15332a;
-  --primary: #146b58;
-  --primary-foreground: #f5f8f5;
-  --muted: #e5eee9;
-  --muted-foreground: #4f675d;
-  --border: #c4d8cc;
-  --ring: #146b58;
-  --glass-control: #e5eee9;
-  --node-card-bg: #f5f8f5;
-  --node-card-hover: #eaf2ed;
-  --node-card-border: #c4d8cc;
-  --node-data-bg: #eaf2ed;
-  --node-offline-bg: #ffffffd9;
-  --glass-download: #176ba0;
+  --background: #e5edf6;
+  --foreground: #172942;
+  --card-solid: #f3f8ff;
+  --card-foreground: #172942;
+  --primary: #175899;
+  --primary-foreground: #f3f8ff;
+  --muted: #e1eaf6;
+  --muted-foreground: #465e7b;
+  --border: #b5c9df;
+  --ring: #175899;
+  --glass-control: #e1eaf6;
+  --node-card-bg: #f3f8ff;
+  --node-card-hover: #e6eff9;
+  --node-card-border: #b5c9df;
+  --node-data-bg: #e6eff9;
+  --node-offline-bg: #f3f8ffe6;
+  --glass-download: #435eb7;
   --glass-alert: #8c5000;
   --ping-good: #23866d;
   --ping-calm: #68a98b;
@@ -25,24 +25,24 @@
   --ping-critical: #bd655b;
 }
 .dark {
-  --background: #0b1717;
-  --foreground: #e4eee5;
-  --card-solid: #112323;
-  --card-foreground: #e4eee5;
-  --primary: #66d9af;
-  --primary-foreground: #0b1717;
-  --muted: #182d2c;
-  --muted-foreground: #a6bdb4;
-  --border: #2c4440;
-  --ring: #66d9af;
-  --glass-control: #182d2c;
-  --node-card-bg: #112323;
-  --node-card-hover: #182d2c;
-  --node-card-border: #2c4440;
-  --node-data-bg: #182d2c;
-  --node-offline-bg: #0b1717d9;
-  --glass-download: #67bcef;
-  --glass-alert: #ffbe69;
+  --background: #0b1220;
+  --foreground: #e0eaf8;
+  --card-solid: #111e31;
+  --card-foreground: #e0eaf8;
+  --primary: #8bd6ff;
+  --primary-foreground: #0b1220;
+  --muted: #1a2c44;
+  --muted-foreground: #a0b6d2;
+  --border: #2d4764;
+  --ring: #8bd6ff;
+  --glass-control: #1a2c44;
+  --node-card-bg: #111e31;
+  --node-card-hover: #1a2c44;
+  --node-card-border: #2d4764;
+  --node-data-bg: #1a2c44;
+  --node-offline-bg: #0b1220e6;
+  --glass-download: #91a8ff;
+  --glass-alert: #ffb77f;
   --ping-good: #4dab8c;
   --ping-calm: #7ab99b;
   --ping-watch: #cabb72;
@@ -134,27 +134,25 @@ main { min-width: 0; }
   letter-spacing: -.025em;
   line-height: 1.2;
 }
+/* A tiny stencil inspired by a mechanic's personal marking. */
 .glass-site-mark {
   position: relative;
-  display: inline-grid;
+  display: inline-block;
   width: 27px;
-  height: 22px;
-  place-items: center;
+  height: 25px;
   flex: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--card-solid);
   color: var(--primary);
-  background: var(--primary);
-  clip-path: polygon(22% 0, 100% 0, 100% 64%, 77% 100%, 0 100%, 0 36%);
-  font: italic 700 12px/1 ui-monospace, monospace;
-  isolation: isolate;
 }
+.glass-site-mark::before, .glass-site-mark::after { position: absolute; content: ""; background: currentColor; }
 .glass-site-mark::before {
-  position: absolute;
-  inset: 1px;
-  z-index: -1;
-  background: var(--background);
-  clip-path: inherit;
-  content: "";
+  inset: 5px 9px 4px 4px;
+  clip-path: polygon(43% 0, 57% 0, 63% 21%, 84% 17%, 100% 51%, 82% 58%, 73% 41%, 62% 67%,
+    78% 96%, 56% 96%, 50% 75%, 41% 96%, 17% 96%, 37% 67%, 24% 42%, 15% 60%, 0 51%, 16% 17%, 37% 21%);
 }
+.glass-site-mark::after { inset: 4px 4px 4px auto; width: 5px; clip-path: polygon(50% 0, 100% 20%, 66% 33%, 66% 100%, 34% 100%, 34% 33%, 0 20%); }
 .glass-infrastructure { display: grid; gap: .8rem; }
 .glass-overview-heading, .node-view-toolbar, .glass-throughput-heading {
   display: flex;
@@ -164,37 +162,36 @@ main { min-width: 0; }
   gap: .65rem 1rem;
 }
 .glass-raid { display: flex; align-items: center; gap: .45rem; font-size: .75rem; color: var(--muted-foreground); }
-.glass-raid-label { font-family: var(--telemetry-font); }
-.glass-raid[data-live="true"] strong, .glass-raid[data-live="true"] .glass-raid-icon { color: var(--primary); }
+/* The linked ring changes only after the public WebSocket sends a valid frame. */
 .glass-raid-icon {
   position: relative;
   width: 20px;
-  height: 15px;
-  border: 1px solid transparent;
-  border-inline-color: currentColor;
+  height: 20px;
+  border: 1px solid currentColor;
   border-radius: 50%;
 }
 .glass-raid-icon::before, .glass-raid-icon::after { position: absolute; content: ""; }
-.glass-raid-icon::before { inset: 2px 3px; border: inherit; border-radius: inherit; }
+.glass-raid-icon::before { inset: 3px; border: 1px solid currentColor; border-inline-color: transparent; border-radius: 50%; transform: rotate(32deg); }
 .glass-raid-icon::after { inset: 50% auto auto 50%; width: 3px; height: 3px; border-radius: 50%; background: currentColor; transform: translate(-50%, -50%); }
+.glass-raid[data-live="true"] { color: var(--primary); }
 .glass-overview-stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
-  gap: .66rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
   margin: 0;
 }
-.glass-overview-stats > div, .glass-instrument, .node-table-panel {
+.glass-overview-stats, .glass-instrument, .node-table-panel {
   min-width: 0;
   border: 1px solid var(--border);
   border-radius: 5px;
   background: var(--card-solid);
 }
-.glass-overview-stats > div { padding: .75rem 1rem; }
+.glass-overview-stats > div { min-width: 0; padding: .68rem 1rem; }
+.glass-overview-stats > div + div { border-inline-start: 1px solid var(--border); }
 .glass-overview-stats dt { color: var(--muted-foreground); font-size: .77rem; }
 .glass-overview-stats dd {
   margin: .25rem 0 0;
   color: var(--primary);
-  font: 650 clamp(1rem, 2.15vw, 1.7rem)/1.2 var(--telemetry-font);
+  font: 650 clamp(1rem, 1.8vw, 1.4rem)/1.2 var(--telemetry-font);
   overflow-wrap: anywhere;
 }
 .glass-overview-assets { display: flex; flex-wrap: wrap; gap: .25rem 1rem; margin: 0; color: var(--muted-foreground); font: .73rem/1.4 var(--telemetry-font); }
@@ -211,32 +208,68 @@ main { min-width: 0; }
   pointer-events: none;
 }
 .glass-instrument h2 { margin: 0; font-size: .95rem; font-weight: 650; }
-.glass-throughput-key { display: flex; gap: .75rem; font-size: .7rem; color: var(--muted-foreground); }
-.glass-throughput-key span { display: inline-flex; gap: .35rem; align-items: center; }
+/* Instrument traces share one amplitude scale. Thin grid and center line
+   remain steady while samples move through the 60-second window. */
+.glass-wave-scale, .glass-throughput-time {
+  color: var(--muted-foreground);
+  font: .68rem/1.35 var(--telemetry-font);
+}
 .glass-trace-upload { --trace: var(--primary); }
 .glass-trace-download { --trace: var(--glass-download); }
-.glass-throughput-key span::before { width: .8rem; height: 2px; background: var(--trace); content: ""; }
 .glass-throughput-plot {
+  --wave-label: clamp(5.15rem, 13vw, 7.25rem);
+  position: relative;
+  margin-top: .66rem;
+  border-radius: 2px;
+}
+.glass-wave-channel {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  grid-template-rows: minmax(5.25rem, 8rem) auto;
-  gap: .25rem .55rem;
-  margin-top: .65rem;
+  grid-template-columns: var(--wave-label) minmax(0, 1fr);
+  align-items: stretch;
+  min-height: 3.35rem;
+  border: 1px solid var(--border);
+  color: var(--trace);
+  background: var(--background);
 }
-.glass-throughput-scale { display: flex; flex-direction: column; justify-content: space-between; color: var(--muted-foreground); font: .66rem/1 var(--telemetry-font); }
-.glass-throughput-plot svg, .glass-throughput-empty {
-  grid-column: 2;
+.glass-wave-channel + .glass-wave-channel { border-top: 0; }
+.glass-wave-label {
+  display: grid;
+  align-content: center;
+  gap: .18rem;
+  padding: .22rem .48rem;
+  border-inline-end: 1px solid var(--border);
+  background: var(--card-solid);
+  font-size: .72rem;
+}
+.glass-wave-label span { color: var(--muted-foreground); }
+.glass-wave-label strong { font: 650 clamp(.67rem, 1.2vw, .83rem)/1.15 var(--telemetry-font); overflow-wrap: anywhere; }
+.glass-wave-channel svg {
+  display: block;
   width: 100%;
-  height: 100%;
+  height: 3.35rem;
   min-width: 0;
-  border-block: 1px solid var(--border);
-  border-inline-start: 1px solid var(--border);
-  background: linear-gradient(to bottom, transparent calc(50% - .5px), var(--border) 50%, transparent calc(50% + .5px));
+  overflow: hidden;
+  background:
+    linear-gradient(transparent calc(50% - .5px), var(--border) 50%, transparent calc(50% + .5px)),
+    repeating-linear-gradient(90deg, transparent 0 calc(10% - 1px), color-mix(in srgb, var(--border) 45%, transparent) calc(10% - 1px) 10%);
 }
-.glass-throughput-plot path { fill: none; stroke: var(--trace); stroke-width: 1.5px; stroke-linecap: round; }
-.glass-throughput-plot svg { overflow: visible; }
-.glass-throughput-empty { display: grid; place-items: center; margin: 0; color: var(--muted-foreground); font-size: .75rem; }
-.glass-throughput-time { grid-column: 2; display: flex; justify-content: space-between; color: var(--muted-foreground); font: .68rem/1.4 var(--telemetry-font); }
+.glass-wave-channel path {
+  stroke: var(--trace);
+  stroke-width: 1.4px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: color-mix(in srgb, var(--trace) 14%, transparent);
+}
+.glass-throughput-time { display: flex; justify-content: space-between; margin: .3rem 0 0 var(--wave-label); }
+.glass-throughput-empty {
+  position: absolute;
+  inset: 1.8rem .5rem auto calc(var(--wave-label) + .5rem);
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: .72rem;
+  text-align: center;
+  pointer-events: none;
+}
 .overview-network-ranking {
   margin: .55rem 0 0;
   padding: 0 .2rem 0 0;
@@ -271,14 +304,14 @@ main { min-width: 0; }
 .node-view-grid .node-card::after { border-top-right-radius: 4px; }
 .node-table { width: 100%; border-collapse: collapse; table-layout: fixed; font: .79rem/1.4 var(--telemetry-font); }
 .node-table th, .node-table td { padding: .55rem .62rem; text-align: start; vertical-align: middle; }
-.node-table thead th { color: var(--muted-foreground); font-family: system-ui, sans-serif; font-weight: 620; }
+.node-table thead th { color: var(--muted-foreground); font-family: system-ui, sans-serif; font-weight: 620; background: var(--muted); }
 .node-table thead th:first-child { width: 25%; }
 .node-table thead th:nth-child(6) { width: 15%; }
 .node-table tbody th, .node-table td { border-top: 1px solid var(--border); }
 .node-table tbody tr:hover, .node-table tbody tr:focus-within { background: var(--node-card-hover); }
 .node-table-link { display: flex; align-items: center; gap: .45rem; color: var(--foreground); font-weight: 650; }
-.node-status-dot { flex: none; width: .42rem; height: .42rem; border-radius: 50%; background: var(--destructive); }
-.node-status-dot[data-online="true"] { background: var(--primary); }
+.node-status-dot { flex: none; width: .62rem; height: .62rem; border: 1px solid var(--destructive); border-radius: 50%; }
+.node-status-dot[data-online="true"] { border-color: var(--primary); background: radial-gradient(circle, var(--primary) 31%, transparent 35%); }
 .glass-spearhead { display: inline-flex; flex: none; width: 11px; color: var(--muted-foreground); }
 .glass-spearhead::before, .glass-spearhead::after { width: 5px; height: 5px; transform: rotate(45deg); border-top: 1px solid; border-right: 1px solid; content: ""; }
 .node-meter { display: block; height: 4px; overflow: hidden; border-radius: 2px; background: var(--muted); }
@@ -288,12 +321,6 @@ main { min-width: 0; }
 .node-probe-value + .node-probe-value { margin-top: .2rem; }
 .node-probe-name { color: var(--muted-foreground); overflow: hidden; min-width: 0; text-overflow: ellipsis; }
 .node-latency-high { color: var(--glass-alert); }
-.glass-home-footer { display: flex; justify-content: space-between; align-items: center; padding: .75rem 0; border-top: 1px solid var(--border); color: var(--muted-foreground); font: .72rem/1 var(--telemetry-font); }
-.glass-fido { display: inline-flex; gap: .45rem; align-items: center; }
-.glass-fido-icon { position: relative; display: inline-block; width: 15px; height: 9px; margin-bottom: 3px; border: 1px solid currentColor; border-radius: 2px; }
-.glass-fido-icon::before { position: absolute; inset: auto auto -4px 1px; width: 3px; height: 3px; border-radius: 50%; background: currentColor; box-shadow: 8px 0 currentColor, 0 -6px var(--glass-alert); content: ""; }
-.glass-fido-icon::after { position: absolute; right: 1px; top: -5px; height: 4px; border-right: 1px solid; transform: rotate(30deg); content: ""; }
-
 @media (max-width: 830px) {
   .node-table .node-cell-metric { display: none; }
   .node-table thead th:first-child { width: 34%; }

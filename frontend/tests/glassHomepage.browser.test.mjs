@@ -62,7 +62,7 @@ test("the shipped homepage renders two views, filters the same nodes, and shares
   await page.getByRole("table", { name: "Nodes" }).waitFor();
   await page.locator(".glass-throughput-plot .glass-trace-upload").first().waitFor({ state: "attached" });
   await page.locator(".glass-throughput-plot .glass-trace-download").first().waitFor({ state: "attached" });
-  await page.getByText("FIDO", { exact: true }).waitFor();
+  await page.locator(".glass-site-mark[title=Undertaker]").waitFor();
   const row = page.getByRole("row").filter({ hasText: "greencloud" });
   await row.getByText("885 ms", { exact: true }).waitFor();
   assert.match(await row.innerText(), /CU\s+885 ms/);
@@ -97,11 +97,14 @@ test("the shipped homepage renders two views, filters the same nodes, and shares
   }
 
   await page.getByRole("button", { name: "List", exact: true }).click();
+  await page.waitForFunction(() => Number(document.querySelector(".glass-throughput-plot")?.dataset.sampleCount) >= 2);
+  const countBefore = Number(await page.locator(".glass-throughput-plot").getAttribute("data-sample-count"));
   await page.getByRole("link", { name: "View greencloud details" }).click();
   await page.getByText("Latency", { exact: true }).click();
   await page.getByRole("button", { name: /CU latency curve/ }).getByText("885 ms", { exact: true }).waitFor();
   await page.getByRole("button", { name: "Komari Lite home" }).click();
   await page.getByRole("heading", { name: "Infrastructure" }).waitFor();
+  assert.ok(Number(await page.locator(".glass-throughput-plot").getAttribute("data-sample-count")) >= countBefore);
   socket.close();
   await page.getByRole("status").getByText("Disconnected", { exact: true }).waitFor();
   assert.deepEqual(errors, []);

@@ -44,28 +44,53 @@ export function observeGlassThroughput(history, nodes, now = Date.now(), visible
 export function glassThroughputPaths(history, now = Date.now(), channel = "value", maximum) {
   const points = history.filter(point => point.time > now - 60_000 && point.time <= now);
   const scale = maximum ?? Math.max(1, ...points.map(point => point[channel] ?? 0));
-  const paths = [];
+  const segments = [];
   let previous;
   for (const point of points) {
-    if (!Number.isFinite(point[channel])) { previous = undefined; continue; }
-    const x = ((point.time - (now - 60_000)) / 60_000 * 120).toFixed(2);
-    const y = (35 - point[channel] / scale * 30).toFixed(2);
-    // Feed silence is a gap, not an interpolated throughput claim.
-    if (!previous || point.breakBefore || point.time - previous.time > 2500) paths.push(`M${x},${y}l0,0`);
-    else paths[paths.length - 1] += `L${x},${y}`;
+    if (!Number.isFinite(point[channel])) {
+      previous = undefined;
+      continue;
+    }
+    const x = ((point.time - (now - 60_000)) / 60_000 * 240).toFixed(2);
+    const amplitude = point[channel] / scale * 22;
+    // The socket polls every two seconds. Keep ordinary timing jitter joined
+    // and break the trace if two complete polls have elapsed without a sample.
+    if (!previous || point.breakBefore || point.time - previous.time > 6000) segments.push([]);
+    segments.at(-1).push({ x, top: (28 - amplitude).toFixed(2), bottom: (28 + amplitude).toFixed(2) });
     previous = point;
   }
-  return paths;
+  return segments.map(segment => {
+    const [first] = segment;
+    if (segment.length === 1) return `M${first.x},${first.top}V${first.bottom}`;
+    const top = segment.map(point => `${point.x},${point.top}`).join("L");
+    const bottom = segment.toReversed().map(point => `${point.x},${point.bottom}`).join("L");
+    return `M${top}L${bottom}Z`;
+  });
+}
+
+function useGlassThroughputHistory(nodes, live, enabled) {
+  const [history, setHistory] = R.useState([]);
+  R.useEffect(() => {
+    if (!enabled) {
+      setHistory(previous => previous.length ? [] : previous);
+      return;
+    }
+    const visible = typeof document === "undefined" || !document.hidden;
+    setHistory(previous => observeGlassThroughput(previous, nodes, Date.now(), live === true && visible));
+  }, [nodes, live, enabled]);
+  R.useEffect(() => {
+    if (!enabled || typeof document === "undefined") return;
+    const onVisibility = () => setHistory(previous => observeGlassThroughput(previous, [], Date.now(), false));
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [enabled]);
+  return history;
 }
 
 function rH() {
-  const { overview, settings, nodes, feedLive } = eB();
+  const { overview, settings, nodes, feedLive, throughputHistory } = eB();
   const stats = settings.showStatsBar ? [
     ...(settings.showOnline ? [["Nodes online", `${overview.online} / ${overview.total}`]] : []),
-    ...(settings.showSpeed ? [
-      ["Upload", feedLive ? ej(overview.speedUp) : "—"],
-      ["Download", feedLive ? ej(overview.speedDown) : "—"],
-    ] : []),
     ...(settings.showTraffic ? [["Total traffic", eO(overview.trafficTotal)]] : []),
   ] : [];
   return L.jsxs("section", { className: "glass-infrastructure", "aria-labelledby": "glass-infrastructure-title", children: [
@@ -73,7 +98,7 @@ function rH() {
       L.jsx("h1", { id: "glass-infrastructure-title", className: "glass-section-title", children: "Infrastructure" }),
       L.jsxs("div", { className: "glass-raid", role: "status", "data-live": feedLive === true, children: [
         L.jsx("span", { className: "glass-raid-icon", "aria-hidden": true }),
-        L.jsx("span", { className: "glass-raid-label", children: "PARA-RAID" }),
+
         L.jsx("strong", { children: feedLive === true ? "Live" : feedLive === false ? "Disconnected" : "Connecting" }),
       ] }),
     ] }),
@@ -85,24 +110,12 @@ function rH() {
       L.jsx("span", { children: `Remaining ${ex(overview.remainingValue, overview.currency)}` }),
       L.jsx("span", { children: `${overview.paidCount} billed` }),
     ] }) : null,
-    settings.showStatsBar && settings.showSpeed ? L.jsx(GlassNetworkPanels, { nodes, feedLive }) : null,
+    settings.showStatsBar && settings.showSpeed ? L.jsx(GlassNetworkPanels, { nodes, feedLive, overview, history: throughputHistory }) : null,
   ] });
 }
 
-function GlassNetworkPanels({ nodes, feedLive }) {
-  const [history, setHistory] = R.useState([]);
+function GlassNetworkPanels({ nodes, feedLive, overview, history }) {
   const [, refreshExpiry] = R.useState(0);
-  R.useEffect(() => {
-    const visible = typeof document === "undefined" || !document.hidden;
-    setHistory(previous => observeGlassThroughput(previous, nodes, Date.now(), feedLive === true && visible));
-  }, [nodes, feedLive]);
-  R.useEffect(() => {
-    if (typeof document === "undefined") return;
-    // Resuming a background tab must wait for a new feed observation.
-    const onVisibility = () => setHistory(previous => observeGlassThroughput(previous, [], Date.now(), false));
-    document.addEventListener("visibilitychange", onVisibility);
-    return () => document.removeEventListener("visibilitychange", onVisibility);
-  }, []);
   const now = Date.now();
   const ranked = feedLive === true ? rankGlassThroughput(nodes, now) : [];
   const observations = history.filter(point => point.time > now - 60_000 && point.time <= now);
@@ -114,9 +127,9 @@ function GlassNetworkPanels({ nodes, feedLive }) {
     return () => clearTimeout(timer);
   }, [expiresAt]);
   const scale = Math.max(1, ...observations.flatMap(point => [point.upload ?? 0, point.download ?? 0]));
-  const traces = [
-    ["upload", glassThroughputPaths(observations, now, "upload", scale)],
-    ["download", glassThroughputPaths(observations, now, "download", scale)],
+  const channels = [
+    { id: "upload", label: "Upload", rate: overview.speedUp },
+    { id: "download", label: "Download", rate: overview.speedDown },
   ];
   const hasSamples = observations.some(point => point.value !== null);
   const highest = ranked[0]?.speed || 1;
@@ -125,26 +138,29 @@ function GlassNetworkPanels({ nodes, feedLive }) {
     L.jsxs("section", { className: "glass-instrument glass-throughput", "aria-labelledby": "glass-throughput-title", children: [
       L.jsxs("div", { className: "glass-throughput-heading", children: [
         L.jsx("h2", { id: "glass-throughput-title", children: "Realtime throughput" }),
-        L.jsxs("div", { className: "glass-throughput-key", children: [
-          L.jsx("span", { className: "glass-trace-upload", children: "Upload" }),
-          L.jsx("span", { className: "glass-trace-download", children: "Download" }),
-        ] }),
+        hasSamples ? L.jsx("span", { className: "glass-wave-scale", children: `Full scale ${ej(scale, 1)}` }) : null,
       ] }),
-      L.jsxs("div", { className: "glass-throughput-plot", "data-sample-count": observations.filter(point => point.value !== null).length, children: [
-        L.jsx("div", { className: "glass-throughput-scale", "aria-hidden": true,
-          children: [scale, scale / 2, 0].map((value, index) => L.jsx("span", { children: hasSamples ? ej(value, 1) : "" }, index)),
-        }),
-        hasSamples ? L.jsx("svg", {
-          viewBox: "0 5 120 30", preserveAspectRatio: "none", role: "img",
-          "aria-label": "Observed upload and download over the last 60 seconds",
-          children: traces.flatMap(([channel, paths]) => paths.map((path, index) => L.jsx("path", {
-            d: path, className: `glass-trace-${channel}`, vectorEffect: "non-scaling-stroke",
-          }, `${channel}-${index}`))),
-        }) : L.jsx("p", { className: "glass-throughput-empty", children: "Awaiting live samples" }),
-        L.jsxs("div", { className: "glass-throughput-time", "aria-hidden": true,
-          children: [L.jsx("span", { children: "60s ago" }), L.jsx("span", { children: "Now" })],
-        }),
-      ] }),
+      L.jsxs("div", { className: "glass-throughput-plot", "data-sample-count": observations.filter(point => point.value !== null).length,
+        children: [
+          ...channels.map(({ id, label, rate }) => L.jsxs("div", { className: `glass-wave-channel glass-trace-${id}`, children: [
+            L.jsxs("div", { className: "glass-wave-label", children: [
+              L.jsx("span", { children: label }),
+              L.jsx("strong", { children: feedLive ? ej(rate) : "—" }),
+            ] }),
+            L.jsx("svg", {
+              viewBox: "0 0 240 56", preserveAspectRatio: "none", role: "img",
+              "aria-label": `${label} signal over the past 60 seconds`,
+              children: glassThroughputPaths(observations, now, id, scale).map((path, index) => L.jsx("path", {
+                d: path, className: `glass-trace-${id}`, vectorEffect: "non-scaling-stroke",
+              }, index)),
+            }),
+          ] }, id)),
+          hasSamples ? null : L.jsx("p", { className: "glass-throughput-empty", children: "Awaiting live samples" }),
+          L.jsxs("div", { className: "glass-throughput-time", "aria-hidden": true,
+            children: [L.jsx("span", { children: "−60s" }), L.jsx("span", { children: "−30s" }), L.jsx("span", { children: "Now" })],
+          }),
+        ],
+      }),
     ] }),
     L.jsxs("section", { className: "glass-instrument glass-ranking", "aria-labelledby": "glass-ranking-title", children: [
       L.jsx("h2", { id: "glass-ranking-title", children: "Top throughput" }),

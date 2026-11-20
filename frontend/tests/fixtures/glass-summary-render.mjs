@@ -12,7 +12,15 @@ export function summaryRenderer(code, context, globals = {}) {
   const unitsStart = code.indexOf("let ek=[");
   const unitsEnd = code.indexOf("function eA(", unitsStart);
   const icon = props => jsx("svg", { ...props, "aria-hidden": true });
-  return runInNewContext(`${code.slice(unitsStart, unitsEnd)};${code.slice(start, end)};rH`, {
+  const render = code.includes("function useGlassThroughputHistory(")
+    ? `function renderFixture() {
+        const context = eB();
+        context.throughputHistory = useGlassThroughputHistory(context.nodes, context.feedLive,
+          context.settings.showStatsBar && context.settings.showSpeed);
+        return L.jsx(rH, {});
+      };renderFixture`
+    : "rH";
+  return runInNewContext(`${code.slice(unitsStart, unitsEnd)};${code.slice(start, end)};${render}`, {
     R: React, L: { jsx, jsxs }, eB: () => context,
     rF: icon, rU: icon, rB: icon, rL: icon, r$: icon, rR: icon,
     ex: value => `¥${value}`, t9: (...values) => values.filter(Boolean).join(" "),

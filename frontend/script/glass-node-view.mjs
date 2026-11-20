@@ -1,6 +1,6 @@
 // Injected into the pinned Glass module with its React runtime and formatters.
 function rW() {
-  const { nodes, sitename, metricRetention } = eB();
+  const { nodes, metricRetention } = eB();
   const [view, setView] = R.useState("list");
   const [search, setSearch] = R.useState("");
   R.useEffect(() => {
@@ -41,13 +41,6 @@ function rW() {
           ],
         }),
         L.jsx(rz, { visibleNodes, view, pingEnabled }),
-      ] }),
-      L.jsxs("footer", { className: "glass-home-footer", children: [
-        L.jsx("span", { children: sitename }),
-        L.jsxs("span", { className: "glass-fido", title: "Fido", children: [
-          L.jsx("span", { className: "glass-fido-icon", "aria-hidden": true }),
-          L.jsx("span", { children: "FIDO" }),
-        ] }),
       ] }),
     ],
   });

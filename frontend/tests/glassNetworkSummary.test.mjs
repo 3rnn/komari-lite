@@ -63,7 +63,8 @@ test("the shipped summary renders rates and the separate ranking with escaped ho
   assert.match(rendered, /507.55 GB/);
   assert.match(rendered, /Active assets ¥821.71/);
   assert.match(rendered, /Nodes online/);
-  assert.match(rendered, /PARA-RAID/);
+  assert.match(rendered, /Upload signal over the past 60 seconds/);
+  assert.match(rendered, /Download signal over the past 60 seconds/);
   const empty = renderSummary(code, summaryContext([]));
   assert.match(empty, /class="overview-network-empty"[^>]*>No fresh online sample</);
   assert.doesNotMatch(empty, /class="overview-network-rank-row"/);

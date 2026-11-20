@@ -31,7 +31,8 @@ test("sparkline preserves honest gaps, same-second bounds, zero and empty states
   assert.equal(h[1].value, null);
   assert.equal(typeof model.glassThroughputPaths, "function");
   assert.equal(model.glassThroughputPaths(h, now + 3000).length, 2, "missing observations split paths");
-  assert.equal(model.glassThroughputPaths([{ time: now, value: 2 }, { time: now + 5000, value: 7 }], now + 5000).length, 2, "feed silence is not interpolated");
+  assert.equal(model.glassThroughputPaths([{ time: now, value: 2 }, { time: now + 4000, value: 7 }], now + 4000).length, 1, "a missed two-second poll does not break the trace");
+  assert.equal(model.glassThroughputPaths([{ time: now, value: 2 }, { time: now + 7000, value: 7 }], now + 7000).length, 2, "longer feed silence stays visible");
   assert.deepEqual(model.glassThroughputPaths([], now), []);
   assert.deepEqual(model.glassThroughputPaths(h, now + 70_000), []);
   assert.equal(model.observeGlassThroughput([], [node(now, 0, { net_in: 0 })], now)[0].value, 0);

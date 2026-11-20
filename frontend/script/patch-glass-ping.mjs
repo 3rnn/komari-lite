@@ -28,7 +28,7 @@ replaceOnce(
   '()=>{let e=(ez||(ez=new eT),ez),r=e.subscribe((snapshot,connected)=>{if(connected)c(snapshot);setFeedLive(connected)});return e.connect(),()=>{r(),e.disconnect()}},[]',
 );
 replaceOnce('function eU({children:e}){let[t,r]', 'function eU({children:e}){const [feedLive,setFeedLive]=R.useState(null);let[t,r]');
-replaceOnce('let N={loading:t,error:n,publicInfo:a', 'let N={feedLive,loading:t,error:n,publicInfo:a');
+replaceOnce('let N={loading:t,error:n,publicInfo:a', 'const throughputHistory=useGlassThroughputHistory(S,feedLive,k.showStatsBar&&k.showSpeed);let N={throughputHistory,feedLive,loading:t,error:n,publicInfo:a');
 replaceOnce('this.listeners.forEach(e=>e(r))', 'this.listeners.forEach(listener=>listener(r,true))');
 replaceOnce('this.ws=null,this.intentionalClose||this.scheduleReconnect())', 'this.ws=null,this.listeners.forEach(listener=>listener(null,false)),this.intentionalClose||this.scheduleReconnect())');
 replaceOnce('console.error("[ws] connect failed:",e),this.scheduleReconnect()', 'console.error("[ws] connect failed:",e),this.listeners.forEach(listener=>listener(null,false)),this.scheduleReconnect()');
@@ -129,7 +129,7 @@ replaceOnce('function rz(){let{nodes:e,metricRetention:t,settings:r,goInstance:n
 replaceOnce('className:"grid grid-cols-1 items-start gap-3 sm:grid-cols-[repeat(auto-fill,minmax(320px,1fr))]",children:e.map(e=>(0,L.jsx)(rP,{node:e,pingEnabled:t.pingHours>=1', 'className:"node-view-grid",children:visibleNodes.map(e=>(0,L.jsx)(rP,{node:e,pingEnabled');
 replaceOnce('children:"Open admin"})]}):(0,L.jsx)("div",{className:"node-view-grid"', 'children:"Open admin"})]}):visibleNodes.length===0?L.jsx("p",{className:"glass-no-matches",role:"status",children:"No matching nodes"}):view==="list"?L.jsx(glassNodeTable,{nodes:visibleNodes,settings:r,pingEnabled,goInstance:n}):(0,L.jsx)("div",{className:"node-view-grid"');
 replaceOnce('(0,L.jsx)(rl,{region:e.region,size:19})]})]}),(0,L.jsxs)("div"', '(0,L.jsx)(rl,{region:e.region,size:19}),L.jsx("span",{className:"glass-spearhead","aria-hidden":true})]})]}),(0,L.jsxs)("div"');
-replaceOnce('(0,L.jsx)("img",{src:"/favicon.ico",alt:"",className:"size-9 shrink-0 object-contain"})', 'L.jsx("span",{className:"glass-site-mark","aria-hidden":true,children:"86"})');
+replaceOnce('(0,L.jsx)("img",{src:"/favicon.ico",alt:"",className:"size-9 shrink-0 object-contain"})', 'L.jsx("span",{className:"glass-site-mark","aria-hidden":true,title:"Undertaker"})');
 replaceOnce('title:"Open admin",children:(0,L.jsx)(eJ,{className:"size-[18px]"})', 'title:"Open admin",children:"Admin"');
 const nodeView = readFileSync(new URL("glass-node-view.mjs", import.meta.url), "utf8");
 const networkSummary = readFileSync(new URL("glass-network-summary.mjs", import.meta.url), "utf8")
@@ -166,10 +166,10 @@ if (updated.includes('||"system"')) {
   updated = updated.replace(fallback, (_match, escapes) => `||${escapes}"dark${escapes}"`);
 }
 // Keep the static Next export in sync with the hydrated navigation.
-const oldBrand = '<img src="/favicon.ico" alt="" class="size-9 shrink-0 object-contain"/>';
-const newBrand = '<span class="glass-site-mark" aria-hidden="true">86</span>';
+const oldBrand = /<img src="\/favicon\.ico" alt="" class="size-9 shrink-0 object-contain"\/>|<span class="glass-site-mark" aria-hidden="true">86<\/span>/g;
+const newBrand = '<span class="glass-site-mark" aria-hidden="true" title="Undertaker"></span>';
 if (!updated.includes(newBrand)) {
-  if (updated.split(oldBrand).length !== 2) throw new Error("Glass static brand has changed");
+  if ([...updated.matchAll(oldBrand)].length !== 1) throw new Error("Glass static brand has changed");
   updated = updated.replace(oldBrand, newBrand);
 }
 const adminLink = updated.match(/<a href="\/admin"[^>]*title="Open admin">[^]*?<\/a>/g);

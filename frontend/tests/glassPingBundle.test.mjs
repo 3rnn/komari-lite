@@ -52,8 +52,9 @@ test("the live status subscription starts during initial loading and is cleaned 
 });
 
 test("the dashboard reuses the public node feed and existing overview settings", () => {
-  assert.match(code, /const \{ overview, settings, nodes, feedLive \} = eB\(\)/);
-  assert.match(code, /settings.showStatsBar && settings.showSpeed \? L.jsx\(GlassNetworkPanels, \{ nodes, feedLive \}\)/);
+  assert.match(code, /const \{ overview, settings, nodes, feedLive, throughputHistory \} = eB\(\)/);
+  assert.match(code, /settings.showStatsBar && settings.showSpeed \? L.jsx\(GlassNetworkPanels, \{ nodes, feedLive, overview, history: throughputHistory \}\)/);
+  assert.match(code, /throughputHistory=useGlassThroughputHistory\(S,feedLive,/);
   assert.match(code, /rankGlassThroughput\(nodes, now\)/);
   assert.match(code, /function selectGlassTopThroughput\(/);
 });
