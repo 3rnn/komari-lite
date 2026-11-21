@@ -5,7 +5,8 @@ import test from "node:test";
 
 const dist = new URL("../../backend/web/public/bundledThemes/Glass/dist/", import.meta.url);
 const node = { uuid: "greencloud-id", name: "greencloud", weight: 0, mem_total: 8192,
-  disk_total: 8192, region: "", os: "Linux", tags: "", price: 0, display_ping_task_ids: [3] };
+  disk_total: 8192, region: "", os: "Linux", tags: "", price: 0, display_ping_task_ids: [3],
+  traffic_limit: 128 * 1024 ** 2, traffic_limit_type: "sum" };
 const mime = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".png": "image/png" };
 const mimeFor = file => mime[extname(file)] ?? "application/octet-stream";
 const latencyTasks = [{ id: 2, name: "CT" }, { id: 3, name: "CU" }, { id: 4, name: "CM" }];
@@ -64,6 +65,13 @@ test("the shipped homepage renders two views, filters the same nodes, and shares
   await page.locator(".glass-throughput-plot .glass-trace-download").first().waitFor({ state: "attached" });
   await page.locator(".glass-site-mark[title=Undertaker]").waitFor();
   const row = page.getByRole("row").filter({ hasText: "greencloud" });
+  const traffic = row.locator(".node-cell-traffic");
+  await page.getByRole("columnheader", { name: "Traffic", exact: true }).waitFor();
+  await traffic.getByText("42.00 MB", { exact: true }).waitFor();
+  assert.match(await traffic.innerText(), /32\.8%/);
+  assert.match(await traffic.innerText(), /\/ 128\.00 MB/);
+  const offlineTraffic = page.getByRole("row").filter({ hasText: "offline-edge" }).locator(".node-cell-traffic");
+  await offlineTraffic.getByText("—", { exact: true }).waitFor();
   await row.getByText("885 ms", { exact: true }).waitFor();
   assert.match(await row.innerText(), /CU\s+885 ms/);
   assert.doesNotMatch(await row.innerText(), /\b(?:CT|CM)\b/);
@@ -80,6 +88,7 @@ test("the shipped homepage renders two views, filters the same nodes, and shares
   const card = page.getByRole("link", { name: "View greencloud details" });
   await card.getByText("885 ms", { exact: true }).waitFor();
   assert.match(await card.innerText(), /Latency · CU/);
+  await card.getByText("42.00 MB / 128.00 MB", { exact: true }).waitFor();
   assert.equal(await page.getByRole("link", { name: "View offline-edge details" }).count(), 0);
   await search.fill("");
   if (screenshotDir) await page.screenshot({ path: join(screenshotDir, "home86-cards.png"), fullPage: true });
@@ -92,6 +101,11 @@ test("the shipped homepage renders two views, filters the same nodes, and shares
       await page.getByRole("button", { name: view, exact: true }).click();
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1),
         `${width}px ${view} should not overflow`);
+      if (view === "List") {
+        await traffic.getByText("42.00 MB", { exact: true }).waitFor();
+        assert.ok(await traffic.evaluate(cell => cell.scrollWidth <= cell.clientWidth + 1),
+          `${width}px traffic should fit inside its column`);
+      }
       if (screenshotDir && width === 390) await page.screenshot({ path: join(screenshotDir, `home86-mobile-${view}.png`), fullPage: true });
     }
   }

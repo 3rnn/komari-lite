@@ -24,7 +24,7 @@ function homepage(storage, globals = {}) {
     eB: () => ({ nodes, sitename: "Test Panel", metricRetention: { pingHours: 24 } }),
     rH: () => jsx("section", { children: "Overview" }),
     rz: props => jsx("div", { id: "nodes", ...props }),
-    eS: () => 0, eA: value => value, resolveNodePingSelection,
+    eS: () => 0, eA: value => value, eE: Math.max, resolveNodePingSelection,
     ...globals,
   });
 }

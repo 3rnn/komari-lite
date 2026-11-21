@@ -50,7 +50,8 @@ function glassNodeTable({ nodes, settings, pingEnabled, goInstance }) {
   const columns = [
     ["Node", ""], ["Uptime", "node-cell-secondary"], ["CPU", "node-cell-metric"],
     ["Memory", "node-cell-metric"], ["Disk", "node-cell-metric"],
-    ...(pingEnabled ? [["Latency · 1h avg", ""], ["Loss · 1h", ""]] : []),
+    ["Traffic", "node-cell-traffic"],
+    ...(pingEnabled ? [["Latency · 1h avg", "node-cell-latency"], ["Loss · 1h", ""]] : []),
   ];
   return L.jsx("div", { className: "node-table-panel", children: L.jsxs("table", {
     className: "node-table", "aria-labelledby": "glass-nodes", children: [
@@ -84,6 +85,10 @@ function GlassNodeRow({ node, settings, pingEnabled, goInstance }) {
   const uptime = node.online && Number.isFinite(node.uptime) && node.uptime >= 0
     ? `${Math.floor(node.uptime / 86400)}d ${Math.floor(node.uptime / 3600) % 24}h`
     : "—";
+  const traffic = eE(node.net_total_up, node.net_total_down, node.traffic_limit_type);
+  const hasTraffic = (node.online || node.updated_at_live) && Number.isFinite(traffic) && traffic >= 0;
+  const hasQuota = node.traffic_limit > 0;
+  const trafficPercent = hasQuota ? eA(eS(traffic, node.traffic_limit)) : null;
   const probeValues = (valueKey) => tasks.length ? tasks.map(task => L.jsxs("span", {
     className: "node-probe-value", children: [
       task.name && (valueKey === "latencyDisplay" || ping.showAll)
@@ -112,6 +117,17 @@ function GlassNodeRow({ node, settings, pingEnabled, goInstance }) {
     valueCell(node.cpu),
     valueCell(eS(node.ram, node.mem_total), node.mem_total > 0),
     valueCell(eS(node.disk, node.disk_total), node.disk_total > 0),
+    L.jsxs("td", { className: "node-cell-traffic", children: [
+      L.jsxs("div", { className: "node-traffic-heading", children: [
+        L.jsx("span", { children: hasTraffic ? eO(traffic) : "—" }),
+        hasTraffic && hasQuota ? L.jsx("span", { className: "node-traffic-percent",
+          children: `${trafficPercent.toFixed(1)}%` }) : null,
+      ] }),
+      L.jsx("div", { className: "node-traffic-quota", children: hasQuota ? `/ ${eO(node.traffic_limit)}` : "/ ∞" }),
+      hasTraffic && hasQuota ? L.jsx("span", { className: "node-meter", "aria-hidden": true, children:
+        L.jsx("span", { style: { width: `${trafficPercent}%` } }),
+      }) : null,
+    ] }),
     ...(pingEnabled ? [
       L.jsx("td", { className: "node-probes", children: probeValues("latencyDisplay") }),
       L.jsx("td", { className: "node-probes", children: probeValues("lossDisplay") }),
