@@ -7,6 +7,12 @@ import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const knownVersions = [
+  // Exact deployed Glass homepage with the original list traffic column.
+  new Map([
+    ["komari-theme.json", "022143c717a12cf44e5af525bd61cf596ace4ef1415914d2ee71a65e42a2d284"],
+    ["dist/index.html", "6ba012e27eba6da244373928811ac7842ee664f07d53ce7318ac49cefd88d5e6"],
+    ["dist/_next/static/chunks/3859ru-c47c247a.js", "c47c247aa6784c3af07591406471f7afab3e062c215cdb310944802581b57e68"],
+  ]),
   // Exact deployed Glass homepage before the list traffic column.
   new Map([
     ["komari-theme.json", "022143c717a12cf44e5af525bd61cf596ace4ef1415914d2ee71a65e42a2d284"],
@@ -142,6 +148,7 @@ const knownVersions = [
   ]),
 ];
 const knownVisualStyles = new Map([
+  ["glass-visual-053cf0c5.css", "053cf0c54fa9eb0f6c23450cb19c53aebd5ec2cb065532e97799f7e0f28d8003"],
   ["glass-visual-ddb19e8e.css", "ddb19e8e33ed360c352d0b4a0d3141fa1f32c4ae4fd02be99ae9ded3e9377825"],
   ["glass-visual-02b6afeb.css", "02b6afebc451601aa1a85641822451d1bfb80d0919866f3f8520c9924282713a"],
   ["glass-visual-6f7452ea.css", "6f7452ea7a537a21fa2eb94762ce6ad7307f0f6990cd85addf6450e26b322763"],

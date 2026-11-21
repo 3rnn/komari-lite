@@ -73,13 +73,14 @@ function GlassNodeRow({ node, settings, pingEnabled, goInstance }) {
     id: "selected", name: ping.selectedName, avgLatency: ping.avgLatency,
     latencyDisplay: ping.latencyDisplay, lossDisplay: ping.lossDisplay,
   }];
+  const meter = percent => L.jsx("span", { className: "node-meter", "aria-hidden": true, children:
+    L.jsx("span", { style: { width: `${eA(percent)}%` } }),
+  });
   const valueCell = (value, available = true) => {
     const percent = node.online && available && Number.isFinite(value) ? value : null;
     return L.jsxs("td", { className: "node-cell-metric", children: [
       L.jsx("span", { children: percent === null ? "—" : `${percent.toFixed(1)}%` }),
-      percent === null ? null : L.jsx("span", { className: "node-meter", "aria-hidden": true, children:
-        L.jsx("span", { style: { width: `${eA(percent)}%` } }),
-      }),
+      percent === null ? null : meter(percent),
     ] });
   };
   const uptime = node.online && Number.isFinite(node.uptime) && node.uptime >= 0
@@ -88,7 +89,8 @@ function GlassNodeRow({ node, settings, pingEnabled, goInstance }) {
   const traffic = eE(node.net_total_up, node.net_total_down, node.traffic_limit_type);
   const hasTraffic = (node.online || node.updated_at_live) && Number.isFinite(traffic) && traffic >= 0;
   const hasQuota = node.traffic_limit > 0;
-  const trafficPercent = hasQuota ? eA(eS(traffic, node.traffic_limit)) : null;
+  const trafficPercent = hasTraffic && hasQuota ? eA(eS(traffic, node.traffic_limit)) : null;
+  const trafficDetails = hasTraffic ? `${eO(traffic)} / ${hasQuota ? eO(node.traffic_limit) : "∞"}` : undefined;
   const probeValues = (valueKey) => tasks.length ? tasks.map(task => L.jsxs("span", {
     className: "node-probe-value", children: [
       task.name && (valueKey === "latencyDisplay" || ping.showAll)
@@ -117,17 +119,13 @@ function GlassNodeRow({ node, settings, pingEnabled, goInstance }) {
     valueCell(node.cpu),
     valueCell(eS(node.ram, node.mem_total), node.mem_total > 0),
     valueCell(eS(node.disk, node.disk_total), node.disk_total > 0),
-    L.jsxs("td", { className: "node-cell-traffic", children: [
-      L.jsxs("div", { className: "node-traffic-heading", children: [
-        L.jsx("span", { children: hasTraffic ? eO(traffic) : "—" }),
-        hasTraffic && hasQuota ? L.jsx("span", { className: "node-traffic-percent",
-          children: `${trafficPercent.toFixed(1)}%` }) : null,
+    L.jsx("td", { className: "node-cell-traffic", title: trafficDetails, children:
+      L.jsxs("span", { className: "node-traffic-value", children: [
+        L.jsx("span", { children: trafficPercent === null
+          ? (hasTraffic ? eO(traffic, 1) : "—") : `${trafficPercent.toFixed(1)}%` }),
+        trafficPercent === null ? null : meter(trafficPercent),
       ] }),
-      L.jsx("div", { className: "node-traffic-quota", children: hasQuota ? `/ ${eO(node.traffic_limit)}` : "/ ∞" }),
-      hasTraffic && hasQuota ? L.jsx("span", { className: "node-meter", "aria-hidden": true, children:
-        L.jsx("span", { style: { width: `${trafficPercent}%` } }),
-      }) : null,
-    ] }),
+    }),
     ...(pingEnabled ? [
       L.jsx("td", { className: "node-probes", children: probeValues("latencyDisplay") }),
       L.jsx("td", { className: "node-probes", children: probeValues("lossDisplay") }),

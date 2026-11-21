@@ -67,9 +67,8 @@ test("the shipped homepage renders two views, filters the same nodes, and shares
   const row = page.getByRole("row").filter({ hasText: "greencloud" });
   const traffic = row.locator(".node-cell-traffic");
   await page.getByRole("columnheader", { name: "Traffic", exact: true }).waitFor();
-  await traffic.getByText("42.00 MB", { exact: true }).waitFor();
-  assert.match(await traffic.innerText(), /32\.8%/);
-  assert.match(await traffic.innerText(), /\/ 128\.00 MB/);
+  await traffic.getByText("32.8%", { exact: true }).waitFor();
+  assert.equal(await traffic.getAttribute("title"), "42.00 MB / 128.00 MB");
   const offlineTraffic = page.getByRole("row").filter({ hasText: "offline-edge" }).locator(".node-cell-traffic");
   await offlineTraffic.getByText("—", { exact: true }).waitFor();
   await row.getByText("885 ms", { exact: true }).waitFor();
@@ -102,9 +101,14 @@ test("the shipped homepage renders two views, filters the same nodes, and shares
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1),
         `${width}px ${view} should not overflow`);
       if (view === "List") {
-        await traffic.getByText("42.00 MB", { exact: true }).waitFor();
+        await traffic.getByText("32.8%", { exact: true }).waitFor();
         assert.ok(await traffic.evaluate(cell => cell.scrollWidth <= cell.clientWidth + 1),
           `${width}px traffic should fit inside its column`);
+        assert.ok(await traffic.locator(".node-traffic-value").evaluate(value => {
+          const meter = value.querySelector(".node-meter");
+          return meter.getBoundingClientRect().width > 0
+            && value.getBoundingClientRect().height <= parseFloat(getComputedStyle(value).lineHeight) + 1;
+        }), `${width}px traffic value and meter should fit on one line`);
       }
       if (screenshotDir && width === 390) await page.screenshot({ path: join(screenshotDir, `home86-mobile-${view}.png`), fullPage: true });
     }

@@ -318,10 +318,8 @@ main { min-width: 0; }
 .node-meter { display: block; height: 4px; overflow: hidden; border-radius: 2px; background: var(--muted); }
 .node-meter > span { display: block; height: 100%; background: var(--primary); }
 .node-cell-metric .node-meter { display: inline-block; width: 35%; margin-inline-start: .4rem; vertical-align: middle; }
-.node-traffic-heading { display: flex; flex-wrap: wrap; gap: 0 .45rem; align-items: baseline; }
-.node-traffic-heading > span, .node-traffic-quota { white-space: nowrap; }
-.node-traffic-percent, .node-traffic-quota { color: var(--muted-foreground); font-size: .72rem; }
-.node-cell-traffic .node-meter { margin-top: .25rem; }
+.node-traffic-value { display: flex; align-items: center; gap: .4rem; white-space: nowrap; }
+.node-traffic-value .node-meter { flex: 0 1 35%; }
 .node-probe-value { display: flex; gap: .35rem; align-items: center; white-space: nowrap; }
 .node-probe-value + .node-probe-value { margin-top: .2rem; }
 .node-probe-name { color: var(--muted-foreground); overflow: hidden; min-width: 0; text-overflow: ellipsis; }
